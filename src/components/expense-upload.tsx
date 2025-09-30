@@ -344,15 +344,18 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           
           <div className="space-y-2">
             <Label htmlFor="category">ประเภท</Label>
-            <Select name="category" required>
-              <SelectTrigger>
-                <SelectValue placeholder="เลือกประเภท" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="personal">ค่าใช้จ่ายส่วนตัว</SelectItem>
-                <SelectItem value="company">ค่าใช้จ่ายบริษัท</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              id="category"
+              name="category"
+              type="text"
+              placeholder="ระบุประเภทค่าใช้จ่าย"
+              list="category-suggestions"
+              required
+            />
+            <datalist id="category-suggestions">
+              <option value="ค่าใช้จ่ายส่วนตัว" />
+              <option value="ค่าใช้จ่ายบริษัท" />
+            </datalist>
           </div>
         </div>
 
