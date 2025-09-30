@@ -157,20 +157,19 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           >
             <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground mb-2">ลากไฟล์มาวางหรือคลิกเพื่อเลือกไฟล์</p>
-            <Input
-              type="file"
-              multiple
-              accept="image/*,.pdf"
-              onChange={handleFileInput}
-              className="hidden"
-              id="file-upload"
-              capture="environment"
-            />
-            <Label htmlFor="file-upload" className="cursor-pointer">
+            <div className="relative inline-block">
               <Button type="button" variant="outline" size="sm">
                 เลือกไฟล์
               </Button>
-            </Label>
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                onChange={handleFileInput}
+                aria-label="เลือกไฟล์ใบเสร็จ"
+                className="absolute inset-0 h-full w-full opacity-0 cursor-pointer"
+              />
+            </div>
           </div>
           
           {files.length > 0 && (
