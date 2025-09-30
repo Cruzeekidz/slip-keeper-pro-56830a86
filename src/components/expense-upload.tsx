@@ -1,13 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Upload, X, Receipt } from "lucide-react";
+import { Upload, X, Receipt, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -24,7 +24,74 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     merchant: string | null;
   } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [projects, setProjects] = useState<string[]>([]);
+  const [hiddenProjects, setHiddenProjects] = useState<string[]>([]);
+  const [isManagingProjects, setIsManagingProjects] = useState(false);
   const { toast } = useToast();
+
+  // Load hidden projects from localStorage
+  useEffect(() => {
+    const stored = localStorage.getItem('hiddenProjects');
+    if (stored) {
+      setHiddenProjects(JSON.parse(stored));
+    }
+  }, []);
+
+  // Fetch distinct categories and projects
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch distinct categories
+      const { data: categoryData } = await supabase
+        .from('expenses')
+        .select('category')
+        .eq('user_id', user.id);
+      
+      if (categoryData) {
+        const uniqueCategories = [...new Set(categoryData.map(item => item.category))];
+        setCategories(uniqueCategories);
+      }
+
+      // Fetch distinct projects
+      const { data: projectData } = await supabase
+        .from('expenses')
+        .select('project')
+        .eq('user_id', user.id)
+        .not('project', 'is', null);
+      
+      if (projectData) {
+        const uniqueProjects = [...new Set(projectData.map(item => item.project).filter(Boolean))] as string[];
+        setProjects(uniqueProjects);
+      }
+    };
+
+    fetchSuggestions();
+  }, []);
+
+  const handleHideProject = (project: string) => {
+    const updated = [...hiddenProjects, project];
+    setHiddenProjects(updated);
+    localStorage.setItem('hiddenProjects', JSON.stringify(updated));
+    toast({
+      title: "ซ่อนโปรเจคแล้ว",
+      description: `ซ่อน "${project}" จากรายการแนะนำ`,
+    });
+  };
+
+  const handleUnhideProject = (project: string) => {
+    const updated = hiddenProjects.filter(p => p !== project);
+    setHiddenProjects(updated);
+    localStorage.setItem('hiddenProjects', JSON.stringify(updated));
+    toast({
+      title: "แสดงโปรเจคอีกครั้ง",
+      description: `แสดง "${project}" ในรายการแนะนำอีกครั้ง`,
+    });
+  };
+
+  const visibleProjects = projects.filter(p => !hiddenProjects.includes(p));
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -355,13 +422,29 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
             <datalist id="category-suggestions">
               <option value="ค่าใช้จ่ายส่วนตัว" />
               <option value="ค่าใช้จ่ายบริษัท" />
+              {categories.map(cat => (
+                <option key={cat} value={cat} />
+              ))}
             </datalist>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="project">โปรเจ็ค/ร้าน</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="project">โปรเจ็ค/ร้าน</Label>
+              {projects.length > 0 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsManagingProjects(!isManagingProjects)}
+                  className="text-xs"
+                >
+                  จัดการรายการ
+                </Button>
+              )}
+            </div>
             <Input
               id="project"
               name="project"
@@ -370,11 +453,37 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               list="project-suggestions"
             />
             <datalist id="project-suggestions">
-              <option value="บูธขายของ" />
-              <option value="ขายออนไลน์" />
-              <option value="ขายตั๋วกิจกรรม" />
-              <option value="อื่นๆ" />
+              {visibleProjects.map(proj => (
+                <option key={proj} value={proj} />
+              ))}
             </datalist>
+            
+            {isManagingProjects && projects.length > 0 && (
+              <div className="mt-2 p-3 bg-muted rounded-lg space-y-2">
+                <p className="text-xs text-muted-foreground mb-2">คลิก X เพื่อซ่อนโปรเจคจากรายการแนะนำ</p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {projects.map(proj => (
+                    <div key={proj} className="flex items-center justify-between p-2 bg-background rounded text-sm">
+                      <span className={hiddenProjects.includes(proj) ? "line-through text-muted-foreground" : ""}>
+                        {proj}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => hiddenProjects.includes(proj) ? handleUnhideProject(proj) : handleHideProject(proj)}
+                      >
+                        {hiddenProjects.includes(proj) ? (
+                          <span className="text-xs">แสดง</span>
+                        ) : (
+                          <X className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
