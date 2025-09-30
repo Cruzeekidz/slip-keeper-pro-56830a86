@@ -140,7 +140,18 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         const file = files[0]; // Use first file
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
-        const filePath = `${crypto.randomUUID()}/${fileName}`;
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        
+        if (!userId) {
+          toast({
+            title: "เกิดข้อผิดพลาด",
+            description: "กรุณาเข้าสู่ระบบใหม่อีกครั้ง",
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        const filePath = `${userId}/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from('receipts')
@@ -348,17 +359,19 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="project">โปรเจ็ค/ร้าน</Label>
-            <Select name="project">
-              <SelectTrigger>
-                <SelectValue placeholder="เลือกโปรเจ็ค" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="booth">บูธขายของ</SelectItem>
-                <SelectItem value="online">ขายออนไลน์</SelectItem>
-                <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
-                <SelectItem value="other">อื่นๆ</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              id="project"
+              name="project"
+              type="text"
+              placeholder="ระบุชื่อโปรเจ็คหรือร้าน"
+              list="project-suggestions"
+            />
+            <datalist id="project-suggestions">
+              <option value="บูธขายของ" />
+              <option value="ขายออนไลน์" />
+              <option value="ขายตั๋วกิจกรรม" />
+              <option value="อื่นๆ" />
+            </datalist>
           </div>
 
           <div className="space-y-2">
