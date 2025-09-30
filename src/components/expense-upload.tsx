@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Upload, X, Receipt } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -47,24 +48,89 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
-    if (files.length === 0) {
+    const formData = new FormData(e.currentTarget);
+    const amount = formData.get("amount") as string;
+    const category = formData.get("category") as string;
+    const project = formData.get("project") as string;
+    const date = formData.get("date") as string;
+    const description = formData.get("description") as string;
+
+    if (!amount || !category || !date) {
       toast({
         title: "เกิดข้อผิดพลาด",
-        description: "กรุณาอัพโหลดใบเสร็จหรือสลิป",
+        description: "กรุณากรอกข้อมูลที่จำเป็น",
         variant: "destructive",
       });
       return;
     }
 
-    toast({
-      title: "บันทึกสำเร็จ",
-      description: "บันทึกรายการค่าใช้จ่ายเรียบร้อยแล้ว",
-    });
-    
-    onClose();
+    try {
+      let receiptUrl = null;
+
+      // Upload receipt files if any
+      if (files.length > 0) {
+        const file = files[0]; // Use first file
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}.${fileExt}`;
+        const filePath = `${crypto.randomUUID()}/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(filePath, file);
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          toast({
+            title: "เกิดข้อผิดพลาด",
+            description: "ไม่สามารถอัพโหลดไฟล์ได้",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        receiptUrl = filePath;
+      }
+
+      // Insert expense data
+      const { error } = await supabase
+        .from('expenses')
+        .insert({
+          amount: parseFloat(amount),
+          category,
+          project: project || null,
+          description: description || null,
+          expense_date: date,
+          receipt_url: receiptUrl,
+          user_id: (await supabase.auth.getUser()).data.user?.id
+        });
+
+      if (error) {
+        console.error('Insert error:', error);
+        toast({
+          title: "เกิดข้อผิดพลาด",
+          description: "ไม่สามารถบันทึกข้อมูลได้",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "บันทึกสำเร็จ",
+        description: "บันทึกรายการค่าใช้จ่ายเรียบร้อยแล้ว",
+      });
+      
+      onClose();
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "กรุณาลองใหม่อีกครั้ง",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -98,6 +164,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               onChange={handleFileInput}
               className="hidden"
               id="file-upload"
+              capture="environment"
             />
             <Label htmlFor="file-upload" className="cursor-pointer">
               <Button type="button" variant="outline" size="sm">
@@ -131,12 +198,12 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="amount">จำนวนเงิน (บาท)</Label>
-            <Input id="amount" type="number" placeholder="0.00" required />
+            <Input id="amount" name="amount" type="number" step="0.01" placeholder="0.00" required />
           </div>
           
           <div className="space-y-2">
             <Label htmlFor="category">ประเภท</Label>
-            <Select required>
+            <Select name="category" required>
               <SelectTrigger>
                 <SelectValue placeholder="เลือกประเภท" />
               </SelectTrigger>
@@ -151,7 +218,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="project">โปรเจ็ค/ร้าน</Label>
-            <Select>
+            <Select name="project">
               <SelectTrigger>
                 <SelectValue placeholder="เลือกโปรเจ็ค" />
               </SelectTrigger>
@@ -166,7 +233,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
           <div className="space-y-2">
             <Label htmlFor="date">วันที่</Label>
-            <Input id="date" type="date" required />
+            <Input id="date" name="date" type="date" defaultValue={new Date().toISOString().split('T')[0]} required />
           </div>
         </div>
 
@@ -174,6 +241,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           <Label htmlFor="description">รายละเอียด</Label>
           <Textarea
             id="description"
+            name="description"
             placeholder="รายละเอียดค่าใช้จ่าย..."
             rows={3}
           />
