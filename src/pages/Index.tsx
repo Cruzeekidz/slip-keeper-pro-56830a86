@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -59,6 +59,14 @@ const Index = () => {
               >
                 <Plus className="h-4 w-4 mr-2" />
                 เพิ่มรายการ
+              </Button>
+              <Button 
+                onClick={() => navigate('/bulk-upload')}
+                variant="outline"
+                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                อัพโหลดหลายไฟล์
               </Button>
               <Button 
                 variant="outline" 

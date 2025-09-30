@@ -48,10 +48,12 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       const { data: categoryData } = await supabase
         .from('expenses')
         .select('category')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .order('category');
       
       if (categoryData) {
-        const uniqueCategories = [...new Set(categoryData.map(item => item.category))];
+        // Use Set to ensure uniqueness and filter out empty values
+        const uniqueCategories = [...new Set(categoryData.map(item => item.category).filter(Boolean))];
         setCategories(uniqueCategories);
       }
 

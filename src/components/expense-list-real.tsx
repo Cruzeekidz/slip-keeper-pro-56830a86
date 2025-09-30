@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
+import { ExpenseEditDialog } from "./expense-edit-dialog";
 
 interface Expense {
   id: string;
@@ -27,6 +28,8 @@ export function ExpenseListReal() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -250,6 +253,17 @@ export function ExpenseListReal() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      onClick={() => {
+                        setEditingExpense(expense);
+                        setEditDialogOpen(true);
+                      }}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => deleteExpense(expense.id)}
                       className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
                     >
@@ -262,6 +276,13 @@ export function ExpenseListReal() {
           ))
         )}
       </div>
+
+      <ExpenseEditDialog
+        expense={editingExpense}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={fetchExpenses}
+      />
     </Card>
   );
 }
