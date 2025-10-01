@@ -91,6 +91,8 @@ export default function BulkUpload() {
         let description = 'รอกรอกข้อมูล';
 
         try {
+          console.log(`[BulkUpload] Analyzing file ${i + 1}/${updatedFiles.length}:`, updatedFiles[i].file.name);
+          
           // Convert file to base64 with proper data URL format
           const reader = new FileReader();
           const base64Promise = new Promise<string>((resolve, reject) => {
@@ -103,21 +105,39 @@ export default function BulkUpload() {
           });
           reader.readAsDataURL(updatedFiles[i].file);
           const imageBase64 = await base64Promise;
+          
+          console.log('[BulkUpload] Image converted to base64, calling AI...');
 
           // Call AI analysis
           const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
             body: { imageBase64 }
           });
 
-          if (!aiError && aiData?.success && aiData.data) {
+          console.log('[BulkUpload] AI Response:', { aiData, aiError });
+
+          if (aiError) {
+            console.error('[BulkUpload] AI Error:', aiError);
+          }
+
+          if (aiData?.success && aiData.data) {
+            console.log('[BulkUpload] Extracted data:', aiData.data);
             amount = aiData.data.amount || 0;
             expenseDate = aiData.data.date || expenseDate;
             description = aiData.data.description || aiData.data.merchant || 'รอกรอกข้อมูล';
+          } else {
+            console.log('[BulkUpload] No valid data from AI, using defaults');
           }
         } catch (aiError) {
-          console.log('AI analysis failed, using defaults:', aiError);
+          console.error('[BulkUpload] AI analysis exception:', aiError);
           // Continue with default values if AI fails
         }
+
+        console.log('[BulkUpload] Creating expense record:', {
+          amount,
+          expense_date: expenseDate,
+          category: 'ไม่ระบุ',
+          description
+        });
 
         // Create expense record
         const { data, error: insertError } = await supabase
@@ -136,6 +156,7 @@ export default function BulkUpload() {
 
         if (insertError) throw insertError;
 
+        console.log('[BulkUpload] Expense created successfully:', data.id);
         updatedFiles[i].status = 'success';
         updatedFiles[i].id = data.id;
       } catch (error) {
