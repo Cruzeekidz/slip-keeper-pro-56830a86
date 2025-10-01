@@ -33,6 +33,16 @@ export default function BulkUpload() {
       });
     }
 
+    // Limit to 20 files for AI analysis
+    if (imageFiles.length > 20) {
+      toast({
+        title: "จำกัดจำนวนไฟล์",
+        description: "สามารถอัพโหลดได้สูงสุด 20 ไฟล์ต่อครั้ง (เพื่อให้ AI วิเคราะห์ได้อย่างมีประสิทธิภาพ)",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const newFiles: UploadedFile[] = imageFiles.map(file => ({
       file,
       status: 'pending'
@@ -75,16 +85,49 @@ export default function BulkUpload() {
 
         if (uploadError) throw uploadError;
 
-        // Create expense record with default values
+        // AI Analysis (if file is image)
+        let amount = 0;
+        let expenseDate = new Date().toISOString().split('T')[0];
+        let description = 'รอกรอกข้อมูล';
+
+        try {
+          // Convert file to base64
+          const reader = new FileReader();
+          const base64Promise = new Promise<string>((resolve, reject) => {
+            reader.onloadend = () => {
+              const base64 = reader.result as string;
+              resolve(base64.split(',')[1]);
+            };
+            reader.onerror = reject;
+          });
+          reader.readAsDataURL(updatedFiles[i].file);
+          const imageBase64 = await base64Promise;
+
+          // Call AI analysis
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
+            body: { imageBase64 }
+          });
+
+          if (!aiError && aiData) {
+            amount = aiData.amount || 0;
+            expenseDate = aiData.date || expenseDate;
+            description = aiData.description || aiData.merchant || 'รอกรอกข้อมูล';
+          }
+        } catch (aiError) {
+          console.log('AI analysis failed, using defaults:', aiError);
+          // Continue with default values if AI fails
+        }
+
+        // Create expense record
         const { data, error: insertError } = await supabase
           .from('expenses')
           .insert({
             user_id: user.id,
-            amount: 0, // Default amount, user will edit later
-            expense_date: new Date().toISOString().split('T')[0],
-            category: 'ไม่ระบุ', // Default category
+            amount,
+            expense_date: expenseDate,
+            category: 'ไม่ระบุ',
             project: null,
-            description: 'รอกรอกข้อมูล',
+            description,
             receipt_url: fileName,
           })
           .select()
@@ -151,7 +194,7 @@ export default function BulkUpload() {
             <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">เลือกไฟล์รูปภาพ</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              รองรับไฟล์ JPG, PNG, WEBP (สูงสุด 100 ไฟล์ต่อครั้ง)
+              รองรับไฟล์ JPG, PNG, WEBP (สูงสุด 20 ไฟล์ต่อครั้ง)
             </p>
             <input
               type="file"
@@ -227,9 +270,10 @@ export default function BulkUpload() {
         <Card className="p-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">📝 คำแนะนำ</h4>
           <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-            <li>• อัพโหลดใบเสร็จได้สูงสุด 100 ไฟล์ต่อครั้ง</li>
-            <li>• ระบบจะสร้างรายการด้วยข้อมูลเริ่มต้น (จำนวน 0 บาท, ประเภท "ไม่ระบุ")</li>
-            <li>• กลับไปหน้าแรก แล้วคลิกปุ่ม "แก้ไข" เพื่อกรอกข้อมูลที่ถูกต้อง</li>
+            <li>• อัพโหลดใบเสร็จได้สูงสุด 20 ไฟล์ต่อครั้ง</li>
+            <li>• AI จะวิเคราะห์จำนวนเงิน, วันที่, และรายละเอียดโดยอัตโนมัติ</li>
+            <li>• ประเภทและโปรเจคจะถูกตั้งเป็น "ไม่ระบุ" ให้กรอกเองในภายหลัง</li>
+            <li>• กลับไปหน้าแรก แล้วคลิกปุ่ม "แก้ไข" เพื่อเพิ่มประเภทและโปรเจค</li>
             <li>• สามารถกรองรายการ "ประเภท: ไม่ระบุ" เพื่อหารายการที่ยังไม่ได้แก้ไข</li>
           </ul>
         </Card>

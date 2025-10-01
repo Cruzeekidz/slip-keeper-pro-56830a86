@@ -6,11 +6,76 @@ import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const exportToCSV = async () => {
+    if (!user) return;
+
+    try {
+      // Fetch all expenses for current user
+      const { data: expenses, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('expense_date', { ascending: false });
+
+      if (error) throw error;
+
+      if (!expenses || expenses.length === 0) {
+        toast({
+          title: "ไม่มีข้อมูล",
+          description: "ไม่มีรายการค่าใช้จ่ายให้ส่งออก",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create CSV content
+      const headers = ['วันที่', 'จำนวนเงิน', 'ประเภท', 'โปรเจค', 'รายละเอียด'];
+      const csvContent = [
+        headers.join(','),
+        ...expenses.map(exp => [
+          exp.expense_date,
+          exp.amount,
+          exp.category,
+          exp.project || '',
+          `"${exp.description || ''}"` // Wrap in quotes for descriptions with commas
+        ].join(','))
+      ].join('\n');
+
+      // Add BOM for Thai character support in Excel
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      
+      link.setAttribute('href', url);
+      link.setAttribute('download', `expenses_${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      toast({
+        title: "ส่งออกสำเร็จ",
+        description: `ส่งออกข้อมูล ${expenses.length} รายการเรียบร้อย`,
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถส่งออกข้อมูลได้",
+        variant: "destructive",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -67,6 +132,14 @@ const Index = () => {
               >
                 <Upload className="h-4 w-4 mr-2" />
                 อัพโหลดหลายไฟล์
+              </Button>
+              <Button 
+                onClick={exportToCSV}
+                variant="outline"
+                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                ส่งออก CSV
               </Button>
               <Button 
                 variant="outline" 
