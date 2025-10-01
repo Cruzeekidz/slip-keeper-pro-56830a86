@@ -91,12 +91,13 @@ export default function BulkUpload() {
         let description = 'รอกรอกข้อมูล';
 
         try {
-          // Convert file to base64
+          // Convert file to base64 with proper data URL format
           const reader = new FileReader();
           const base64Promise = new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
+              // Keep the full data URL format (data:image/jpeg;base64,xxx)
               const base64 = reader.result as string;
-              resolve(base64.split(',')[1]);
+              resolve(base64);
             };
             reader.onerror = reject;
           });
@@ -108,10 +109,10 @@ export default function BulkUpload() {
             body: { imageBase64 }
           });
 
-          if (!aiError && aiData) {
-            amount = aiData.amount || 0;
-            expenseDate = aiData.date || expenseDate;
-            description = aiData.description || aiData.merchant || 'รอกรอกข้อมูล';
+          if (!aiError && aiData?.success && aiData.data) {
+            amount = aiData.data.amount || 0;
+            expenseDate = aiData.data.date || expenseDate;
+            description = aiData.data.description || aiData.data.merchant || 'รอกรอกข้อมูล';
           }
         } catch (aiError) {
           console.log('AI analysis failed, using defaults:', aiError);
