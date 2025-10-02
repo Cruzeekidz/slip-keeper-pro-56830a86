@@ -50,15 +50,10 @@ serve(async (req) => {
 
 ถ้าหาข้อมูลไหนไม่พบให้ใส่ null`
               },
-              isPDF ? {
-                type: "document",
-                document: {
-                  url: fileBase64
-                }
-              } : {
+              {
                 type: "image_url",
                 image_url: {
-                  url: fileBase64
+                  url: fileBase64  // Works for both images and PDFs with proper data URL format
                 }
               }
             ]
