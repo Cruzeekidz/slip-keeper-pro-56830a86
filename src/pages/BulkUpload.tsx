@@ -23,18 +23,20 @@ export default function BulkUpload() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
-    const imageFiles = selectedFiles.filter(file => file.type.startsWith('image/'));
+    const validFiles = selectedFiles.filter(file => 
+      file.type.startsWith('image/') || file.type === 'application/pdf'
+    );
     
-    if (imageFiles.length !== selectedFiles.length) {
+    if (validFiles.length !== selectedFiles.length) {
       toast({
         title: "คำเตือน",
-        description: "รองรับเฉพาะไฟล์รูปภาพเท่านั้น",
+        description: "รองรับเฉพาะไฟล์รูปภาพและ PDF เท่านั้น",
         variant: "destructive",
       });
     }
 
     // Limit to 20 files for AI analysis
-    if (imageFiles.length > 20) {
+    if (validFiles.length > 20) {
       toast({
         title: "จำกัดจำนวนไฟล์",
         description: "สามารถอัพโหลดได้สูงสุด 20 ไฟล์ต่อครั้ง (เพื่อให้ AI วิเคราะห์ได้อย่างมีประสิทธิภาพ)",
@@ -43,7 +45,7 @@ export default function BulkUpload() {
       return;
     }
 
-    const newFiles: UploadedFile[] = imageFiles.map(file => ({
+    const newFiles: UploadedFile[] = validFiles.map(file => ({
       file,
       status: 'pending'
     }));
@@ -214,14 +216,14 @@ export default function BulkUpload() {
         <Card className="p-8">
           <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
             <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">เลือกไฟล์รูปภาพ</h3>
+            <h3 className="text-lg font-semibold mb-2">เลือกไฟล์ใบเสร็จ</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              รองรับไฟล์ JPG, PNG, WEBP (สูงสุด 20 ไฟล์ต่อครั้ง)
+              รองรับไฟล์ JPG, PNG, WEBP และ PDF (สูงสุด 20 ไฟล์ต่อครั้ง)
             </p>
             <input
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,application/pdf"
               onChange={handleFileSelect}
               className="hidden"
               id="file-upload"
