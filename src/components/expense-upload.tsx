@@ -141,7 +141,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
       // Call edge function to analyze
       const { data, error } = await supabase.functions.invoke('analyze-receipt', {
-        body: { imageBase64 }
+        body: { fileBase64: imageBase64, isPDF: false }
       });
 
       if (error) {

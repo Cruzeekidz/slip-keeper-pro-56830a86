@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { fileBase64, isPDF } = await req.json();
+    const { fileBase64, isPDF, storagePath } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -19,6 +20,30 @@ serve(async (req) => {
     }
 
     console.log(`Analyzing receipt ${isPDF ? 'PDF' : 'image'}...`);
+
+    // Prefer using a signed URL from storage when available to avoid huge base64 payloads
+    let imageUrl = fileBase64;
+    try {
+      if (storagePath) {
+        const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+        const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+          throw new Error("Missing Supabase env vars");
+        }
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: signed, error: signErr } = await supabase
+          .storage
+          .from('receipts')
+          .createSignedUrl(storagePath, 300);
+        if (signErr || !signed?.signedUrl) {
+          throw new Error(`Failed to sign URL: ${signErr?.message || 'unknown error'}`);
+        }
+        imageUrl = signed.signedUrl;
+        console.log('Using signed URL for analysis');
+      }
+    } catch (e) {
+      console.warn('Falling back to base64 due to signed URL issue:', e);
+    }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -53,7 +78,7 @@ serve(async (req) => {
               {
                 type: "image_url",
                 image_url: {
-                  url: fileBase64  // Works for both images and PDFs with proper data URL format
+                  url: imageUrl
                 }
               }
             ]

@@ -98,25 +98,12 @@ export default function BulkUpload() {
         try {
           console.log(`[BulkUpload] Analyzing file ${i + 1}/${updatedFiles.length}:`, updatedFiles[i].file.name, `(${isPDF ? 'PDF' : 'Image'})`);
           
-          // Convert file to base64 with proper data URL format
-          const reader = new FileReader();
-          const base64Promise = new Promise<string>((resolve, reject) => {
-            reader.onloadend = () => {
-              // Keep the full data URL format (data:image/jpeg;base64,xxx or data:application/pdf;base64,xxx)
-              const base64 = reader.result as string;
-              resolve(base64);
-            };
-            reader.onerror = reject;
-          });
-          reader.readAsDataURL(updatedFiles[i].file);
-          const fileBase64 = await base64Promise;
-          
-          console.log('[BulkUpload] File converted to base64, calling AI...');
+          // Call AI analysis using the storage path to avoid large payloads
+          console.log('[BulkUpload] Calling AI with storagePath...');
 
-          // Call AI analysis with file type
           const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
             body: { 
-              fileBase64,
+              storagePath: fileName,
               isPDF 
             }
           });
