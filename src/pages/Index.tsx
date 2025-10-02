@@ -120,31 +120,28 @@ const Index = () => {
             <div className="flex items-center gap-2">
               <Button 
                 onClick={() => setShowUpload(true)}
-                className="bg-primary-foreground text-primary hover:bg-primary-foreground/90"
+                className="bg-white text-primary hover:bg-white/90"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 เพิ่มรายการ
               </Button>
               <Button 
                 onClick={() => navigate('/bulk-upload')}
-                variant="outline"
-                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
               >
                 <Upload className="h-4 w-4 mr-2" />
                 อัพโหลดหลายไฟล์
               </Button>
               <Button 
                 onClick={exportToCSV}
-                variant="outline"
-                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
               >
                 <Download className="h-4 w-4 mr-2" />
                 ส่งออก CSV
               </Button>
               <Button 
-                variant="outline" 
                 onClick={signOut}
-                className="border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/10"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 ออกจากระบบ
