@@ -11,14 +11,14 @@ serve(async (req) => {
   }
 
   try {
-    const { imageBase64 } = await req.json();
+    const { fileBase64, isPDF } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log("Analyzing receipt image...");
+    console.log(`Analyzing receipt ${isPDF ? 'PDF' : 'image'}...`);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -50,10 +50,15 @@ serve(async (req) => {
 
 ถ้าหาข้อมูลไหนไม่พบให้ใส่ null`
               },
-              {
+              isPDF ? {
+                type: "document",
+                document: {
+                  url: fileBase64
+                }
+              } : {
                 type: "image_url",
                 image_url: {
-                  url: imageBase64
+                  url: fileBase64
                 }
               }
             ]

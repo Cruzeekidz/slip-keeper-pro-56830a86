@@ -87,32 +87,38 @@ export default function BulkUpload() {
 
         if (uploadError) throw uploadError;
 
-        // AI Analysis (if file is image)
+        // AI Analysis
         let amount = 0;
         let expenseDate = new Date().toISOString().split('T')[0];
         let description = 'รอกรอกข้อมูล';
 
+        const fileType = updatedFiles[i].file.type;
+        const isPDF = fileType === 'application/pdf';
+
         try {
-          console.log(`[BulkUpload] Analyzing file ${i + 1}/${updatedFiles.length}:`, updatedFiles[i].file.name);
+          console.log(`[BulkUpload] Analyzing file ${i + 1}/${updatedFiles.length}:`, updatedFiles[i].file.name, `(${isPDF ? 'PDF' : 'Image'})`);
           
           // Convert file to base64 with proper data URL format
           const reader = new FileReader();
           const base64Promise = new Promise<string>((resolve, reject) => {
             reader.onloadend = () => {
-              // Keep the full data URL format (data:image/jpeg;base64,xxx)
+              // Keep the full data URL format (data:image/jpeg;base64,xxx or data:application/pdf;base64,xxx)
               const base64 = reader.result as string;
               resolve(base64);
             };
             reader.onerror = reject;
           });
           reader.readAsDataURL(updatedFiles[i].file);
-          const imageBase64 = await base64Promise;
+          const fileBase64 = await base64Promise;
           
-          console.log('[BulkUpload] Image converted to base64, calling AI...');
+          console.log('[BulkUpload] File converted to base64, calling AI...');
 
-          // Call AI analysis
+          // Call AI analysis with file type
           const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
-            body: { imageBase64 }
+            body: { 
+              fileBase64,
+              isPDF 
+            }
           });
 
           console.log('[BulkUpload] AI Response:', { aiData, aiError });
