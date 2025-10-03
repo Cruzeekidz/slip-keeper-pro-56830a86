@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -63,6 +63,15 @@ export function ExpenseListReal() {
       setLoading(false);
     }
   };
+
+  // Get unique categories and projects from expenses
+  const uniqueCategories = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.category))).sort();
+  }, [expenses]);
+
+  const uniqueProjects = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.project).filter(Boolean))).sort();
+  }, [expenses]);
 
   const filterExpenses = () => {
     let filtered = expenses;
@@ -196,8 +205,11 @@ export function ExpenseListReal() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">ทุกประเภท</SelectItem>
-            <SelectItem value="personal">ค่าใช้จ่ายส่วนตัว</SelectItem>
-            <SelectItem value="company">ค่าใช้จ่ายบริษัท</SelectItem>
+            {uniqueCategories.map((category) => (
+              <SelectItem key={category} value={category}>
+                {category}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
 
@@ -207,10 +219,11 @@ export function ExpenseListReal() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">ทุกโปรเจ็ค</SelectItem>
-            <SelectItem value="booth">บูธขายของ</SelectItem>
-            <SelectItem value="online">ขายออนไลน์</SelectItem>
-            <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
-            <SelectItem value="other">อื่นๆ</SelectItem>
+            {uniqueProjects.map((project) => (
+              <SelectItem key={project} value={project!}>
+                {project}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
