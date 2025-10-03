@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,7 @@ export function ExpenseListReal() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -181,10 +183,28 @@ export function ExpenseListReal() {
     <Card className="p-6 bg-gradient-card shadow-elevated">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground">รายการเคลื่อนไหว</h2>
-        <Button variant="outline" size="sm">
-          <Filter className="h-4 w-4 mr-2" />
-          ตัวกรอง
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex border rounded-lg overflow-hidden">
+            <Button
+              variant={viewMode === "card" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("card")}
+              className="rounded-none"
+            >
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              การ์ด
+            </Button>
+            <Button
+              variant={viewMode === "table" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="rounded-none"
+            >
+              <Table2 className="h-4 w-4 mr-2" />
+              ตาราง
+            </Button>
+          </div>
+        </div>
       </div>
 
       {/* Search and Filter Controls */}
@@ -229,13 +249,13 @@ export function ExpenseListReal() {
       </div>
 
       {/* Expense List */}
-      <div className="space-y-4">
-        {filteredExpenses.length === 0 ? (
-          <div className="text-center py-8">
-            <p className="text-muted-foreground">ไม่พบรายการ</p>
-          </div>
-        ) : (
-          filteredExpenses.map((expense) => (
+      {filteredExpenses.length === 0 ? (
+        <div className="text-center py-8">
+          <p className="text-muted-foreground">ไม่พบรายการ</p>
+        </div>
+      ) : viewMode === "card" ? (
+        <div className="space-y-4">
+          {filteredExpenses.map((expense) => (
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
@@ -323,9 +343,116 @@ export function ExpenseListReal() {
                 </div>
               </div>
             </Card>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[110px]">วันที่</TableHead>
+                <TableHead>รายละเอียด</TableHead>
+                <TableHead className="w-[120px]">ประเภท</TableHead>
+                <TableHead className="w-[150px]">โปรเจ็ค</TableHead>
+                <TableHead className="text-right w-[120px]">จำนวนเงิน</TableHead>
+                <TableHead className="w-[100px]">ใบเสร็จ</TableHead>
+                <TableHead className="text-right w-[120px]">จัดการ</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredExpenses.map((expense) => (
+                <TableRow key={expense.id}>
+                  <TableCell className="whitespace-nowrap text-sm">
+                    {format(new Date(expense.expense_date), 'dd/MM/yyyy')}
+                  </TableCell>
+                  <TableCell className="font-medium">
+                    {expense.description || "ค่าใช้จ่าย"}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${
+                      expense.category === 'personal' 
+                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                        : expense.category === 'company'
+                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                        : 'bg-muted text-muted-foreground'
+                    }`}>
+                      {expense.category === 'personal' ? 'ส่วนตัว' : 
+                       expense.category === 'company' ? 'บริษัท' : 
+                       expense.category || '-'}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    {expense.project ? (
+                      <span className="text-sm">
+                        {expense.project === 'booth' ? 'บูธขายของ' :
+                         expense.project === 'online' ? 'ขายออนไลน์' :
+                         expense.project === 'event' ? 'ขายตั๋วกิจกรรม' : 
+                         expense.project}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic text-sm">ยังไม่ระบุ</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-semibold text-red-600">
+                    -฿{expense.amount.toLocaleString()}
+                  </TableCell>
+                  <TableCell>
+                    {expense.receipt_url ? (
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => viewReceipt(expense.receipt_url!)}
+                          className="h-8 w-8 p-0"
+                          title="ดูใบเสร็จ"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadReceipt(expense.receipt_url!)}
+                          className="h-8 w-8 p-0"
+                          title="ดาวน์โหลดใบเสร็จ"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingExpense(expense);
+                          setEditDialogOpen(true);
+                        }}
+                        className="h-8 w-8 p-0"
+                        title="แก้ไขรายการ"
+                      >
+                        <Edit3 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteExpense(expense.id)}
+                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                        title="ลบรายการ"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       <ExpenseEditDialog
         expense={editingExpense}
