@@ -4,6 +4,9 @@ import { Plus, FileText, Calendar, Download, LogOut, Upload } from "lucide-react
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
+import { ProjectSummary } from "@/components/project-summary";
+import { PeriodSummary } from "@/components/period-summary";
+import { CategoryChart } from "@/components/category-chart";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -154,6 +157,15 @@ const Index = () => {
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         {/* Stats Overview */}
         <StatsReal />
+
+        {/* Category Chart */}
+        <CategoryChart />
+
+        {/* Summary Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProjectSummary />
+          <PeriodSummary />
+        </div>
 
         {/* Recent Transactions */}
         <ExpenseListReal />
