@@ -96,6 +96,31 @@ export function ExpenseListReal() {
     setFilteredExpenses(filtered);
   };
 
+  const updateExpense = async (id: string, field: 'category' | 'project', value: string) => {
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .update({ [field]: value === 'none' ? null : value })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "อัพเดทสำเร็จ",
+        description: "แก้ไขรายการเรียบร้อยแล้ว",
+      });
+
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถอัพเดทรายการได้",
+        variant: "destructive",
+      });
+    }
+  };
+
   const deleteExpense = async (id: string) => {
     if (!confirm("คุณต้องการลบรายการนี้ใช่หรือไม่?")) return;
 
@@ -369,29 +394,34 @@ export function ExpenseListReal() {
                     {expense.description || "ค่าใช้จ่าย"}
                   </TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      expense.category === 'personal' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                        : expense.category === 'company'
-                        ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                        : 'bg-muted text-muted-foreground'
-                    }`}>
-                      {expense.category === 'personal' ? 'ส่วนตัว' : 
-                       expense.category === 'company' ? 'บริษัท' : 
-                       expense.category || '-'}
-                    </span>
+                    <Select
+                      value={expense.category}
+                      onValueChange={(value) => updateExpense(expense.id, 'category', value)}
+                    >
+                      <SelectTrigger className="h-8 w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="personal">ส่วนตัว</SelectItem>
+                        <SelectItem value="company">บริษัท</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>
-                    {expense.project ? (
-                      <span className="text-sm">
-                        {expense.project === 'booth' ? 'บูธขายของ' :
-                         expense.project === 'online' ? 'ขายออนไลน์' :
-                         expense.project === 'event' ? 'ขายตั๋วกิจกรรม' : 
-                         expense.project}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground italic text-sm">ยังไม่ระบุ</span>
-                    )}
+                    <Select
+                      value={expense.project || 'none'}
+                      onValueChange={(value) => updateExpense(expense.id, 'project', value)}
+                    >
+                      <SelectTrigger className="h-8 w-[150px]">
+                        <SelectValue placeholder="เลือกโปรเจค" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">ยังไม่ระบุ</SelectItem>
+                        <SelectItem value="booth">บูธขายของ</SelectItem>
+                        <SelectItem value="online">ขายออนไลน์</SelectItem>
+                        <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell className="text-right font-semibold text-red-600">
                     -฿{expense.amount.toLocaleString()}
