@@ -91,6 +91,7 @@ export default function BulkUpload() {
         let amount = 0;
         let expenseDate = new Date().toISOString().split('T')[0];
         let description = 'รอกรอกข้อมูล';
+        let transactionId: string | null = null;
 
         const fileType = updatedFiles[i].file.type;
         const isPDF = fileType === 'application/pdf';
@@ -116,9 +117,29 @@ export default function BulkUpload() {
 
           if (aiData?.success && aiData.data) {
             console.log('[BulkUpload] Extracted data:', aiData.data);
+            
+            // Check for duplicate transaction if AI extracted transaction_id
+            if (aiData.data.transaction_id) {
+              const { data: existingExpense } = await supabase
+                .from('expenses')
+                .select('id')
+                .eq('user_id', user.id)
+                .eq('transaction_id', aiData.data.transaction_id)
+                .maybeSingle();
+
+              if (existingExpense) {
+                console.log('[BulkUpload] Duplicate transaction detected:', aiData.data.transaction_id);
+                updatedFiles[i].status = 'error';
+                updatedFiles[i].error = `สลิปซ้ำ (รหัสอ้างอิง: ${aiData.data.transaction_id})`;
+                setFiles([...updatedFiles]);
+                continue;
+              }
+            }
+
             amount = aiData.data.amount || 0;
             expenseDate = aiData.data.date || expenseDate;
             description = aiData.data.description || aiData.data.merchant || 'รอกรอกข้อมูล';
+            transactionId = aiData.data.transaction_id || null;
           } else {
             console.log('[BulkUpload] No valid data from AI, using defaults');
           }
@@ -145,6 +166,7 @@ export default function BulkUpload() {
             project: null,
             description,
             receipt_url: fileName,
+            transaction_id: transactionId,
           })
           .select()
           .single();

@@ -64,13 +64,15 @@ serve(async (req) => {
 - วันที่ทำรายการ (date) ในรูปแบบ YYYY-MM-DD
 - รายละเอียด/หมายเหตุ (description)
 - ชื่อผู้รับหรือร้านค้า (merchant)
+- รหัสอ้างอิง/Transaction ID (transaction_id) - อาจมีชื่อเรียกต่างกันเช่น "รหัสอ้างอิง", "เลขที่อ้างอิง", "Ref No.", "Reference Number", "Transaction ID", "Transaction Ref"
 
 ตอบกลับในรูปแบบ JSON เท่านั้น:
 {
   "amount": "จำนวนเงินเป็นตัวเลข",
   "date": "YYYY-MM-DD",
   "description": "รายละเอียด",
-  "merchant": "ชื่อผู้รับ/ร้านค้า"
+  "merchant": "ชื่อผู้รับ/ร้านค้า",
+  "transaction_id": "รหัสอ้างอิง"
 }
 
 ถ้าหาข้อมูลไหนไม่พบให้ใส่ null`
@@ -96,9 +98,10 @@ serve(async (req) => {
                   amount: { type: ["number", "null"] },
                   date: { type: ["string", "null"] },
                   description: { type: ["string", "null"] },
-                  merchant: { type: ["string", "null"] }
+                  merchant: { type: ["string", "null"] },
+                  transaction_id: { type: ["string", "null"] }
                 },
-                required: ["amount", "date", "description", "merchant"],
+                required: ["amount", "date", "description", "merchant", "transaction_id"],
                 additionalProperties: false
               }
             }

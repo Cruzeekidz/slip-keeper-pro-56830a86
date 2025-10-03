@@ -22,6 +22,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     date: string | null;
     description: string | null;
     merchant: string | null;
+    transaction_id: string | null;
   } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [categories, setCategories] = useState<string[]>([]);
@@ -236,7 +237,27 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           return;
         }
 
-        receiptUrl = filePath;
+      receiptUrl = filePath;
+      }
+
+      // Check for duplicate transaction_id if AI extracted one
+      if (extractedData?.transaction_id) {
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        const { data: existing } = await supabase
+          .from('expenses')
+          .select('id')
+          .eq('user_id', userId)
+          .eq('transaction_id', extractedData.transaction_id)
+          .maybeSingle();
+
+        if (existing) {
+          toast({
+            title: "พบรายการซ้ำ",
+            description: `สลิปนี้เคยอัพโหลดแล้ว (รหัสอ้างอิง: ${extractedData.transaction_id})`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       // Insert expense data
@@ -249,6 +270,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           description: description || null,
           expense_date: date,
           receipt_url: receiptUrl,
+          transaction_id: extractedData?.transaction_id || null,
           user_id: (await supabase.auth.getUser()).data.user?.id
         });
 
