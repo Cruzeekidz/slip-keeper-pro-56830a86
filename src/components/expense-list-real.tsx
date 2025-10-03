@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download } from "lucide-react";
+import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -30,6 +31,8 @@ export function ExpenseListReal() {
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -104,6 +107,26 @@ export function ExpenseListReal() {
       toast({
         title: "เกิดข้อผิดพลาด",
         description: "ไม่สามารถลบรายการได้",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const viewReceipt = async (receiptUrl: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .createSignedUrl(receiptUrl, 3600); // 1 hour expiry
+
+      if (error) throw error;
+
+      setViewingReceipt(data.signedUrl);
+      setReceiptDialogOpen(true);
+    } catch (error) {
+      console.error('Error viewing receipt:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถดูใบเสร็จได้",
         variant: "destructive",
       });
     }
@@ -241,14 +264,26 @@ export function ExpenseListReal() {
                   
                   <div className="flex items-center gap-1">
                     {expense.receipt_url && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => downloadReceipt(expense.receipt_url!)}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => viewReceipt(expense.receipt_url!)}
+                          className="h-8 w-8 p-0"
+                          title="ดูใบเสร็จ"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadReceipt(expense.receipt_url!)}
+                          className="h-8 w-8 p-0"
+                          title="ดาวน์โหลดใบเสร็จ"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"
@@ -258,6 +293,7 @@ export function ExpenseListReal() {
                         setEditDialogOpen(true);
                       }}
                       className="h-8 w-8 p-0"
+                      title="แก้ไขรายการ"
                     >
                       <Edit3 className="h-4 w-4" />
                     </Button>
@@ -266,6 +302,7 @@ export function ExpenseListReal() {
                       size="sm"
                       onClick={() => deleteExpense(expense.id)}
                       className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                      title="ลบรายการ"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -283,6 +320,30 @@ export function ExpenseListReal() {
         onOpenChange={setEditDialogOpen}
         onSuccess={fetchExpenses}
       />
+
+      <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
+          <DialogHeader>
+            <DialogTitle>ดูใบเสร็จ</DialogTitle>
+          </DialogHeader>
+          <div className="overflow-auto max-h-[75vh]">
+            {viewingReceipt && (
+              <img 
+                src={viewingReceipt} 
+                alt="Receipt" 
+                className="w-full h-auto rounded-lg"
+                onError={(e) => {
+                  // If image fails to load, try rendering as PDF
+                  const container = e.currentTarget.parentElement;
+                  if (container) {
+                    container.innerHTML = `<iframe src="${viewingReceipt}" class="w-full h-[600px] rounded-lg"></iframe>`;
+                  }
+                }}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
