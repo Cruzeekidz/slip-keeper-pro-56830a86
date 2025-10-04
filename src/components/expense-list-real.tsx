@@ -98,9 +98,16 @@ export function ExpenseListReal() {
 
   const updateExpense = async (id: string, field: 'category' | 'project', value: string) => {
     try {
+      const updateValue = value === 'none' ? null : value;
+      
+      // Optimistically update local state
+      setExpenses(prev => prev.map(exp => 
+        exp.id === id ? { ...exp, [field]: updateValue } : exp
+      ));
+
       const { error } = await supabase
         .from('expenses')
-        .update({ [field]: value === 'none' ? null : value })
+        .update({ [field]: updateValue })
         .eq('id', id);
 
       if (error) throw error;
@@ -109,8 +116,6 @@ export function ExpenseListReal() {
         title: "อัพเดทสำเร็จ",
         description: "แก้ไขรายการเรียบร้อยแล้ว",
       });
-
-      fetchExpenses();
     } catch (error) {
       console.error('Error updating expense:', error);
       toast({
@@ -118,6 +123,8 @@ export function ExpenseListReal() {
         description: "ไม่สามารถอัพเดทรายการได้",
         variant: "destructive",
       });
+      // Revert on error
+      fetchExpenses();
     }
   };
 
@@ -404,6 +411,13 @@ export function ExpenseListReal() {
                       <SelectContent>
                         <SelectItem value="personal">ส่วนตัว</SelectItem>
                         <SelectItem value="company">บริษัท</SelectItem>
+                        {uniqueCategories
+                          .filter(cat => cat !== 'personal' && cat !== 'company')
+                          .map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </TableCell>
@@ -420,6 +434,13 @@ export function ExpenseListReal() {
                         <SelectItem value="booth">บูธขายของ</SelectItem>
                         <SelectItem value="online">ขายออนไลน์</SelectItem>
                         <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
+                        {uniqueProjects
+                          .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                          .map((project) => (
+                            <SelectItem key={project} value={project!}>
+                              {project}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </TableCell>
