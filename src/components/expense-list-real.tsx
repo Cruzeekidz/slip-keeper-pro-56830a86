@@ -291,34 +291,50 @@ export function ExpenseListReal() {
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-2 mb-3">
                     <h3 className="font-medium text-foreground">
                       {expense.description || "ค่าใช้จ่าย"}
                     </h3>
-                    <span className={`px-2 py-1 rounded text-xs font-medium ${
-                      expense.category === 'personal' 
-                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                        : 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                    }`}>
-                      {expense.category === 'personal' ? 'ส่วนตัว' : 'บริษัท'}
-                    </span>
                   </div>
                   
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {format(new Date(expense.expense_date), 'dd MMM yyyy', { locale: th })}
-                    </div>
-                    {expense.project && (
-                      <span className="px-2 py-1 bg-muted rounded text-xs">
-                        {expense.project === 'booth' ? 'บูธขายของ' :
-                         expense.project === 'online' ? 'ขายออนไลน์' :
-                         expense.project === 'event' ? 'ขายตั๋วกิจกรรม' : 'อื่นๆ'}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16">ประเภท:</span>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        expense.category === 'personal' 
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                          : expense.category === 'company'
+                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                      }`}>
+                        {expense.category === 'personal' ? 'ส่วนตัว' : 
+                         expense.category === 'company' ? 'บริษัท' : expense.category}
                       </span>
-                    )}
-                    {expense.receipt_url && (
-                      <Receipt className="h-3 w-3 text-green-600" />
-                    )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16">โปรเจค:</span>
+                      {expense.project ? (
+                        <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded text-xs font-medium">
+                          {expense.project === 'booth' ? 'บูธขายของ' :
+                           expense.project === 'online' ? 'ขายออนไลน์' :
+                           expense.project === 'event' ? 'ขายตั๋วกิจกรรม' : expense.project}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground w-16">วันที่:</span>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        {format(new Date(expense.expense_date), 'dd MMM yyyy', { locale: th })}
+                      </div>
+                      {expense.receipt_url && (
+                        <Receipt className="h-3 w-3 text-green-600 ml-2" />
+                      )}
+                    </div>
                   </div>
                 </div>
                 
