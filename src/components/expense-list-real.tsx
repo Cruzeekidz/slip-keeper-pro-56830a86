@@ -50,8 +50,7 @@ export function ExpenseListReal() {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*')
-        .order('expense_date', { ascending: false });
+        .select('*');
 
       if (error) throw error;
       setExpenses(data || []);
