@@ -335,6 +335,20 @@ export function ExpenseListReal() {
                   </span>
                 </div>
 
+                {/* ยอดเงิน */}
+                <div className="w-28 text-right shrink-0">
+                  <span className="text-base font-semibold text-red-600">
+                    -฿{expense.amount.toLocaleString()}
+                  </span>
+                </div>
+
+                {/* ชื่อรายการ */}
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-foreground truncate block">
+                    {expense.description || "ค่าใช้จ่าย"}
+                  </span>
+                </div>
+
                 {/* ประเภท - Dropdown */}
                 <div className="w-28 shrink-0">
                   <Select
@@ -381,20 +395,6 @@ export function ExpenseListReal() {
                         ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* ชื่อรายการ */}
-                <div className="flex-1 min-w-0">
-                  <span className="font-medium text-foreground truncate block">
-                    {expense.description || "ค่าใช้จ่าย"}
-                  </span>
-                </div>
-
-                {/* ยอดเงิน */}
-                <div className="w-28 text-right shrink-0">
-                  <span className="text-base font-semibold text-red-600">
-                    -฿{expense.amount.toLocaleString()}
-                  </span>
                 </div>
 
                 {/* ปุ่มจัดการ */}
