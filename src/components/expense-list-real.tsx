@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2 } from "lucide-react";
+import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ export function ExpenseListReal() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -43,7 +44,7 @@ export function ExpenseListReal() {
 
   useEffect(() => {
     filterExpenses();
-  }, [expenses, searchTerm, filterCategory, filterProject]);
+  }, [expenses, searchTerm, filterCategory, filterProject, sortBy]);
 
   const fetchExpenses = async () => {
     try {
@@ -93,7 +94,18 @@ export function ExpenseListReal() {
       filtered = filtered.filter(expense => expense.project === filterProject);
     }
 
-    setFilteredExpenses(filtered);
+    // Sort expenses
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortBy === "date-desc") {
+        return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
+      } else if (sortBy === "date-asc") {
+        return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      } else { // upload-desc
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+    });
+
+    setFilteredExpenses(sorted);
   };
 
   const updateExpense = async (id: string, field: 'category' | 'project', value: string) => {
@@ -240,7 +252,7 @@ export function ExpenseListReal() {
       </div>
 
       {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -255,7 +267,7 @@ export function ExpenseListReal() {
           <SelectTrigger>
             <SelectValue placeholder="ประเภท" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background">
             <SelectItem value="all">ทุกประเภท</SelectItem>
             {uniqueCategories.map((category) => (
               <SelectItem key={category} value={category}>
@@ -269,13 +281,39 @@ export function ExpenseListReal() {
           <SelectTrigger>
             <SelectValue placeholder="โปรเจ็ค" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-background">
             <SelectItem value="all">ทุกโปรเจ็ค</SelectItem>
             {uniqueProjects.map((project) => (
               <SelectItem key={project} value={project!}>
                 {project}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
+          <SelectTrigger>
+            <SelectValue placeholder="เรียงลำดับ" />
+          </SelectTrigger>
+          <SelectContent className="bg-background">
+            <SelectItem value="date-desc">
+              <div className="flex items-center gap-2">
+                <ArrowDown className="h-3 w-3" />
+                <span>วันที่ (ใหม่-เก่า)</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="date-asc">
+              <div className="flex items-center gap-2">
+                <ArrowUp className="h-3 w-3" />
+                <span>วันที่ (เก่า-ใหม่)</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="upload-desc">
+              <div className="flex items-center gap-2">
+                <ArrowDown className="h-3 w-3" />
+                <span>อัพโหลดล่าสุด</span>
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
       </div>
