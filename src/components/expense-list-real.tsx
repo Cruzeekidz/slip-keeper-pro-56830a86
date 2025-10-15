@@ -286,108 +286,125 @@ export function ExpenseListReal() {
           <p className="text-muted-foreground">ไม่พบรายการ</p>
         </div>
       ) : viewMode === "card" ? (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {filteredExpenses.map((expense) => (
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-3">
-                    <h3 className="font-medium text-foreground">
-                      {expense.description || "ค่าใช้จ่าย"}
-                    </h3>
-                  </div>
-                  
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-16">ประเภท:</span>
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        expense.category === 'personal' 
-                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
-                          : expense.category === 'company'
-                          ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                      }`}>
-                        {expense.category === 'personal' ? 'ส่วนตัว' : 
-                         expense.category === 'company' ? 'บริษัท' : expense.category}
-                      </span>
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-16">โปรเจค:</span>
-                      {expense.project ? (
-                        <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 rounded text-xs font-medium">
-                          {expense.project === 'booth' ? 'บูธขายของ' :
-                           expense.project === 'online' ? 'ขายออนไลน์' :
-                           expense.project === 'event' ? 'ขายตั๋วกิจกรรม' : expense.project}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground w-16">วันที่:</span>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(expense.expense_date), 'dd MMM yyyy', { locale: th })}
-                      </div>
-                      {expense.receipt_url && (
-                        <Receipt className="h-3 w-3 text-green-600 ml-2" />
-                      )}
-                    </div>
-                  </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                {/* วันที่ */}
+                <div className="flex items-center gap-1 text-sm text-muted-foreground w-24 shrink-0">
+                  <Calendar className="h-3 w-3" />
+                  <span className="whitespace-nowrap">
+                    {format(new Date(expense.expense_date), 'dd/MM/yy')}
+                  </span>
                 </div>
-                
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-red-600">
+
+                {/* ประเภท - Dropdown */}
+                <div className="w-28 shrink-0">
+                  <Select
+                    value={expense.category}
+                    onValueChange={(value) => updateExpense(expense.id, 'category', value)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="personal">ส่วนตัว</SelectItem>
+                      <SelectItem value="company">บริษัท</SelectItem>
+                      {uniqueCategories
+                        .filter(cat => cat !== 'personal' && cat !== 'company')
+                        .map((category) => (
+                          <SelectItem key={category} value={category}>
+                            {category}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* โปรเจค - Dropdown */}
+                <div className="w-32 shrink-0">
+                  <Select
+                    value={expense.project || 'none'}
+                    onValueChange={(value) => updateExpense(expense.id, 'project', value)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="เลือกโปรเจค" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background">
+                      <SelectItem value="none">-</SelectItem>
+                      <SelectItem value="booth">บูธขายของ</SelectItem>
+                      <SelectItem value="online">ขายออนไลน์</SelectItem>
+                      <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
+                      {uniqueProjects
+                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                        .map((project) => (
+                          <SelectItem key={project} value={project!}>
+                            {project}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* ชื่อรายการ */}
+                <div className="flex-1 min-w-0">
+                  <span className="font-medium text-foreground truncate block">
+                    {expense.description || "ค่าใช้จ่าย"}
+                  </span>
+                </div>
+
+                {/* ยอดเงิน */}
+                <div className="w-28 text-right shrink-0">
+                  <span className="text-base font-semibold text-red-600">
                     -฿{expense.amount.toLocaleString()}
                   </span>
-                  
-                  <div className="flex items-center gap-1">
-                    {expense.receipt_url && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => viewReceipt(expense.receipt_url!)}
-                          className="h-8 w-8 p-0"
-                          title="ดูใบเสร็จ"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadReceipt(expense.receipt_url!)}
-                          className="h-8 w-8 p-0"
-                          title="ดาวน์โหลดใบเสร็จ"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingExpense(expense);
-                        setEditDialogOpen(true);
-                      }}
-                      className="h-8 w-8 p-0"
-                      title="แก้ไขรายการ"
-                    >
-                      <Edit3 className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteExpense(expense.id)}
-                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                      title="ลบรายการ"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                </div>
+
+                {/* ปุ่มจัดการ */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {expense.receipt_url && (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => viewReceipt(expense.receipt_url!)}
+                        className="h-8 w-8 p-0"
+                        title="ดูใบเสร็จ"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => downloadReceipt(expense.receipt_url!)}
+                        className="h-8 w-8 p-0"
+                        title="ดาวน์โหลดใบเสร็จ"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingExpense(expense);
+                      setEditDialogOpen(true);
+                    }}
+                    className="h-8 w-8 p-0"
+                    title="แก้ไขรายการ"
+                  >
+                    <Edit3 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteExpense(expense.id)}
+                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
+                    title="ลบรายการ"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             </Card>
