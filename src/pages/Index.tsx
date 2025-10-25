@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -143,6 +143,13 @@ const Index = () => {
               >
                 <AlertTriangle className="h-4 w-4 mr-2" />
                 ตรวจสอบรายการซ้ำ
+              </Button>
+              <Button 
+                onClick={() => navigate('/data-migration')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+              >
+                <Database className="h-4 w-4 mr-2" />
+                แปลงข้อมูล
               </Button>
               <Button 
                 onClick={exportToCSV}
