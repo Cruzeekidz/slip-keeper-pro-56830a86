@@ -143,10 +143,20 @@ export function ExpenseListReal() {
     }
   };
 
-  const deleteExpense = async (id: string) => {
+  const deleteExpense = async (id: string, receiptUrl?: string | null) => {
     if (!confirm("คุณต้องการลบรายการนี้ใช่หรือไม่?")) return;
 
     try {
+      // Delete receipt from storage if exists
+      if (receiptUrl) {
+        const { error: storageError } = await supabase.storage
+          .from('receipts')
+          .remove([receiptUrl]);
+        
+        if (storageError) console.error('Error deleting receipt:', storageError);
+      }
+
+      // Delete expense record
       const { error } = await supabase
         .from('expenses')
         .delete()
@@ -156,7 +166,7 @@ export function ExpenseListReal() {
 
       toast({
         title: "ลบสำเร็จ",
-        description: "ลบรายการเรียบร้อยแล้ว",
+        description: "ลบรายการและสลิปเรียบร้อยแล้ว",
       });
 
       fetchExpenses();
@@ -165,6 +175,146 @@ export function ExpenseListReal() {
       toast({
         title: "เกิดข้อผิดพลาด",
         description: "ไม่สามารถลบรายการได้",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteReceipt = async (id: string, receiptUrl: string) => {
+    if (!confirm("คุณต้องการลบสลิปนี้ใช่หรือไม่? (รายการข้อมูลจะยังคงอยู่)")) return;
+
+    try {
+      // Delete receipt from storage
+      const { error: storageError } = await supabase.storage
+        .from('receipts')
+        .remove([receiptUrl]);
+      
+      if (storageError) throw storageError;
+
+      // Update expense to remove receipt_url
+      const { error } = await supabase
+        .from('expenses')
+        .update({ receipt_url: null })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: "ลบสลิปสำเร็จ",
+        description: "ลบสลิปเรียบร้อยแล้ว",
+      });
+
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error deleting receipt:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถลบสลิปได้",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteAllReceipts = async () => {
+    if (!confirm("คุณต้องการลบสลิปทั้งหมดใช่หรือไม่? (รายการข้อมูลจะยังคงอยู่)")) return;
+
+    try {
+      const receiptsToDelete = expenses
+        .filter(e => e.receipt_url)
+        .map(e => e.receipt_url!);
+
+      if (receiptsToDelete.length === 0) {
+        toast({
+          title: "ไม่มีสลิป",
+          description: "ไม่พบสลิปที่ต้องลบ",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Delete all receipts from storage
+      const { error: storageError } = await supabase.storage
+        .from('receipts')
+        .remove(receiptsToDelete);
+      
+      if (storageError) throw storageError;
+
+      // Update all expenses to remove receipt_url
+      const { error } = await supabase
+        .from('expenses')
+        .update({ receipt_url: null })
+        .in('receipt_url', receiptsToDelete);
+
+      if (error) throw error;
+
+      toast({
+        title: "ลบสลิปสำเร็จ",
+        description: `ลบสลิป ${receiptsToDelete.length} ไฟล์เรียบร้อยแล้ว`,
+      });
+
+      fetchExpenses();
+    } catch (error) {
+      console.error('Error deleting all receipts:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถลบสลิปได้",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadAllReceipts = async () => {
+    try {
+      const receiptsToDownload = expenses.filter(e => e.receipt_url);
+
+      if (receiptsToDownload.length === 0) {
+        toast({
+          title: "ไม่มีสลิป",
+          description: "ไม่พบสลิปที่ต้องดาวน์โหลด",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "กำลังดาวน์โหลด",
+        description: `กำลังดาวน์โหลดสลิป ${receiptsToDownload.length} ไฟล์...`,
+      });
+
+      // Download each receipt
+      for (const expense of receiptsToDownload) {
+        const { data, error } = await supabase.storage
+          .from('receipts')
+          .download(expense.receipt_url!);
+
+        if (error) {
+          console.error('Error downloading receipt:', error);
+          continue;
+        }
+
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        const fileName = expense.receipt_url!.split('/').pop() || `receipt-${expense.id}`;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        // Add delay to avoid overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      toast({
+        title: "ดาวน์โหลดสำเร็จ",
+        description: `ดาวน์โหลดสลิป ${receiptsToDownload.length} ไฟล์เรียบร้อยแล้ว`,
+      });
+    } catch (error) {
+      console.error('Error downloading all receipts:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถดาวน์โหลดสลิปได้",
         variant: "destructive",
       });
     }
@@ -231,6 +381,24 @@ export function ExpenseListReal() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground">รายการเคลื่อนไหว</h2>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={downloadAllReceipts}
+            title="ดาวน์โหลดสลิปทั้งหมด"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            ดาวน์โหลดสลิป
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={deleteAllReceipts}
+            title="ลบสลิปทั้งหมด"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            ลบสลิปทั้งหมด
+          </Button>
           <div className="flex border rounded-lg overflow-hidden">
             <Button
               variant={viewMode === "card" ? "default" : "ghost"}
@@ -439,6 +607,15 @@ export function ExpenseListReal() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteReceipt(expense.id, expense.receipt_url!)}
+                        className="h-8 w-8 p-0 hover:text-orange-600"
+                        title="ลบเฉพาะสลิป"
+                      >
+                        <Receipt className="h-4 w-4" />
+                      </Button>
                     </>
                   )}
                   <Button
@@ -456,9 +633,9 @@ export function ExpenseListReal() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => deleteExpense(expense.id)}
+                    onClick={() => deleteExpense(expense.id, expense.receipt_url)}
                     className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                    title="ลบรายการ"
+                    title="ลบรายการและสลิป"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -566,6 +743,15 @@ export function ExpenseListReal() {
                         >
                           <Download className="h-4 w-4" />
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteReceipt(expense.id, expense.receipt_url!)}
+                          className="h-8 w-8 p-0 hover:text-orange-600"
+                          title="ลบเฉพาะสลิป"
+                        >
+                          <Receipt className="h-4 w-4" />
+                        </Button>
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-sm">-</span>
@@ -588,9 +774,9 @@ export function ExpenseListReal() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => deleteExpense(expense.id)}
+                        onClick={() => deleteExpense(expense.id, expense.receipt_url)}
                         className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="ลบรายการ"
+                        title="ลบรายการและสลิป"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
