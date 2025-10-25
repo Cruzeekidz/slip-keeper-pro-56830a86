@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, RefreshCw } from "lucide-react";
@@ -14,6 +15,9 @@ export default function DataMigration() {
   const [field, setField] = useState<string>("category");
   const [fromValue, setFromValue] = useState<string>("");
   const [toValue, setToValue] = useState<string>("");
+  const [useCondition, setUseCondition] = useState(false);
+  const [conditionField, setConditionField] = useState<string>("project");
+  const [conditionValue, setConditionValue] = useState<string>("");
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -27,37 +31,80 @@ export default function DataMigration() {
       return;
     }
 
+    if (useCondition && !conditionValue.trim()) {
+      toast({
+        title: "กรุณากรอกข้อมูล",
+        description: "กรุณากรอกค่าเงื่อนไข",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       let result;
       
       if (field === 'category') {
-        result = await supabase
+        let query = supabase
           .from('expenses')
           .update({ category: toValue })
-          .eq('category', fromValue)
-          .select();
+          .eq('category', fromValue);
+        
+        if (useCondition && conditionField === 'project') {
+          query = query.eq('project', conditionValue);
+        } else if (useCondition && conditionField === 'subcategory') {
+          query = query.eq('subcategory', conditionValue);
+        } else if (useCondition && conditionField === 'merchant') {
+          query = query.eq('merchant', conditionValue);
+        } else if (useCondition && conditionField === 'category') {
+          query = query.eq('category', conditionValue);
+        }
+        
+        result = await query.select();
       } else if (field === 'project') {
-        result = await supabase
+        let query = supabase
           .from('expenses')
           .update({ project: toValue })
-          .eq('project', fromValue)
-          .select();
+          .eq('project', fromValue);
+        
+        if (useCondition && conditionField === 'category') {
+          query = query.eq('category', conditionValue);
+        } else if (useCondition && conditionField === 'subcategory') {
+          query = query.eq('subcategory', conditionValue);
+        } else if (useCondition && conditionField === 'merchant') {
+          query = query.eq('merchant', conditionValue);
+        } else if (useCondition && conditionField === 'project') {
+          query = query.eq('project', conditionValue);
+        }
+        
+        result = await query.select();
       } else {
-        result = await supabase
+        let query = supabase
           .from('expenses')
           .update({ subcategory: toValue })
-          .eq('subcategory', fromValue)
-          .select();
+          .eq('subcategory', fromValue);
+        
+        if (useCondition && conditionField === 'category') {
+          query = query.eq('category', conditionValue);
+        } else if (useCondition && conditionField === 'project') {
+          query = query.eq('project', conditionValue);
+        } else if (useCondition && conditionField === 'merchant') {
+          query = query.eq('merchant', conditionValue);
+        } else if (useCondition && conditionField === 'subcategory') {
+          query = query.eq('subcategory', conditionValue);
+        }
+        
+        result = await query.select();
       }
 
       const { error, data } = result;
 
       if (error) throw error;
 
+      const conditionText = useCondition ? ` โดยมีเงื่อนไข ${conditionField} = "${conditionValue}"` : '';
       toast({
         title: "อัพเดทสำเร็จ",
-        description: `แปลง ${field} จาก "${fromValue}" เป็น "${toValue}" จำนวน ${data?.length || 0} รายการ`,
+        description: `แปลง ${field} จาก "${fromValue}" เป็น "${toValue}"${conditionText} จำนวน ${data?.length || 0} รายการ`,
       });
 
       setFromValue("");
@@ -147,6 +194,55 @@ export default function DataMigration() {
               </div>
             </div>
 
+            <div className="space-y-4 p-4 bg-muted/50 rounded-lg">
+              <div className="flex items-center space-x-2">
+                <Checkbox 
+                  id="use-condition" 
+                  checked={useCondition}
+                  onCheckedChange={(checked) => setUseCondition(checked as boolean)}
+                />
+                <Label htmlFor="use-condition" className="cursor-pointer">
+                  เพิ่มเงื่อนไขการแปลง
+                </Label>
+              </div>
+
+              {useCondition && (
+                <div className="space-y-4 pl-6 border-l-2 border-primary/30">
+                  <div className="space-y-2">
+                    <Label htmlFor="condition-field">ฟิลด์เงื่อนไข</Label>
+                    <Select value={conditionField} onValueChange={setConditionField}>
+                      <SelectTrigger id="condition-field">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="category">ประเภท (Category)</SelectItem>
+                        <SelectItem value="project">โปรเจค (Project)</SelectItem>
+                        <SelectItem value="subcategory">ประเภทย่อย (Subcategory)</SelectItem>
+                        <SelectItem value="merchant">ร้านค้า (Merchant)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="condition-value">ค่าเงื่อนไข</Label>
+                    <Input
+                      id="condition-value"
+                      value={conditionValue}
+                      onChange={(e) => setConditionValue(e.target.value)}
+                      placeholder="เช่น Central Westgate"
+                    />
+                  </div>
+
+                  <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      <strong>ตัวอย่าง:</strong> ถ้า {conditionField} = "{conditionValue || '...'}" 
+                      ให้เปลี่ยน {field} จาก "{fromValue || '...'}" เป็น "{toValue || '...'}"
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <Button
               onClick={performMigration}
               disabled={loading}
@@ -185,7 +281,9 @@ export default function DataMigration() {
 
           <div className="p-4 bg-muted rounded-lg">
             <p className="text-sm text-muted-foreground">
-              <strong>คำแนะนำ:</strong> เลือกฟิลด์ที่ต้องการแปลง ใส่ค่าเดิมและค่าใหม่ จากนั้นกดปุ่ม "แปลงข้อมูล" หรือใช้ปุ่มตัวเลือกด่วนสำหรับการแปลงที่ใช้บ่อย
+              <strong>คำแนะนำ:</strong> เลือกฟิลด์ที่ต้องการแปลง ใส่ค่าเดิมและค่าใหม่ จากนั้นกดปุ่ม "แปลงข้อมูล" 
+              หากต้องการกำหนดเงื่อนไข เช่น "ถ้า project เป็น Central Westgate ให้เปลี่ยน category จาก บริษัท เป็น event" 
+              ให้เลือก "เพิ่มเงื่อนไขการแปลง"
             </p>
           </div>
         </Card>
