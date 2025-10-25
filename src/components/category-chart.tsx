@@ -4,10 +4,16 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { PieChartIcon } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface CategoryData {
   name: string;
   value: number;
+}
+
+interface YearData {
+  year: number;
+  categories: CategoryData[];
 }
 
 const COLORS = [
@@ -22,8 +28,10 @@ const COLORS = [
 ];
 
 export function CategoryChart() {
-  const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
+  const [yearData, setYearData] = useState<YearData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedYear, setSelectedYear] = useState<string>("compare");
+  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     fetchCategoryData();
@@ -33,24 +41,38 @@ export function CategoryChart() {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('category, amount');
+        .select('category, amount, expense_date');
 
       if (error) throw error;
 
-      // Group by category
-      const categoryMap = new Map<string, number>();
+      // Group by year and category (excluding transfers)
+      const yearMap = new Map<number, Map<string, number>>();
       
       expenses?.forEach(expense => {
+        if (expense.category === 'การโอนเงินระหว่างบัญชี') return; // Skip transfers
+        
+        const year = new Date(expense.expense_date).getFullYear();
         const category = expense.category;
+        
+        if (!yearMap.has(year)) {
+          yearMap.set(year, new Map<string, number>());
+        }
+        
+        const categoryMap = yearMap.get(year)!;
         const current = categoryMap.get(category) || 0;
         categoryMap.set(category, current + expense.amount);
       });
 
-      const data: CategoryData[] = Array.from(categoryMap.entries())
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
+      const data: YearData[] = Array.from(yearMap.entries())
+        .map(([year, categoryMap]) => ({
+          year,
+          categories: Array.from(categoryMap.entries())
+            .map(([name, value]) => ({ name, value }))
+            .sort((a, b) => b.value - a.value)
+        }))
+        .sort((a, b) => b.year - a.year);
 
-      setCategoryData(data);
+      setYearData(data);
     } catch (error) {
       console.error('Error fetching category data:', error);
     } finally {
@@ -66,48 +88,100 @@ export function CategoryChart() {
     );
   }
 
-  const chartConfig = categoryData.reduce((acc, item, index) => {
-    acc[item.name] = {
-      label: item.name,
-      color: COLORS[index % COLORS.length],
-    };
-    return acc;
-  }, {} as Record<string, { label: string; color: string }>);
+  const currentYearData = yearData.find(y => y.year === currentYear);
+  const lastYearData = yearData.find(y => y.year === currentYear - 1);
+
+  const getChartConfig = (categories: CategoryData[]) => {
+    return categories.reduce((acc, item, index) => {
+      acc[item.name] = {
+        label: item.name,
+        color: COLORS[index % COLORS.length],
+      };
+      return acc;
+    }, {} as Record<string, { label: string; color: string }>);
+  };
+
+  const renderPieChart = (data: CategoryData[] | undefined, title: string) => {
+    if (!data || data.length === 0) {
+      return (
+        <div className="text-center text-muted-foreground p-4">
+          ไม่มีข้อมูล
+        </div>
+      );
+    }
+
+    const chartConfig = getChartConfig(data);
+
+    return (
+      <div>
+        <h3 className="text-lg font-semibold mb-3 text-center">{title}</h3>
+        <ChartContainer config={chartConfig} className="h-[350px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={data}
+                cx="50%"
+                cy="50%"
+                labelLine={false}
+                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                outerRadius={100}
+                fill="#8884d8"
+                dataKey="value"
+              >
+                {data.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <ChartTooltip 
+                content={
+                  <ChartTooltipContent 
+                    formatter={(value) => `฿${Number(value).toLocaleString()}`}
+                  />
+                } 
+              />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </div>
+    );
+  };
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">
-      <div className="flex items-center gap-2 mb-4">
-        <PieChartIcon className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-bold text-foreground">การกระจายค่าใช้จ่ายตามหมวดหมู่</h2>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <PieChartIcon className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-bold text-foreground">การกระจายค่าใช้จ่ายตามหมวดหมู่</h2>
+        </div>
+        <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="compare">เปรียบเทียบ 2 ปี</SelectItem>
+            {yearData.map(({ year }) => (
+              <SelectItem key={year} value={year.toString()}>
+                ปี {year + 543}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
-      <ChartContainer config={chartConfig} className="h-[400px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie
-              data={categoryData}
-              cx="50%"
-              cy="50%"
-              labelLine={false}
-              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-              outerRadius={120}
-              fill="#8884d8"
-              dataKey="value"
-            >
-              {categoryData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-              ))}
-            </Pie>
-            <ChartTooltip 
-              content={
-                <ChartTooltipContent 
-                  formatter={(value) => `฿${Number(value).toLocaleString()}`}
-                />
-              } 
-            />
-            <Legend />
-          </PieChart>
-        </ResponsiveContainer>
-      </ChartContainer>
+
+      {selectedYear === "compare" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {renderPieChart(currentYearData?.categories, `ปี ${currentYear + 543}`)}
+          {renderPieChart(lastYearData?.categories, `ปี ${currentYear - 1 + 543}`)}
+        </div>
+      ) : (
+        <div className="max-w-2xl mx-auto">
+          {renderPieChart(
+            yearData.find(y => y.year === parseInt(selectedYear))?.categories,
+            `ปี ${parseInt(selectedYear) + 543}`
+          )}
+        </div>
+      )}
     </Card>
   );
 }
