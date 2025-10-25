@@ -25,6 +25,7 @@ export type Database = {
           merchant: string | null
           project: string | null
           receipt_url: string | null
+          subcategory: string | null
           transaction_id: string | null
           updated_at: string
           user_id: string | null
@@ -39,6 +40,7 @@ export type Database = {
           merchant?: string | null
           project?: string | null
           receipt_url?: string | null
+          subcategory?: string | null
           transaction_id?: string | null
           updated_at?: string
           user_id?: string | null
@@ -53,6 +55,7 @@ export type Database = {
           merchant?: string | null
           project?: string | null
           receipt_url?: string | null
+          subcategory?: string | null
           transaction_id?: string | null
           updated_at?: string
           user_id?: string | null

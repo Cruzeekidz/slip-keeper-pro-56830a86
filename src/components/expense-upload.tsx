@@ -26,6 +26,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [categories, setCategories] = useState<string[]>([]);
+  const [subcategories, setSubcategories] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [hiddenProjects, setHiddenProjects] = useState<string[]>([]);
   const [isManagingProjects, setIsManagingProjects] = useState(false);
@@ -56,6 +57,18 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         // Use Set to ensure uniqueness and filter out empty values
         const uniqueCategories = [...new Set(categoryData.map(item => item.category).filter(Boolean))];
         setCategories(uniqueCategories);
+      }
+
+      // Fetch distinct subcategories
+      const { data: subcategoryData } = await supabase
+        .from('expenses')
+        .select('subcategory')
+        .eq('user_id', user.id)
+        .not('subcategory', 'is', null);
+      
+      if (subcategoryData) {
+        const uniqueSubcategories = [...new Set(subcategoryData.map(item => item.subcategory).filter(Boolean))] as string[];
+        setSubcategories(uniqueSubcategories);
       }
 
       // Fetch distinct projects
@@ -189,6 +202,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     const formData = new FormData(e.currentTarget);
     const amount = formData.get("amount") as string;
     const category = formData.get("category") as string;
+    const subcategory = formData.get("subcategory") as string;
     const project = formData.get("project") as string;
     const date = formData.get("date") as string;
     const description = formData.get("description") as string;
@@ -266,6 +280,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         .insert({
           amount: parseFloat(amount),
           category,
+          subcategory: subcategory || null,
           project: project || null,
           description: description || null,
           expense_date: date,
@@ -449,6 +464,22 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               <option value="ค่าใช้จ่ายบริษัท" />
               {categories.map(cat => (
                 <option key={cat} value={cat} />
+              ))}
+            </datalist>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="subcategory">ประเภทย่อย</Label>
+            <Input
+              id="subcategory"
+              name="subcategory"
+              type="text"
+              placeholder="ระบุประเภทย่อย (ถ้ามี)"
+              list="subcategory-suggestions"
+            />
+            <datalist id="subcategory-suggestions">
+              {subcategories.map(subcat => (
+                <option key={subcat} value={subcat} />
               ))}
             </datalist>
           </div>

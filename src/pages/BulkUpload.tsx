@@ -165,6 +165,7 @@ export default function BulkUpload() {
             amount,
             expense_date: expenseDate,
             category: 'ไม่ระบุ',
+            subcategory: null,
             project: null,
             description,
             merchant,

@@ -16,6 +16,7 @@ interface Expense {
   id: string;
   amount: number;
   category: string;
+  subcategory: string | null;
   project: string | null;
   description: string | null;
   expense_date: string;
@@ -378,6 +379,13 @@ export function ExpenseListReal() {
                   </Select>
                 </div>
 
+                {/* ประเภทย่อย */}
+                {expense.subcategory && (
+                  <div className="text-xs text-muted-foreground px-2">
+                    {expense.subcategory}
+                  </div>
+                )}
+
                 {/* โปรเจค - Dropdown */}
                 <div className="w-32 shrink-0">
                   <Select
@@ -462,6 +470,7 @@ export function ExpenseListReal() {
                 <TableHead>รายละเอียด</TableHead>
                 <TableHead className="w-[140px]">ผู้รับเงิน</TableHead>
                 <TableHead className="w-[120px]">ประเภท</TableHead>
+                <TableHead className="w-[120px]">ประเภทย่อย</TableHead>
                 <TableHead className="w-[150px]">โปรเจ็ค</TableHead>
                 <TableHead className="text-right w-[120px]">จำนวนเงิน</TableHead>
                 <TableHead className="w-[100px]">ใบเสร็จ</TableHead>
@@ -500,6 +509,9 @@ export function ExpenseListReal() {
                           ))}
                       </SelectContent>
                     </Select>
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {expense.subcategory || "-"}
                   </TableCell>
                   <TableCell>
                     <Select
