@@ -23,6 +23,9 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     description: string | null;
     merchant: string | null;
     transaction_id: string | null;
+    category: string | null;
+    project: string | null;
+    subcategory: string | null;
   } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [categories, setCategories] = useState<string[]>([]);
@@ -207,10 +210,15 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     const date = formData.get("date") as string;
     const description = formData.get("description") as string;
 
-    if (!amount || !category || !date) {
+    // Use AI extracted values if form fields are empty
+    const finalCategory = category || extractedData?.category || '';
+    const finalSubcategory = subcategory || extractedData?.subcategory || null;
+    const finalProject = project || extractedData?.project || null;
+
+    if (!amount || !finalCategory || !date) {
       toast({
         title: "เกิดข้อผิดพลาด",
-        description: "กรุณากรอกข้อมูลที่จำเป็น",
+        description: "กรุณากรอกข้อมูลที่จำเป็น (จำนวนเงิน, ประเภท, วันที่)",
         variant: "destructive",
       });
       return;
@@ -279,9 +287,9 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         .from('expenses')
         .insert({
           amount: parseFloat(amount),
-          category,
-          subcategory: subcategory || null,
-          project: project || null,
+          category: finalCategory,
+          subcategory: finalSubcategory,
+          project: finalProject,
           description: description || null,
           expense_date: date,
           receipt_url: receiptUrl,
@@ -409,6 +417,9 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                 {extractedData.date && <li>• วันที่: {extractedData.date}</li>}
                 {extractedData.merchant && <li>• ผู้รับ/ร้านค้า: {extractedData.merchant}</li>}
                 {extractedData.description && <li>• รายละเอียด: {extractedData.description}</li>}
+                {extractedData.category && <li>• ประเภท: {extractedData.category}</li>}
+                {extractedData.subcategory && <li>• ประเภทย่อย: {extractedData.subcategory}</li>}
+                {extractedData.project && <li>• โปรเจค: {extractedData.project}</li>}
               </ul>
             </div>
           )}
@@ -457,6 +468,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               type="text"
               placeholder="ระบุประเภทค่าใช้จ่าย"
               list="category-suggestions"
+              defaultValue={extractedData?.category || undefined}
               required
             />
             <datalist id="category-suggestions">
@@ -476,6 +488,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               type="text"
               placeholder="ระบุประเภทย่อย (ถ้ามี)"
               list="subcategory-suggestions"
+              defaultValue={extractedData?.subcategory || undefined}
             />
             <datalist id="subcategory-suggestions">
               {subcategories.map(subcat => (
@@ -507,6 +520,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               type="text"
               placeholder="ระบุชื่อโปรเจ็คหรือร้าน"
               list="project-suggestions"
+              defaultValue={extractedData?.project || undefined}
             />
             <datalist id="project-suggestions">
               {visibleProjects.map(proj => (

@@ -66,17 +66,35 @@ serve(async (req) => {
   - ถ้าปีขึ้นต้นด้วย 25 (เช่น 2568) = ปี พ.ศ. ให้แปลงเป็น ค.ศ. โดยลบ 543 (เช่น 2568 -> 2025)
   - ถ้าปีขึ้นต้นด้วย 20 (เช่น 2025) = ปี ค.ศ. ใช้ตามที่เป็น
   ต้องส่งกลับมาเป็นปี ค.ศ. เสมอในรูปแบบ YYYY-MM-DD
-- รายละเอียด/หมายเหตุ (description)
 - ชื่อผู้รับหรือร้านค้า (merchant)
 - รหัสอ้างอิง/Transaction ID (transaction_id) - อาจมีชื่อเรียกต่างกันเช่น "รหัสอ้างอิง", "เลขที่อ้างอิง", "Ref No.", "Reference Number", "Transaction ID", "Transaction Ref"
+
+**สำคัญมาก - วิเคราะห์ช่องบันทึก/Memo/Remark/หมายเหตุ:**
+ช่องบันทึกอาจมี pattern พิเศษ: "ชื่อรายการ/ประเภท/โปรเจค/ประเภทย่อย"
+ตัวอย่าง: "ค่าอาหารเช้า/ค่าใช้จ่ายส่วนตัว/บูธขายของ/อาหาร" หรือ "ค่าขนส่ง/ค่าใช้จ่ายบริษัท/ขายออนไลน์/โลจิสติกส์"
+
+ถ้าพบ pattern นี้ในช่องบันทึก ให้แยกข้อมูลดังนี้:
+- description = ส่วนแรก (ชื่อรายการ)
+- category = ส่วนที่สอง (ประเภท)
+- project = ส่วนที่สาม (โปรเจค)
+- subcategory = ส่วนที่สี่ (ประเภทย่อย)
+
+ถ้าไม่พบ pattern นี้ ให้ใช้ข้อมูลจากสลิปตามปกติ:
+- description = ข้อความในช่องบันทึก/รายละเอียดทั้งหมด
+- category = null
+- project = null  
+- subcategory = null
 
 ตอบกลับในรูปแบบ JSON เท่านั้น:
 {
   "amount": "จำนวนเงินเป็นตัวเลข",
   "date": "YYYY-MM-DD (ค.ศ.)",
-  "description": "รายละเอียด",
+  "description": "ชื่อรายการ",
   "merchant": "ชื่อผู้รับ/ร้านค้า",
-  "transaction_id": "รหัสอ้างอิง"
+  "transaction_id": "รหัสอ้างอิง",
+  "category": "ประเภท (ถ้ามีใน pattern)",
+  "project": "โปรเจค (ถ้ามีใน pattern)",
+  "subcategory": "ประเภทย่อย (ถ้ามีใน pattern)"
 }
 
 ถ้าหาข้อมูลไหนไม่พบให้ใส่ null`
@@ -103,9 +121,12 @@ serve(async (req) => {
                   date: { type: ["string", "null"] },
                   description: { type: ["string", "null"] },
                   merchant: { type: ["string", "null"] },
-                  transaction_id: { type: ["string", "null"] }
+                  transaction_id: { type: ["string", "null"] },
+                  category: { type: ["string", "null"] },
+                  project: { type: ["string", "null"] },
+                  subcategory: { type: ["string", "null"] }
                 },
-                required: ["amount", "date", "description", "merchant", "transaction_id"],
+                required: ["amount", "date", "description", "merchant", "transaction_id", "category", "project", "subcategory"],
                 additionalProperties: false
               }
             }
