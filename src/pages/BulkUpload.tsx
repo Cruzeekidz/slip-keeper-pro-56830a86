@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
+import { Upload, X, CheckCircle, AlertCircle, ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -20,6 +20,140 @@ export default function BulkUpload() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
+
+  const downloadCSVTemplate = () => {
+    const headers = [
+      'expense_date',
+      'amount', 
+      'category',
+      'project',
+      'subcategory',
+      'merchant',
+      'description',
+      'sender',
+      'receiver',
+      'transaction_id'
+    ];
+
+    const exampleRow = [
+      '2025-01-15',
+      '1500.00',
+      'ส่วนตัว',
+      'บริษัท',
+      'อาหาร',
+      'ร้านอาหาร ABC',
+      'ค่าอาหารกลางวัน',
+      'นายเอ',
+      'นายบี',
+      'TXN123456'
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      exampleRow.join(','),
+      ',,,,,,,,,' // Empty row for user to fill
+    ].join('\n');
+
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'expense_template.csv';
+    link.click();
+    
+    toast({
+      title: "ดาวน์โหลดเทมเพลตสำเร็จ",
+      description: "กรอกข้อมูลในไฟล์ CSV แล้วอัพโหลดกลับมา",
+    });
+  };
+
+  const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!user) {
+      toast({
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "คุณต้องเข้าสู่ระบบก่อนอัพโหลด",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const lines = text.split('\n').filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          throw new Error('ไฟล์ CSV ว่างเปล่า');
+        }
+
+        const headers = lines[0].split(',').map(h => h.trim());
+        const dataLines = lines.slice(1);
+
+        let successCount = 0;
+        let errorCount = 0;
+
+        for (const line of dataLines) {
+          const values = line.split(',').map(v => v.trim());
+          
+          if (values.length !== headers.length) continue;
+
+          const expense: any = {};
+          headers.forEach((header, index) => {
+            const value = values[index];
+            if (value) {
+              expense[header] = value;
+            }
+          });
+
+          if (!expense.expense_date || !expense.amount || !expense.category) {
+            errorCount++;
+            continue;
+          }
+
+          try {
+            const { error } = await supabase.from('expenses').insert({
+              user_id: user.id,
+              expense_date: expense.expense_date,
+              amount: parseFloat(expense.amount),
+              category: expense.category,
+              project: expense.project || null,
+              subcategory: expense.subcategory || null,
+              merchant: expense.merchant || null,
+              description: expense.description || null,
+              sender: expense.sender || null,
+              receiver: expense.receiver || null,
+              transaction_id: expense.transaction_id || null,
+            });
+
+            if (error) throw error;
+            successCount++;
+          } catch (err) {
+            console.error('Error inserting row:', err);
+            errorCount++;
+          }
+        }
+
+        toast({
+          title: "นำเข้าข้อมูลเสร็จสิ้น",
+          description: `สำเร็จ ${successCount} รายการ${errorCount > 0 ? `, ล้มเหลว ${errorCount} รายการ` : ''}`,
+        });
+
+        setTimeout(() => navigate('/'), 1500);
+      } catch (error) {
+        console.error('Error parsing CSV:', error);
+        toast({
+          title: "เกิดข้อผิดพลาด",
+          description: error instanceof Error ? error.message : "ไม่สามารถอ่านไฟล์ CSV ได้",
+          variant: "destructive",
+        });
+      }
+    };
+
+    reader.readAsText(file);
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
@@ -232,35 +366,76 @@ export default function BulkUpload() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-foreground">อัพโหลดหลายไฟล์</h1>
-            <p className="text-muted-foreground">อัพโหลดใบเสร็จหลายใบพร้อมกัน แล้วกลับมาแก้ไขข้อมูลภายหลัง</p>
+            <h1 className="text-3xl font-bold text-foreground">อัพโหลดหลายรายการ</h1>
+            <p className="text-muted-foreground">อัพโหลดใบเสร็จหลายใบ หรือนำเข้าข้อมูลจาก CSV</p>
           </div>
         </div>
 
-        {/* Upload Area */}
-        <Card className="p-8">
-          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
-            <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-            <h3 className="text-lg font-semibold mb-2">เลือกไฟล์ใบเสร็จ</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              รองรับไฟล์ JPG, PNG, WEBP และ PDF (สูงสุด 20 ไฟล์ต่อครั้ง)
-            </p>
-            <input
-              type="file"
-              multiple
-              accept="image/*,application/pdf"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-upload"
-              disabled={uploading}
-            />
-            <Button asChild disabled={uploading}>
-              <label htmlFor="file-upload" className="cursor-pointer">
-                เลือกไฟล์
-              </label>
-            </Button>
+        {/* CSV Upload Section */}
+        <Card className="p-6 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
+          <div className="flex items-start gap-4">
+            <FileSpreadsheet className="h-8 w-8 text-green-600 dark:text-green-400 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold mb-2 text-green-900 dark:text-green-100">
+                นำเข้าข้อมูลจาก CSV
+              </h3>
+              <p className="text-sm text-green-800 dark:text-green-200 mb-4">
+                ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัพโหลดกลับมาเพื่อนำเข้าข้อมูลจำนวนมาก
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={downloadCSVTemplate}
+                  variant="outline"
+                  className="bg-white dark:bg-gray-900"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  ดาวน์โหลดเทมเพลต CSV
+                </Button>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCSVUpload}
+                  className="hidden"
+                  id="csv-upload"
+                />
+                <Button asChild className="bg-green-600 hover:bg-green-700">
+                  <label htmlFor="csv-upload" className="cursor-pointer">
+                    <Upload className="h-4 w-4 mr-2" />
+                    อัพโหลด CSV
+                  </label>
+                </Button>
+              </div>
+            </div>
           </div>
         </Card>
+
+        {/* Receipt Upload Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4">หรืออัพโหลดใบเสร็จ</h2>
+          <Card className="p-8">
+            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
+              <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">เลือกไฟล์ใบเสร็จ</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                รองรับไฟล์ JPG, PNG, WEBP และ PDF (สูงสุด 20 ไฟล์ต่อครั้ง)
+              </p>
+              <input
+                type="file"
+                multiple
+                accept="image/*,application/pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                id="file-upload"
+                disabled={uploading}
+              />
+              <Button asChild disabled={uploading}>
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  เลือกไฟล์
+                </label>
+              </Button>
+            </div>
+          </Card>
+        </div>
 
         {/* File List */}
         {files.length > 0 && (
@@ -318,13 +493,24 @@ export default function BulkUpload() {
         {/* Instructions */}
         <Card className="p-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">📝 คำแนะนำ</h4>
-          <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-            <li>• อัพโหลดใบเสร็จได้สูงสุด 20 ไฟล์ต่อครั้ง</li>
-            <li>• AI จะวิเคราะห์จำนวนเงิน, วันที่, และรายละเอียดโดยอัตโนมัติ</li>
-            <li>• ประเภทและโปรเจคจะถูกตั้งเป็น "ไม่ระบุ" ให้กรอกเองในภายหลัง</li>
-            <li>• กลับไปหน้าแรก แล้วคลิกปุ่ม "แก้ไข" เพื่อเพิ่มประเภทและโปรเจค</li>
-            <li>• สามารถกรองรายการ "ประเภท: ไม่ระบุ" เพื่อหารายการที่ยังไม่ได้แก้ไข</li>
-          </ul>
+          <div className="space-y-3">
+            <div>
+              <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">สำหรับ CSV:</p>
+              <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                <li>• ดาวน์โหลดเทมเพลตเพื่อดูรูปแบบช่องข้อมูล</li>
+                <li>• ฟิลด์ที่จำเป็น: expense_date, amount, category</li>
+                <li>• วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD (เช่น 2025-01-15)</li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">สำหรับใบเสร็จ:</p>
+              <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                <li>• อัพโหลดใบเสร็จได้สูงสุด 20 ไฟล์ต่อครั้ง</li>
+                <li>• AI จะวิเคราะห์จำนวนเงิน, วันที่, และรายละเอียดโดยอัตโนมัติ</li>
+                <li>• ประเภทและโปรเจคจะถูกตั้งเป็น "ไม่ระบุ" ให้กรอกเองในภายหลัง</li>
+              </ul>
+            </div>
+          </div>
         </Card>
       </div>
     </div>
