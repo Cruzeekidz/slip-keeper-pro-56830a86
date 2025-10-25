@@ -4,13 +4,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { ExpenseEditDialog } from "./expense-edit-dialog";
+import { cn } from "@/lib/utils";
 
 interface Expense {
   id: string;
@@ -33,6 +36,8 @@ export function ExpenseListReal() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -48,7 +53,7 @@ export function ExpenseListReal() {
 
   useEffect(() => {
     filterExpenses();
-  }, [expenses, searchTerm, filterCategory, filterProject, sortBy]);
+  }, [expenses, searchTerm, filterCategory, filterProject, dateFrom, dateTo, sortBy]);
 
   const fetchExpenses = async () => {
     try {
@@ -95,6 +100,19 @@ export function ExpenseListReal() {
 
     if (filterProject !== "all") {
       filtered = filtered.filter(expense => expense.project === filterProject);
+    }
+
+    // Filter by date range
+    if (dateFrom) {
+      filtered = filtered.filter(expense => 
+        new Date(expense.expense_date) >= dateFrom
+      );
+    }
+
+    if (dateTo) {
+      filtered = filtered.filter(expense => 
+        new Date(expense.expense_date) <= dateTo
+      );
     }
 
     // Sort expenses
@@ -423,7 +441,7 @@ export function ExpenseListReal() {
       </div>
 
       {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -487,6 +505,71 @@ export function ExpenseListReal() {
             </SelectItem>
           </SelectContent>
         </Select>
+
+        {/* Date Range Filter */}
+        <div className="flex items-center gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "justify-start text-left font-normal",
+                  !dateFrom && !dateTo && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {dateFrom || dateTo ? (
+                  <span className="truncate">
+                    {dateFrom ? format(dateFrom, "d MMM", { locale: th }) : "..."} - {dateTo ? format(dateTo, "d MMM", { locale: th }) : "..."}
+                  </span>
+                ) : (
+                  <span>ช่วงวันที่</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0 bg-background" align="start">
+              <div className="p-3 border-b">
+                <div className="text-sm font-medium mb-2">เลือกช่วงวันที่</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">จาก:</div>
+                    <Calendar
+                      mode="single"
+                      selected={dateFrom}
+                      onSelect={setDateFrom}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground mb-1">ถึง:</div>
+                    <Calendar
+                      mode="single"
+                      selected={dateTo}
+                      onSelect={setDateTo}
+                      initialFocus
+                      className={cn("p-3 pointer-events-auto")}
+                    />
+                  </div>
+                </div>
+                {(dateFrom || dateTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setDateFrom(undefined);
+                      setDateTo(undefined);
+                    }}
+                    className="w-full mt-2"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    ล้างวันที่
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
       </div>
 
       {/* Expense List */}
