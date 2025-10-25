@@ -22,6 +22,8 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     date: string | null;
     description: string | null;
     merchant: string | null;
+    sender: string | null;
+    receiver: string | null;
     transaction_id: string | null;
     category: string | null;
     project: string | null;
@@ -295,6 +297,8 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
           receipt_url: receiptUrl,
           transaction_id: extractedData?.transaction_id || null,
           merchant: extractedData?.merchant || null,
+          sender: extractedData?.sender || null,
+          receiver: extractedData?.receiver || null,
           user_id: (await supabase.auth.getUser()).data.user?.id
         });
 

@@ -22,6 +22,8 @@ interface Expense {
   expense_date: string;
   receipt_url: string | null;
   merchant: string | null;
+  sender: string | null;
+  receiver: string | null;
   created_at: string;
 }
 
@@ -349,10 +351,14 @@ export function ExpenseListReal() {
                   <span className="font-medium text-foreground truncate block">
                     {expense.description || "ค่าใช้จ่าย"}
                   </span>
-                  {expense.merchant && (
-                    <span className="text-xs text-muted-foreground">
-                      ผู้รับเงิน: {expense.merchant}
-                    </span>
+                  {(expense.sender || expense.receiver || expense.merchant) && (
+                    <div className="text-xs text-muted-foreground space-y-0.5">
+                      {expense.sender && <div>จาก: {expense.sender}</div>}
+                      {expense.receiver && <div>ถึง: {expense.receiver}</div>}
+                      {!expense.sender && !expense.receiver && expense.merchant && (
+                        <div>ผู้รับเงิน: {expense.merchant}</div>
+                      )}
+                    </div>
                   )}
                 </div>
 

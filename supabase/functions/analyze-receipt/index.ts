@@ -67,6 +67,8 @@ serve(async (req) => {
   - ถ้าปีขึ้นต้นด้วย 20 (เช่น 2025) = ปี ค.ศ. ใช้ตามที่เป็น
   ต้องส่งกลับมาเป็นปี ค.ศ. เสมอในรูปแบบ YYYY-MM-DD
 - ชื่อผู้รับหรือร้านค้า (merchant)
+- ชื่อผู้โอน/ผู้ส่งเงิน (sender) - ชื่อบัญชีผู้โอน
+- ชื่อผู้รับเงิน (receiver) - ชื่อบัญชีผู้รับ
 - รหัสอ้างอิง/Transaction ID (transaction_id) - อาจมีชื่อเรียกต่างกันเช่น "รหัสอ้างอิง", "เลขที่อ้างอิง", "Ref No.", "Reference Number", "Transaction ID", "Transaction Ref"
 
 **สำคัญมาก - วิเคราะห์ช่องบันทึก/Memo/Remark/หมายเหตุ:**
@@ -91,6 +93,8 @@ serve(async (req) => {
   "date": "YYYY-MM-DD (ค.ศ.)",
   "description": "ชื่อรายการ",
   "merchant": "ชื่อผู้รับ/ร้านค้า",
+  "sender": "ชื่อผู้โอน/ผู้ส่งเงิน",
+  "receiver": "ชื่อผู้รับเงิน",
   "transaction_id": "รหัสอ้างอิง",
   "category": "ประเภท (ถ้ามีใน pattern)",
   "project": "โปรเจค (ถ้ามีใน pattern)",
@@ -121,12 +125,14 @@ serve(async (req) => {
                   date: { type: ["string", "null"] },
                   description: { type: ["string", "null"] },
                   merchant: { type: ["string", "null"] },
+                  sender: { type: ["string", "null"] },
+                  receiver: { type: ["string", "null"] },
                   transaction_id: { type: ["string", "null"] },
                   category: { type: ["string", "null"] },
                   project: { type: ["string", "null"] },
                   subcategory: { type: ["string", "null"] }
                 },
-                required: ["amount", "date", "description", "merchant", "transaction_id", "category", "project", "subcategory"],
+                required: ["amount", "date", "description", "merchant", "sender", "receiver", "transaction_id", "category", "project", "subcategory"],
                 additionalProperties: false
               }
             }

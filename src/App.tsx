@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import BulkUpload from "./pages/BulkUpload";
 import DataMigration from "./pages/DataMigration";
+import DuplicateChecker from "./pages/DuplicateChecker";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,7 +24,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/bulk-upload" element={<BulkUpload />} />
-            <Route path="/data-migration" element={<DataMigration />} />
+          <Route path="/data-migration" element={<DataMigration />} />
+          <Route path="/duplicate-checker" element={<DuplicateChecker />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
