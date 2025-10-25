@@ -41,7 +41,7 @@ const Index = () => {
       }
 
       // Create CSV content
-      const headers = ['วันที่', 'จำนวนเงิน', 'ประเภท', 'โปรเจค', 'รายละเอียด'];
+      const headers = ['วันที่', 'จำนวนเงิน', 'ประเภท', 'โปรเจค', 'ผู้รับเงิน', 'รายละเอียด'];
       const csvContent = [
         headers.join(','),
         ...expenses.map(exp => [
@@ -49,6 +49,7 @@ const Index = () => {
           exp.amount,
           exp.category,
           exp.project || '',
+          exp.merchant || '',
           `"${exp.description || ''}"` // Wrap in quotes for descriptions with commas
         ].join(','))
       ].join('\n');

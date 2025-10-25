@@ -22,6 +22,7 @@ export type Database = {
           description: string | null
           expense_date: string
           id: string
+          merchant: string | null
           project: string | null
           receipt_url: string | null
           transaction_id: string | null
@@ -35,6 +36,7 @@ export type Database = {
           description?: string | null
           expense_date: string
           id?: string
+          merchant?: string | null
           project?: string | null
           receipt_url?: string | null
           transaction_id?: string | null
@@ -48,6 +50,7 @@ export type Database = {
           description?: string | null
           expense_date?: string
           id?: string
+          merchant?: string | null
           project?: string | null
           receipt_url?: string | null
           transaction_id?: string | null

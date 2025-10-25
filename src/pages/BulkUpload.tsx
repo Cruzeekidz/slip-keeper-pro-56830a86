@@ -91,6 +91,7 @@ export default function BulkUpload() {
         let amount = 0;
         let expenseDate = new Date().toISOString().split('T')[0];
         let description = 'รอกรอกข้อมูล';
+        let merchant: string | null = null;
         let transactionId: string | null = null;
 
         const fileType = updatedFiles[i].file.type;
@@ -138,7 +139,8 @@ export default function BulkUpload() {
 
             amount = aiData.data.amount || 0;
             expenseDate = aiData.data.date || expenseDate;
-            description = aiData.data.description || aiData.data.merchant || 'รอกรอกข้อมูล';
+            description = aiData.data.description || 'รอกรอกข้อมูล';
+            merchant = aiData.data.merchant || null;
             transactionId = aiData.data.transaction_id || null;
           } else {
             console.log('[BulkUpload] No valid data from AI, using defaults');
@@ -165,6 +167,7 @@ export default function BulkUpload() {
             category: 'ไม่ระบุ',
             project: null,
             description,
+            merchant,
             receipt_url: fileName,
             transaction_id: transactionId,
           })

@@ -20,6 +20,7 @@ interface Expense {
   description: string | null;
   expense_date: string;
   receipt_url: string | null;
+  merchant: string | null;
   created_at: string;
 }
 
@@ -347,6 +348,11 @@ export function ExpenseListReal() {
                   <span className="font-medium text-foreground truncate block">
                     {expense.description || "ค่าใช้จ่าย"}
                   </span>
+                  {expense.merchant && (
+                    <span className="text-xs text-muted-foreground">
+                      ผู้รับเงิน: {expense.merchant}
+                    </span>
+                  )}
                 </div>
 
                 {/* ประเภท - Dropdown */}
@@ -454,6 +460,7 @@ export function ExpenseListReal() {
               <TableRow>
                 <TableHead className="w-[110px]">วันที่</TableHead>
                 <TableHead>รายละเอียด</TableHead>
+                <TableHead className="w-[140px]">ผู้รับเงิน</TableHead>
                 <TableHead className="w-[120px]">ประเภท</TableHead>
                 <TableHead className="w-[150px]">โปรเจ็ค</TableHead>
                 <TableHead className="text-right w-[120px]">จำนวนเงิน</TableHead>
@@ -469,6 +476,9 @@ export function ExpenseListReal() {
                   </TableCell>
                   <TableCell className="font-medium">
                     {expense.description || "ค่าใช้จ่าย"}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {expense.merchant || "-"}
                   </TableCell>
                   <TableCell>
                     <Select
