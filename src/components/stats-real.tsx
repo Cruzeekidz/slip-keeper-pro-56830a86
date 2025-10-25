@@ -27,6 +27,10 @@ export function StatsReal() {
 
       if (allError) throw allError;
 
+      const isTransferCategory = (category: string) => {
+        return category === 'การโอนเงินระหว่างบัญชี' || category === 'การโอนข้ามบัญชี';
+      };
+
       const now = new Date();
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
@@ -37,25 +41,25 @@ export function StatsReal() {
       // Calculate current year expenses (excluding transfers)
       const currentYearExpenses = allExpenses?.filter(expense => {
         const expenseDate = new Date(expense.expense_date);
-        return expenseDate.getFullYear() === currentYear && expense.category !== 'การโอนเงินระหว่างบัญชี';
+        return expenseDate.getFullYear() === currentYear && !isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate last year expenses (excluding transfers)
       const lastYearExpenses = allExpenses?.filter(expense => {
         const expenseDate = new Date(expense.expense_date);
-        return expenseDate.getFullYear() === lastYear && expense.category !== 'การโอนเงินระหว่างบัญชี';
+        return expenseDate.getFullYear() === lastYear && !isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate current year transfers
       const currentYearTransfers = allExpenses?.filter(expense => {
         const expenseDate = new Date(expense.expense_date);
-        return expenseDate.getFullYear() === currentYear && expense.category === 'การโอนเงินระหว่างบัญชี';
+        return expenseDate.getFullYear() === currentYear && isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate last year transfers
       const lastYearTransfers = allExpenses?.filter(expense => {
         const expenseDate = new Date(expense.expense_date);
-        return expenseDate.getFullYear() === lastYear && expense.category === 'การโอนเงินระหว่างบัญชี';
+        return expenseDate.getFullYear() === lastYear && isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate current month expenses (excluding transfers)
@@ -63,7 +67,7 @@ export function StatsReal() {
         const expenseDate = new Date(expense.expense_date);
         return expenseDate.getMonth() === currentMonth && 
                expenseDate.getFullYear() === currentYear && 
-               expense.category !== 'การโอนเงินระหว่างบัญชี';
+               !isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate last month expenses (excluding transfers)
@@ -71,7 +75,7 @@ export function StatsReal() {
         const expenseDate = new Date(expense.expense_date);
         return expenseDate.getMonth() === lastMonth && 
                expenseDate.getFullYear() === lastMonthYear && 
-               expense.category !== 'การโอนเงินระหว่างบัญชี';
+               !isTransferCategory(expense.category);
       }).reduce((sum, expense) => sum + expense.amount, 0) || 0;
 
       // Calculate monthly change percentage
@@ -80,7 +84,7 @@ export function StatsReal() {
         : 0;
 
       // Count only non-transfer expenses
-      const expenseCount = allExpenses?.filter(expense => expense.category !== 'การโอนเงินระหว่างบัญชี').length || 0;
+      const expenseCount = allExpenses?.filter(expense => !isTransferCategory(expense.category)).length || 0;
 
       setStats({
         currentYearExpenses,

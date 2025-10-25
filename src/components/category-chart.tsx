@@ -48,8 +48,12 @@ export function CategoryChart() {
       // Group by year and category (excluding transfers)
       const yearMap = new Map<number, Map<string, number>>();
       
+      const isTransferCategory = (category: string) => {
+        return category === 'การโอนเงินระหว่างบัญชี' || category === 'การโอนข้ามบัญชี';
+      };
+      
       expenses?.forEach(expense => {
-        if (expense.category === 'การโอนเงินระหว่างบัญชี') return; // Skip transfers
+        if (isTransferCategory(expense.category)) return; // Skip transfers
         
         const year = new Date(expense.expense_date).getFullYear();
         const category = expense.category;
