@@ -31,25 +31,55 @@ export function EventAnalysis() {
   const [projectData, setProjectData] = useState<ProjectData[]>([]);
   const [subcategoryData, setSubcategoryData] = useState<SubcategoryData[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedProject, setSelectedProject] = useState<string>("all");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchEventData();
+    fetchCategories();
   }, []);
 
   useEffect(() => {
-    if (selectedProject !== "all") {
-      fetchSubcategoryData(selectedProject);
+    if (selectedCategory !== "all") {
+      fetchProjectData(selectedCategory);
+      setSelectedProject("all");
+      setSubcategoryData([]);
+    }
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    if (selectedProject !== "all" && selectedCategory !== "all") {
+      fetchSubcategoryData(selectedCategory, selectedProject);
     }
   }, [selectedProject]);
 
-  const fetchEventData = async () => {
+  const fetchCategories = async () => {
+    try {
+      const { data: expenses, error } = await supabase
+        .from('expenses')
+        .select('category');
+
+      if (error) throw error;
+
+      // Get unique categories
+      const uniqueCategories = Array.from(new Set(
+        expenses?.map(e => e.category).filter(Boolean) as string[]
+      )).sort();
+      setCategories(uniqueCategories);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchProjectData = async (category: string) => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
         .select('project, amount, category, subcategory')
-        .eq('category', 'อีเวนท์');
+        .eq('category', category);
 
       if (error) throw error;
 
@@ -74,18 +104,16 @@ export function EventAnalysis() {
 
       setProjectData(projectSummary);
     } catch (error) {
-      console.error('Error fetching event data:', error);
-    } finally {
-      setLoading(false);
+      console.error('Error fetching project data:', error);
     }
   };
 
-  const fetchSubcategoryData = async (project: string) => {
+  const fetchSubcategoryData = async (category: string, project: string) => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
         .select('subcategory, amount')
-        .eq('category', 'อีเวนท์')
+        .eq('category', category)
         .eq('project', project);
 
       if (error) throw error;
@@ -130,58 +158,77 @@ export function EventAnalysis() {
     <Card className="p-6 bg-gradient-card shadow-card">
       <div className="flex items-center gap-2 mb-6">
         <Calendar className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-bold text-foreground">วิเคราะห์ค่าใช้จ่ายอีเวนท์</h2>
+        <h2 className="text-xl font-bold text-foreground">วิเคราะห์ค่าใช้จ่ายตามประเภท</h2>
+      </div>
+
+      {/* Category Selection */}
+      <div className="mb-6">
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-full md:w-[300px]">
+            <SelectValue placeholder="เลือกประเภท" />
+          </SelectTrigger>
+          <SelectContent className="bg-background z-50">
+            <SelectItem value="all">เลือกประเภท</SelectItem>
+            {categories.map((category) => (
+              <SelectItem key={category} value={category}>
+                {category}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Project Overview Chart */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-4">ค่าใช้จ่ายรวมแต่ละ Event</h3>
-        {projectData.length > 0 ? (
-          <ChartContainer 
-            config={{}} 
-            className="h-[300px]"
-          >
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <XAxis 
-                  dataKey="project" 
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                  interval={0}
-                />
-                <YAxis 
-                  tickFormatter={(value) => `฿${(value / 1000).toFixed(0)}k`}
-                />
-                <ChartTooltip 
-                  content={
-                    <ChartTooltipContent 
-                      formatter={(value) => `฿${Number(value).toLocaleString()}`}
-                    />
-                  } 
-                />
-                <Bar dataKey="amount" fill="hsl(195 85% 45%)" />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartContainer>
-        ) : (
-          <div className="text-center text-muted-foreground p-8">
-            ไม่มีข้อมูลอีเวนท์
-          </div>
-        )}
-      </div>
+      {selectedCategory !== "all" && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold mb-4">ค่าใช้จ่ายรวมแต่ละ Project</h3>
+          {projectData.length > 0 ? (
+            <ChartContainer 
+              config={{}} 
+              className="h-[300px]"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={projectData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                  <XAxis 
+                    dataKey="project" 
+                    angle={-45}
+                    textAnchor="end"
+                    height={100}
+                    interval={0}
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `฿${(value / 1000).toFixed(0)}k`}
+                  />
+                  <ChartTooltip 
+                    content={
+                      <ChartTooltipContent 
+                        formatter={(value) => `฿${Number(value).toLocaleString()}`}
+                      />
+                    } 
+                  />
+                  <Bar dataKey="amount" fill="hsl(195 85% 45%)" />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          ) : (
+            <div className="text-center text-muted-foreground p-8">
+              ไม่มีข้อมูล
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Subcategory Breakdown */}
-      {projects.length > 0 && (
+      {selectedCategory !== "all" && projects.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">ประเภทย่อยของแต่ละ Event</h3>
+            <h3 className="text-lg font-semibold">ประเภทย่อยของแต่ละ Project</h3>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger className="w-[250px]">
-                <SelectValue placeholder="เลือก Event" />
+              <SelectTrigger className="w-full md:w-[250px]">
+                <SelectValue placeholder="เลือก Project" />
               </SelectTrigger>
               <SelectContent className="bg-background z-50">
-                <SelectItem value="all">เลือก Event</SelectItem>
+                <SelectItem value="all">เลือก Project</SelectItem>
                 {projects.map((project) => (
                   <SelectItem key={project} value={project}>
                     {project}
@@ -268,7 +315,7 @@ export function EventAnalysis() {
 
           {selectedProject !== "all" && subcategoryData.length === 0 && (
             <div className="text-center text-muted-foreground p-8 border rounded-lg">
-              ไม่มีข้อมูลประเภทย่อยสำหรับ Event นี้
+              ไม่มีข้อมูลประเภทย่อยสำหรับ Project นี้
             </div>
           )}
         </div>
