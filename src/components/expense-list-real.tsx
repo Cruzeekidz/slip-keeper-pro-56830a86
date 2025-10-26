@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -526,22 +526,25 @@ export function ExpenseListReal() {
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto p-0 bg-background" align="start">
-            <Calendar
-              mode="range"
-              selected={{
-                from: dateFrom,
-                to: dateTo
-              }}
-              onSelect={(range) => {
-                setDateFrom(range?.from);
-                setDateTo(range?.to);
-              }}
-              numberOfMonths={1}
-              className={cn("p-3 pointer-events-auto")}
-            />
-            {(dateFrom || dateTo) && (
-              <div className="p-3 border-t">
+          <PopoverContent className="w-[320px] p-3 bg-background" align="start">
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">จาก</div>
+                <Input
+                  type="date"
+                  value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""}
+                  onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value) : undefined)}
+                />
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground mb-1">ถึง</div>
+                <Input
+                  type="date"
+                  value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""}
+                  onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value) : undefined)}
+                />
+              </div>
+              {(dateFrom || dateTo) && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -554,8 +557,8 @@ export function ExpenseListReal() {
                   <X className="h-4 w-4 mr-2" />
                   ล้างวันที่
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
           </PopoverContent>
         </Popover>
       </div>
