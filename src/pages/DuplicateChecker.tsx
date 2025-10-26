@@ -81,25 +81,27 @@ export default function DuplicateChecker() {
         }
       });
 
-      // Group 2: Same date (including time)
-      const dateGroups = new Map<string, Expense[]>();
+      // Group 2: Same amount + date + time
+      const amountDateTimeGroups = new Map<string, Expense[]>();
       expenses?.forEach(exp => {
         if (!processedIds.has(exp.id)) {
-          const key = exp.expense_date; // วันที่และเวลา
-          if (!dateGroups.has(key)) {
-            dateGroups.set(key, []);
+          // ใช้ยอดโอน + วันที่และเวลา
+          const key = `${exp.amount}-${exp.expense_date}`;
+          if (!amountDateTimeGroups.has(key)) {
+            amountDateTimeGroups.set(key, []);
           }
-          dateGroups.get(key)!.push(exp);
+          amountDateTimeGroups.get(key)!.push(exp);
         }
       });
 
-      dateGroups.forEach((exps, key) => {
+      amountDateTimeGroups.forEach((exps, key) => {
         if (exps.length > 1) {
           exps.forEach(e => processedIds.add(e.id));
+          const [amount, dateTime] = key.split('-');
           groups.push({
-            key: `date-${key}`,
+            key: `amt-${key}`,
             expenses: exps,
-            reason: `วันที่และเวลาเดียวกัน: ${format(new Date(key), 'dd/MM/yyyy HH:mm:ss')}`
+            reason: `ยอดโอนและวันที่เวลาเดียวกัน: ฿${parseFloat(amount).toLocaleString()} - ${format(new Date(dateTime), 'dd/MM/yyyy HH:mm:ss')}`
           });
         }
       });
@@ -322,7 +324,7 @@ export default function DuplicateChecker() {
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">💡 คำแนะนำ</h4>
           <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
             <li>• ระบบตรวจสอบรายการซ้ำโดยเปรียบเทียบรหัสอ้างอิง (Transaction ID)</li>
-            <li>• และเปรียบเทียบวันที่และเวลาที่เหมือนกันทุกประการ</li>
+            <li>• หรือเปรียบเทียบยอดโอน + วันที่และเวลาที่เหมือนกันทุกประการ</li>
             <li>• คุณสามารถเลือกรายการที่ต้องการลบได้ด้วยตัวเอง</li>
             <li>• หรือใช้ปุ่ม "เลือกทั้งหมด (เว้นรายการแรก)" เพื่อเลือกรายการซ้ำอัตโนมัติ</li>
             <li>• ตรวจสอบข้อมูลให้ละเอียดก่อนลบ เพราะการลบไม่สามารถย้อนกลับได้</li>
