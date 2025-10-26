@@ -4,7 +4,8 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend, PieChart, Pie, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface ProjectData {
   project: string;
@@ -163,19 +164,20 @@ export function EventAnalysis() {
 
       {/* Category Selection */}
       <div className="mb-6">
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-full md:w-[300px]">
-            <SelectValue placeholder="เลือกประเภท" />
-          </SelectTrigger>
-          <SelectContent className="bg-background z-50">
-            <SelectItem value="all">เลือกประเภท</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Label htmlFor="category-select">ประเภท</Label>
+        <Input
+          id="category-select"
+          value={selectedCategory === "all" ? "" : selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value || "all")}
+          list="categories-datalist"
+          placeholder="เลือกหรือพิมพ์ประเภท"
+          className="w-full md:w-[300px] mt-2"
+        />
+        <datalist id="categories-datalist">
+          {categories.map((category) => (
+            <option key={category} value={category} />
+          ))}
+        </datalist>
       </div>
 
       {/* Project Overview Chart */}
@@ -221,21 +223,24 @@ export function EventAnalysis() {
       {/* Subcategory Breakdown */}
       {selectedCategory !== "all" && projects.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">ประเภทย่อยของแต่ละ Project</h3>
-            <Select value={selectedProject} onValueChange={setSelectedProject}>
-              <SelectTrigger className="w-full md:w-[250px]">
-                <SelectValue placeholder="เลือก Project" />
-              </SelectTrigger>
-              <SelectContent className="bg-background z-50">
-                <SelectItem value="all">เลือก Project</SelectItem>
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold mb-3">ประเภทย่อยของแต่ละ Project</h3>
+            <div>
+              <Label htmlFor="project-select">Project</Label>
+              <Input
+                id="project-select"
+                value={selectedProject === "all" ? "" : selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value || "all")}
+                list="projects-datalist"
+                placeholder="เลือกหรือพิมพ์ Project"
+                className="w-full md:w-[250px] mt-2"
+              />
+              <datalist id="projects-datalist">
                 {projects.map((project) => (
-                  <SelectItem key={project} value={project}>
-                    {project}
-                  </SelectItem>
+                  <option key={project} value={project} />
                 ))}
-              </SelectContent>
-            </Select>
+              </datalist>
+            </div>
           </div>
 
           {selectedProject !== "all" && subcategoryData.length > 0 && (
