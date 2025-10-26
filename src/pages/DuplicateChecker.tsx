@@ -84,28 +84,27 @@ export default function DuplicateChecker() {
         }
       });
 
-      // Group 2: Same amount + date + time + receiver
-      const amountDateTimeReceiverGroups = new Map<string, Expense[]>();
+      // Group 2: Same amount + date + time
+      const amountDateTimeGroups = new Map<string, Expense[]>();
       expenses?.forEach(exp => {
         if (!processedIds.has(exp.id)) {
-          // ใช้ยอดโอน + วันที่เวลา + ผู้รับโอน
-          const receiver = exp.receiver || exp.merchant || 'unknown';
-          const key = `${exp.amount}-${exp.expense_date}-${receiver}`;
-          if (!amountDateTimeReceiverGroups.has(key)) {
-            amountDateTimeReceiverGroups.set(key, []);
+          // ใช้ยอดโอน + วันที่และเวลา
+          const key = `${exp.amount}-${exp.expense_date}`;
+          if (!amountDateTimeGroups.has(key)) {
+            amountDateTimeGroups.set(key, []);
           }
-          amountDateTimeReceiverGroups.get(key)!.push(exp);
+          amountDateTimeGroups.get(key)!.push(exp);
         }
       });
 
-      amountDateTimeReceiverGroups.forEach((exps, key) => {
+      amountDateTimeGroups.forEach((exps, key) => {
         if (exps.length > 1) {
           exps.forEach(e => processedIds.add(e.id));
-          const [amount, dateTime, receiver] = key.split('-');
+          const [amount, dateTime] = key.split('-');
           groups.push({
             key: `amt-${key}`,
             expenses: exps,
-            reason: `ยอดโอน วันที่เวลา และผู้รับโอนเดียวกัน: ฿${parseFloat(amount).toLocaleString()} - ${receiver}`
+            reason: `ยอดโอน วันที่ และเวลาเดียวกัน: ฿${parseFloat(amount).toLocaleString()}`
           });
         }
       });
@@ -361,7 +360,7 @@ export default function DuplicateChecker() {
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">💡 คำแนะนำ</h4>
           <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
             <li>• ระบบตรวจสอบรายการซ้ำโดยเปรียบเทียบรหัสอ้างอิง (Transaction ID)</li>
-            <li>• หรือเปรียบเทียบยอดโอน + วันที่ + เวลา + ผู้รับโอนที่เหมือนกันทุกประการ</li>
+            <li>• หรือเปรียบเทียบยอดโอน + วันที่ + เวลาที่เหมือนกันทุกประการ</li>
             <li>• คุณสามารถกดดูสลิปเพื่อตรวจสอบความถูกต้องก่อนลบได้</li>
             <li>• เลือกรายการที่ต้องการลบด้วยตัวเอง หรือใช้ปุ่ม "เลือกทั้งหมด (เว้นรายการแรก)"</li>
             <li>• ตรวจสอบข้อมูลให้ละเอียดก่อนลบ เพราะการลบไม่สามารถย้อนกลับได้</li>
