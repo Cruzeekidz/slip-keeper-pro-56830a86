@@ -188,8 +188,11 @@ export default function DuplicateChecker() {
 
   const viewReceipt = async (receiptUrl: string) => {
     try {
-      const filePath = receiptUrl.split('/').pop();
-      if (!filePath) return;
+      // Extract the path from the full URL (remove domain if present)
+      const urlParts = receiptUrl.split('/');
+      const filePath = urlParts.length > 1 && urlParts.includes('receipts')
+        ? urlParts.slice(urlParts.indexOf('receipts') + 1).join('/')
+        : receiptUrl;
 
       const { data, error } = await supabase.storage
         .from('receipts')
