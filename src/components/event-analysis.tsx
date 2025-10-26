@@ -175,7 +175,7 @@ export function EventAnalysis() {
       {projects.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold">ค่าใช้จ่ายย่อยของแต่ละ Event</h3>
+            <h3 className="text-lg font-semibold">ประเภทย่อยของแต่ละ Event</h3>
             <Select value={selectedProject} onValueChange={setSelectedProject}>
               <SelectTrigger className="w-[250px]">
                 <SelectValue placeholder="เลือก Event" />
