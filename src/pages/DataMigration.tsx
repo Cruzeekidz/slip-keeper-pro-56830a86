@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowLeft, RefreshCw, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function DataMigration() {
@@ -17,9 +17,36 @@ export default function DataMigration() {
   const [toValue, setToValue] = useState<string>("");
   const [useCondition, setUseCondition] = useState(false);
   const [conditionField, setConditionField] = useState<string>("project");
-  const [conditionValue, setConditionValue] = useState<string>("");
+  const [conditionValues, setConditionValues] = useState<string[]>([]);
+  const [availableProjects, setAvailableProjects] = useState<string[]>([]);
+  const [selectedProject, setSelectedProject] = useState<string>("");
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      const { data } = await supabase
+        .from('expenses')
+        .select('project')
+        .order('project');
+      
+      const uniqueProjects = [...new Set(data?.map(item => item.project).filter(Boolean) || [])] as string[];
+      setAvailableProjects(uniqueProjects);
+    };
+
+    fetchProjects();
+  }, []);
+
+  const addConditionValue = () => {
+    if (selectedProject && !conditionValues.includes(selectedProject)) {
+      setConditionValues([...conditionValues, selectedProject]);
+      setSelectedProject("");
+    }
+  };
+
+  const removeConditionValue = (value: string) => {
+    setConditionValues(conditionValues.filter(v => v !== value));
+  };
 
   const performMigration = async () => {
     if (!fromValue.trim() || !toValue.trim()) {
@@ -31,10 +58,10 @@ export default function DataMigration() {
       return;
     }
 
-    if (useCondition && !conditionValue.trim()) {
+    if (useCondition && conditionValues.length === 0) {
       toast({
         title: "กรุณากรอกข้อมูล",
-        description: "กรุณากรอกค่าเงื่อนไข",
+        description: "กรุณาเพิ่มค่าเงื่อนไขอย่างน้อย 1 รายการ",
         variant: "destructive",
       });
       return;
@@ -42,66 +69,36 @@ export default function DataMigration() {
 
     setLoading(true);
     try {
-      let result;
+      let query;
       
       if (field === 'category') {
-        let query = supabase
+        query = supabase
           .from('expenses')
           .update({ category: toValue })
           .eq('category', fromValue);
-        
-        if (useCondition && conditionField === 'project') {
-          query = query.eq('project', conditionValue);
-        } else if (useCondition && conditionField === 'subcategory') {
-          query = query.eq('subcategory', conditionValue);
-        } else if (useCondition && conditionField === 'merchant') {
-          query = query.eq('merchant', conditionValue);
-        } else if (useCondition && conditionField === 'category') {
-          query = query.eq('category', conditionValue);
-        }
-        
-        result = await query.select();
       } else if (field === 'project') {
-        let query = supabase
+        query = supabase
           .from('expenses')
           .update({ project: toValue })
           .eq('project', fromValue);
-        
-        if (useCondition && conditionField === 'category') {
-          query = query.eq('category', conditionValue);
-        } else if (useCondition && conditionField === 'subcategory') {
-          query = query.eq('subcategory', conditionValue);
-        } else if (useCondition && conditionField === 'merchant') {
-          query = query.eq('merchant', conditionValue);
-        } else if (useCondition && conditionField === 'project') {
-          query = query.eq('project', conditionValue);
-        }
-        
-        result = await query.select();
       } else {
-        let query = supabase
+        query = supabase
           .from('expenses')
           .update({ subcategory: toValue })
           .eq('subcategory', fromValue);
-        
-        if (useCondition && conditionField === 'category') {
-          query = query.eq('category', conditionValue);
-        } else if (useCondition && conditionField === 'project') {
-          query = query.eq('project', conditionValue);
-        } else if (useCondition && conditionField === 'merchant') {
-          query = query.eq('merchant', conditionValue);
-        } else if (useCondition && conditionField === 'subcategory') {
-          query = query.eq('subcategory', conditionValue);
-        }
-        
-        result = await query.select();
       }
+      
+      if (useCondition && conditionValues.length > 0) {
+        query = query.in(conditionField as any, conditionValues);
+      }
+      
+      const result = await query.select();
 
       const { error, data } = result;
 
       if (error) throw error;
 
-      const conditionText = useCondition ? ` โดยมีเงื่อนไข ${conditionField} = "${conditionValue}"` : '';
+      const conditionText = useCondition ? ` โดยมีเงื่อนไข ${conditionField} เป็น [${conditionValues.join(', ')}]` : '';
       toast({
         title: "อัพเดทสำเร็จ",
         description: `แปลง ${field} จาก "${fromValue}" เป็น "${toValue}"${conditionText} จำนวน ${data?.length || 0} รายการ`,
@@ -224,18 +221,66 @@ export default function DataMigration() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="condition-value">ค่าเงื่อนไข</Label>
-                    <Input
-                      id="condition-value"
-                      value={conditionValue}
-                      onChange={(e) => setConditionValue(e.target.value)}
-                      placeholder="เช่น Central Westgate"
-                    />
+                    <Label htmlFor="condition-value">เพิ่มค่าเงื่อนไข</Label>
+                    <div className="flex gap-2">
+                      {conditionField === 'project' ? (
+                        <Select value={selectedProject} onValueChange={setSelectedProject}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="เลือกโปรเจค" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {availableProjects.map((project) => (
+                              <SelectItem key={project} value={project}>
+                                {project}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          className="flex-1"
+                          value={selectedProject}
+                          onChange={(e) => setSelectedProject(e.target.value)}
+                          placeholder="ระบุค่าเงื่อนไข"
+                        />
+                      )}
+                      <Button
+                        type="button"
+                        onClick={addConditionValue}
+                        disabled={!selectedProject}
+                        size="sm"
+                      >
+                        เพิ่ม
+                      </Button>
+                    </div>
                   </div>
+
+                  {conditionValues.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>รายการค่าเงื่อนไข ({conditionValues.length})</Label>
+                      <div className="flex flex-wrap gap-2">
+                        {conditionValues.map((value) => (
+                          <div
+                            key={value}
+                            className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
+                          >
+                            <span>{value}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeConditionValue(value)}
+                              className="hover:bg-primary/20 rounded-full p-0.5"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded border border-blue-200 dark:border-blue-800">
                     <p className="text-xs text-blue-800 dark:text-blue-200">
-                      <strong>ตัวอย่าง:</strong> ถ้า {conditionField} = "{conditionValue || '...'}" 
+                      <strong>ตัวอย่าง:</strong> ถ้า {conditionField} เป็น {conditionValues.length > 0 ? `[${conditionValues.join(', ')}]` : '[...]'} 
                       ให้เปลี่ยน {field} จาก "{fromValue || '...'}" เป็น "{toValue || '...'}"
                     </p>
                   </div>
