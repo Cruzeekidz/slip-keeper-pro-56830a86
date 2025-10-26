@@ -38,7 +38,7 @@ export function ExpenseListReal() {
   const [filterProject, setFilterProject] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "name-asc" | "name-desc">("date-desc");
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -121,6 +121,14 @@ export function ExpenseListReal() {
         return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
       } else if (sortBy === "date-asc") {
         return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      } else if (sortBy === "name-asc") {
+        const nameA = (a.description || a.merchant || "").toLowerCase();
+        const nameB = (b.description || b.merchant || "").toLowerCase();
+        return nameA.localeCompare(nameB, 'th');
+      } else if (sortBy === "name-desc") {
+        const nameA = (a.description || a.merchant || "").toLowerCase();
+        const nameB = (b.description || b.merchant || "").toLowerCase();
+        return nameB.localeCompare(nameA, 'th');
       } else { // upload-desc
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
@@ -501,6 +509,18 @@ export function ExpenseListReal() {
               <div className="flex items-center gap-2">
                 <ArrowDown className="h-3 w-3" />
                 <span>อัพโหลดล่าสุด</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="name-asc">
+              <div className="flex items-center gap-2">
+                <ArrowUp className="h-3 w-3" />
+                <span>ชื่อรายการ (ก-ฮ)</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="name-desc">
+              <div className="flex items-center gap-2">
+                <ArrowDown className="h-3 w-3" />
+                <span>ชื่อรายการ (ฮ-ก)</span>
               </div>
             </SelectItem>
           </SelectContent>
