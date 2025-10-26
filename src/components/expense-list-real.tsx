@@ -441,7 +441,7 @@ export function ExpenseListReal() {
       </div>
 
       {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -505,61 +505,6 @@ export function ExpenseListReal() {
             </SelectItem>
           </SelectContent>
         </Select>
-
-        {/* Date Range Filter */}
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "justify-start text-left font-normal",
-                  !dateFrom && !dateTo && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateFrom || dateTo ? (
-                  <span className="truncate">
-                    {dateFrom ? format(dateFrom, "d MMM", { locale: th }) : "..."} - {dateTo ? format(dateTo, "d MMM", { locale: th }) : "..."}
-                  </span>
-                ) : (
-                  <span>ช่วงวันที่</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 bg-background" align="start">
-              <Calendar
-                mode="range"
-                selected={{
-                  from: dateFrom,
-                  to: dateTo
-                }}
-                onSelect={(range) => {
-                  setDateFrom(range?.from);
-                  setDateTo(range?.to);
-                }}
-                numberOfMonths={1}
-                className={cn("p-3 pointer-events-auto")}
-              />
-              {(dateFrom || dateTo) && (
-                <div className="p-3 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setDateFrom(undefined);
-                      setDateTo(undefined);
-                    }}
-                    className="w-full"
-                  >
-                    <X className="h-4 w-4 mr-2" />
-                    ล้างวันที่
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-        </div>
       </div>
 
       {/* Expense List */}
