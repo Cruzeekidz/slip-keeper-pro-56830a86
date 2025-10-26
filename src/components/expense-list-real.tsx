@@ -129,7 +129,7 @@ export function ExpenseListReal() {
     setFilteredExpenses(sorted);
   };
 
-  const updateExpense = async (id: string, field: 'category' | 'project', value: string) => {
+  const updateExpense = async (id: string, field: 'category' | 'project' | 'subcategory', value: string) => {
     try {
       const updateValue = value === 'none' ? null : value;
       
@@ -636,12 +636,15 @@ export function ExpenseListReal() {
                   </Select>
                 </div>
 
-                {/* ประเภทย่อย */}
-                {expense.subcategory && (
-                  <div className="text-xs text-muted-foreground px-2">
-                    {expense.subcategory}
-                  </div>
-                )}
+                {/* ประเภทย่อย - Input */}
+                <div className="w-32 shrink-0">
+                  <Input
+                    value={expense.subcategory || ""}
+                    onChange={(e) => updateExpense(expense.id, 'subcategory', e.target.value)}
+                    placeholder="ประเภทย่อย"
+                    className="h-8 text-xs"
+                  />
+                </div>
 
                 {/* โปรเจค - Dropdown */}
                 <div className="w-32 shrink-0">
@@ -776,8 +779,13 @@ export function ExpenseListReal() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell className="text-sm">
-                    {expense.subcategory || "-"}
+                  <TableCell>
+                    <Input
+                      value={expense.subcategory || ""}
+                      onChange={(e) => updateExpense(expense.id, 'subcategory', e.target.value)}
+                      placeholder="ใส่ประเภทย่อย"
+                      className="h-8 text-sm"
+                    />
                   </TableCell>
                   <TableCell>
                     <Select

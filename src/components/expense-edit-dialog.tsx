@@ -12,6 +12,7 @@ interface Expense {
   id: string;
   amount: number;
   category: string;
+  subcategory: string | null;
   project: string | null;
   description: string | null;
   expense_date: string;
@@ -29,11 +30,13 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [formData, setFormData] = useState({
     amount: "",
     category: "",
+    subcategory: "",
     project: "",
     description: "",
     expense_date: "",
   });
   const [categories, setCategories] = useState<string[]>([]);
+  const [subcategories, setSubcategories] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -43,6 +46,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setFormData({
         amount: expense.amount.toString(),
         category: expense.category,
+        subcategory: expense.subcategory || "",
         project: expense.project || "",
         description: expense.description || "",
         expense_date: expense.expense_date,
@@ -63,6 +67,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       
       const uniqueCategories = [...new Set(categoryData?.map(item => item.category).filter(Boolean) || [])];
       setCategories(uniqueCategories);
+
+      const { data: subcategoryData } = await supabase
+        .from('expenses')
+        .select('subcategory')
+        .order('subcategory');
+      
+      const uniqueSubcategories = [...new Set(subcategoryData?.map(item => item.subcategory).filter(Boolean) || [])] as string[];
+      setSubcategories(uniqueSubcategories);
 
       const { data: projectData } = await supabase
         .from('expenses')
@@ -87,6 +99,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         .update({
           amount: parseFloat(formData.amount),
           category: formData.category,
+          subcategory: formData.subcategory || null,
           project: formData.project || null,
           description: formData.description || null,
           expense_date: formData.expense_date,
@@ -146,6 +159,22 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             <datalist id="categories-list">
               {categories.map((cat) => (
                 <option key={cat} value={cat} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <Label htmlFor="subcategory">ประเภทย่อย</Label>
+            <Input
+              id="subcategory"
+              value={formData.subcategory}
+              onChange={(e) => setFormData({ ...formData, subcategory: e.target.value })}
+              list="subcategories-list"
+              placeholder="ระบุประเภทย่อย (ถ้ามี)"
+            />
+            <datalist id="subcategories-list">
+              {subcategories.map((subcat) => (
+                <option key={subcat} value={subcat} />
               ))}
             </datalist>
           </div>
