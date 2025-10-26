@@ -84,6 +84,10 @@ export function ExpenseListReal() {
     return Array.from(new Set(expenses.map(e => e.project).filter(Boolean))).sort();
   }, [expenses]);
 
+  const uniqueSubcategories = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.subcategory).filter(Boolean))).sort();
+  }, [expenses]);
+
   const filterExpenses = () => {
     let filtered = expenses;
 
@@ -646,14 +650,24 @@ export function ExpenseListReal() {
                   </Select>
                 </div>
 
-                {/* ประเภทย่อย - Input */}
+                {/* ประเภทย่อย - Dropdown */}
                 <div className="w-32 shrink-0">
-                  <Input
-                    value={expense.subcategory || ""}
-                    onChange={(e) => updateExpense(expense.id, 'subcategory', e.target.value)}
-                    placeholder="ประเภทย่อย"
-                    className="h-8 text-xs"
-                  />
+                  <Select
+                    value={expense.subcategory || 'none'}
+                    onValueChange={(value) => updateExpense(expense.id, 'subcategory', value)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="ประเภทย่อย" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      <SelectItem value="none">-</SelectItem>
+                      {uniqueSubcategories.map((subcategory) => (
+                        <SelectItem key={subcategory} value={subcategory!}>
+                          {subcategory}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* โปรเจค - Dropdown */}
@@ -790,12 +804,22 @@ export function ExpenseListReal() {
                     </Select>
                   </TableCell>
                   <TableCell>
-                    <Input
-                      value={expense.subcategory || ""}
-                      onChange={(e) => updateExpense(expense.id, 'subcategory', e.target.value)}
-                      placeholder="ใส่ประเภทย่อย"
-                      className="h-8 text-sm"
-                    />
+                    <Select
+                      value={expense.subcategory || 'none'}
+                      onValueChange={(value) => updateExpense(expense.id, 'subcategory', value)}
+                    >
+                      <SelectTrigger className="h-8 w-[120px]">
+                        <SelectValue placeholder="ประเภทย่อย" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background z-50">
+                        <SelectItem value="none">-</SelectItem>
+                        {uniqueSubcategories.map((subcategory) => (
+                          <SelectItem key={subcategory} value={subcategory!}>
+                            {subcategory}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </TableCell>
                   <TableCell>
                     <Select
