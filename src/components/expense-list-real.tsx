@@ -571,8 +571,7 @@ export function ExpenseListReal() {
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4 flex-wrap">
                 {/* วันที่ */}
-                <div className="flex items-center gap-1 text-sm text-muted-foreground w-24 shrink-0">
-                  <Calendar className="h-3 w-3" />
+                <div className="text-sm text-muted-foreground w-24 shrink-0">
                   <span className="whitespace-nowrap">
                     {format(new Date(expense.expense_date), 'dd/MM/yy')}
                   </span>
