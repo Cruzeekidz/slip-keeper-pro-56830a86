@@ -629,70 +629,83 @@ export function ExpenseListReal() {
 
                 {/* ประเภท - Dropdown */}
                 <div className="w-28 shrink-0">
-                  <Select
-                    value={expense.category}
-                    onValueChange={(value) => updateExpense(expense.id, 'category', value)}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="personal">ส่วนตัว</SelectItem>
-                      <SelectItem value="company">บริษัท</SelectItem>
-                      {uniqueCategories
-                        .filter(cat => cat !== 'personal' && cat !== 'company')
-                        .map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    defaultValue={expense.category || ""}
+                    list={`categories-list-${expense.id}`}
+                    placeholder="ประเภท"
+                    className="h-8 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'category', value);
+                    }}
+                  />
+                  <datalist id={`categories-list-${expense.id}`}>
+                    <option value="personal" />
+                    <option value="company" />
+                    {uniqueCategories
+                      .filter(cat => cat !== 'personal' && cat !== 'company')
+                      .map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                  </datalist>
                 </div>
 
                 {/* ประเภทย่อย - Dropdown */}
                 <div className="w-32 shrink-0">
-                  <Select
-                    value={expense.subcategory || 'none'}
-                    onValueChange={(value) => updateExpense(expense.id, 'subcategory', value)}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="ประเภทย่อย" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background z-50">
-                      <SelectItem value="none">-</SelectItem>
-                      {uniqueSubcategories.map((subcategory) => (
-                        <SelectItem key={subcategory} value={subcategory!}>
-                          {subcategory}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    defaultValue={expense.subcategory || ""}
+                    list={`subcategories-list-${expense.id}`}
+                    placeholder="ประเภทย่อย"
+                    className="h-8 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
+                    }}
+                  />
+                  <datalist id={`subcategories-list-${expense.id}`}>
+                    {uniqueSubcategories.map((subcategory) => (
+                      <option key={subcategory} value={subcategory as string} />
+                    ))}
+                  </datalist>
                 </div>
 
                 {/* โปรเจค - Dropdown */}
                 <div className="w-32 shrink-0">
-                  <Select
-                    value={expense.project || 'none'}
-                    onValueChange={(value) => updateExpense(expense.id, 'project', value)}
-                  >
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="เลือกโปรเจค" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-background">
-                      <SelectItem value="none">-</SelectItem>
-                      <SelectItem value="booth">บูธขายของ</SelectItem>
-                      <SelectItem value="online">ขายออนไลน์</SelectItem>
-                      <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
-                      {uniqueProjects
-                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                        .map((project) => (
-                          <SelectItem key={project} value={project!}>
-                            {project}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    defaultValue={expense.project || ""}
+                    list={`projects-list-${expense.id}`}
+                    placeholder="โปรเจค"
+                    className="h-8 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'project', value === '' ? 'none' : value);
+                    }}
+                  />
+                  <datalist id={`projects-list-${expense.id}`}>
+                    <option value="booth" />
+                    <option value="online" />
+                    <option value="event" />
+                    {uniqueProjects
+                      .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                      .map((project) => (
+                        <option key={project} value={project as string} />
+                      ))}
+                  </datalist>
                 </div>
 
                 {/* ปุ่มจัดการ */}
@@ -783,66 +796,79 @@ export function ExpenseListReal() {
                     {expense.merchant || "-"}
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={expense.category}
-                      onValueChange={(value) => updateExpense(expense.id, 'category', value)}
-                    >
-                      <SelectTrigger className="h-8 w-[120px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="personal">ส่วนตัว</SelectItem>
-                        <SelectItem value="company">บริษัท</SelectItem>
-                        {uniqueCategories
-                          .filter(cat => cat !== 'personal' && cat !== 'company')
-                          .map((category) => (
-                            <SelectItem key={category} value={category}>
-                              {category}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={expense.subcategory || 'none'}
-                      onValueChange={(value) => updateExpense(expense.id, 'subcategory', value)}
-                    >
-                      <SelectTrigger className="h-8 w-[120px]">
-                        <SelectValue placeholder="ประเภทย่อย" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-background z-50">
-                        <SelectItem value="none">-</SelectItem>
-                        {uniqueSubcategories.map((subcategory) => (
-                          <SelectItem key={subcategory} value={subcategory!}>
-                            {subcategory}
-                          </SelectItem>
+                    <Input
+                      defaultValue={expense.category || ""}
+                      list={`categories-list-table-${expense.id}`}
+                      placeholder="ประเภท"
+                      className="h-8 w-[120px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'category', value);
+                      }}
+                    />
+                    <datalist id={`categories-list-table-${expense.id}`}>
+                      <option value="personal" />
+                      <option value="company" />
+                      {uniqueCategories
+                        .filter(cat => cat !== 'personal' && cat !== 'company')
+                        .map((category) => (
+                          <option key={category} value={category} />
                         ))}
-                      </SelectContent>
-                    </Select>
+                    </datalist>
                   </TableCell>
                   <TableCell>
-                    <Select
-                      value={expense.project || 'none'}
-                      onValueChange={(value) => updateExpense(expense.id, 'project', value)}
-                    >
-                      <SelectTrigger className="h-8 w-[150px]">
-                        <SelectValue placeholder="เลือกโปรเจค" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">ยังไม่ระบุ</SelectItem>
-                        <SelectItem value="booth">บูธขายของ</SelectItem>
-                        <SelectItem value="online">ขายออนไลน์</SelectItem>
-                        <SelectItem value="event">ขายตั๋วกิจกรรม</SelectItem>
-                        {uniqueProjects
-                          .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                          .map((project) => (
-                            <SelectItem key={project} value={project!}>
-                              {project}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      defaultValue={expense.subcategory || ""}
+                      list={`subcategories-list-table-${expense.id}`}
+                      placeholder="ประเภทย่อย"
+                      className="h-8 w-[120px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
+                      }}
+                    />
+                    <datalist id={`subcategories-list-table-${expense.id}`}>
+                      {uniqueSubcategories.map((subcategory) => (
+                        <option key={subcategory} value={subcategory as string} />
+                      ))}
+                    </datalist>
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      defaultValue={expense.project || ""}
+                      list={`projects-list-table-${expense.id}`}
+                      placeholder="โปรเจค"
+                      className="h-8 w-[150px]"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'project', value === '' ? 'none' : value);
+                      }}
+                    />
+                    <datalist id={`projects-list-table-${expense.id}`}>
+                      <option value="booth" />
+                      <option value="online" />
+                      <option value="event" />
+                      {uniqueProjects
+                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                        .map((project) => (
+                          <option key={project} value={project as string} />
+                        ))}
+                    </datalist>
                   </TableCell>
                   <TableCell className="text-right font-semibold text-red-600">
                     -฿{expense.amount.toLocaleString()}
