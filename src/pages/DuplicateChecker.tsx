@@ -3,11 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Trash2, AlertTriangle, Receipt } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 interface Expense {
   id: string;
@@ -19,6 +20,7 @@ interface Expense {
   sender: string | null;
   receiver: string | null;
   transaction_id: string | null;
+  receipt_url: string | null;
   created_at: string;
 }
 
@@ -33,6 +35,7 @@ export default function DuplicateChecker() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -81,27 +84,28 @@ export default function DuplicateChecker() {
         }
       });
 
-      // Group 2: Same amount + date + time
-      const amountDateTimeGroups = new Map<string, Expense[]>();
+      // Group 2: Same amount + date + time + receiver
+      const amountDateTimeReceiverGroups = new Map<string, Expense[]>();
       expenses?.forEach(exp => {
         if (!processedIds.has(exp.id)) {
-          // ใช้ยอดโอน + วันที่และเวลา
-          const key = `${exp.amount}-${exp.expense_date}`;
-          if (!amountDateTimeGroups.has(key)) {
-            amountDateTimeGroups.set(key, []);
+          // ใช้ยอดโอน + วันที่เวลา + ผู้รับโอน
+          const receiver = exp.receiver || exp.merchant || 'unknown';
+          const key = `${exp.amount}-${exp.expense_date}-${receiver}`;
+          if (!amountDateTimeReceiverGroups.has(key)) {
+            amountDateTimeReceiverGroups.set(key, []);
           }
-          amountDateTimeGroups.get(key)!.push(exp);
+          amountDateTimeReceiverGroups.get(key)!.push(exp);
         }
       });
 
-      amountDateTimeGroups.forEach((exps, key) => {
+      amountDateTimeReceiverGroups.forEach((exps, key) => {
         if (exps.length > 1) {
           exps.forEach(e => processedIds.add(e.id));
-          const [amount, dateTime] = key.split('-');
+          const [amount, dateTime, receiver] = key.split('-');
           groups.push({
             key: `amt-${key}`,
             expenses: exps,
-            reason: `ยอดโอนและวันที่เวลาเดียวกัน: ฿${parseFloat(amount).toLocaleString()} - ${format(new Date(dateTime), 'dd/MM/yyyy HH:mm:ss')}`
+            reason: `ยอดโอน วันที่เวลา และผู้รับโอนเดียวกัน: ฿${parseFloat(amount).toLocaleString()} - ${receiver}`
           });
         }
       });
@@ -180,6 +184,29 @@ export default function DuplicateChecker() {
       });
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const viewReceipt = async (receiptUrl: string) => {
+    try {
+      const filePath = receiptUrl.split('/').pop();
+      if (!filePath) return;
+
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      if (data?.signedUrl) {
+        setViewingReceipt(data.signedUrl);
+      }
+    } catch (error) {
+      console.error('Error viewing receipt:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถแสดงสลิปได้",
+        variant: "destructive",
+      });
     }
   };
 
@@ -275,7 +302,7 @@ export default function DuplicateChecker() {
                           onCheckedChange={() => toggleSelection(expense.id)}
                           className="mt-1"
                         />
-                        <div className="flex-1 grid grid-cols-1 md:grid-cols-6 gap-4">
+                        <div className="flex-1 grid grid-cols-1 md:grid-cols-7 gap-4">
                           <div>
                             <p className="text-xs text-muted-foreground">ลำดับ</p>
                             <p className="font-medium">#{index + 1}</p>
@@ -291,18 +318,17 @@ export default function DuplicateChecker() {
                             <p>{format(new Date(expense.expense_date), 'dd/MM/yyyy')}</p>
                           </div>
                           <div>
+                            <p className="text-xs text-muted-foreground">เวลา</p>
+                            <p>{format(new Date(expense.expense_date), 'HH:mm:ss')}</p>
+                          </div>
+                          <div>
                             <p className="text-xs text-muted-foreground">รายละเอียด</p>
                             <p className="truncate">{expense.description || '-'}</p>
                           </div>
                           <div>
-                            <p className="text-xs text-muted-foreground">ผู้โอน/ผู้รับ</p>
+                            <p className="text-xs text-muted-foreground">ผู้รับโอน</p>
                             <p className="text-sm">
-                              {expense.sender && <span className="block">จาก: {expense.sender}</span>}
-                              {expense.receiver && <span className="block">ถึง: {expense.receiver}</span>}
-                              {!expense.sender && !expense.receiver && expense.merchant && (
-                                <span>{expense.merchant}</span>
-                              )}
-                              {!expense.sender && !expense.receiver && !expense.merchant && '-'}
+                              {expense.receiver || expense.merchant || '-'}
                             </p>
                           </div>
                           <div>
@@ -310,6 +336,17 @@ export default function DuplicateChecker() {
                             <p className="text-xs truncate">{expense.transaction_id || '-'}</p>
                           </div>
                         </div>
+                        {expense.receipt_url && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => viewReceipt(expense.receipt_url!)}
+                            className="shrink-0"
+                          >
+                            <Receipt className="h-4 w-4 mr-1" />
+                            ดูสลิป
+                          </Button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -324,12 +361,25 @@ export default function DuplicateChecker() {
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">💡 คำแนะนำ</h4>
           <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
             <li>• ระบบตรวจสอบรายการซ้ำโดยเปรียบเทียบรหัสอ้างอิง (Transaction ID)</li>
-            <li>• หรือเปรียบเทียบยอดโอน + วันที่และเวลาที่เหมือนกันทุกประการ</li>
-            <li>• คุณสามารถเลือกรายการที่ต้องการลบได้ด้วยตัวเอง</li>
-            <li>• หรือใช้ปุ่ม "เลือกทั้งหมด (เว้นรายการแรก)" เพื่อเลือกรายการซ้ำอัตโนมัติ</li>
+            <li>• หรือเปรียบเทียบยอดโอน + วันที่ + เวลา + ผู้รับโอนที่เหมือนกันทุกประการ</li>
+            <li>• คุณสามารถกดดูสลิปเพื่อตรวจสอบความถูกต้องก่อนลบได้</li>
+            <li>• เลือกรายการที่ต้องการลบด้วยตัวเอง หรือใช้ปุ่ม "เลือกทั้งหมด (เว้นรายการแรก)"</li>
             <li>• ตรวจสอบข้อมูลให้ละเอียดก่อนลบ เพราะการลบไม่สามารถย้อนกลับได้</li>
           </ul>
         </Card>
+
+        {/* Receipt Viewer Dialog */}
+        <Dialog open={!!viewingReceipt} onOpenChange={() => setViewingReceipt(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+            {viewingReceipt && (
+              <img 
+                src={viewingReceipt} 
+                alt="Receipt" 
+                className="w-full h-auto"
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
