@@ -7,6 +7,7 @@ import { StatsReal } from "@/components/stats-real";
 import { ProjectSummary } from "@/components/project-summary";
 import { PeriodSummary } from "@/components/period-summary";
 import { CategoryChart } from "@/components/category-chart";
+import { EventAnalysis } from "@/components/event-analysis";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -176,6 +177,9 @@ const Index = () => {
 
         {/* Category Chart */}
         <CategoryChart />
+
+        {/* Event Analysis */}
+        <EventAnalysis />
 
         {/* Summary Tables */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
