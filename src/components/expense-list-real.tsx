@@ -528,31 +528,21 @@ export function ExpenseListReal() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-background" align="start">
-              <div className="p-3 border-b">
-                <div className="text-sm font-medium mb-2">เลือกช่วงวันที่</div>
-                <div className="space-y-2">
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">จาก:</div>
-                    <Calendar
-                      mode="single"
-                      selected={dateFrom}
-                      onSelect={setDateFrom}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground mb-1">ถึง:</div>
-                    <Calendar
-                      mode="single"
-                      selected={dateTo}
-                      onSelect={setDateTo}
-                      initialFocus
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </div>
-                </div>
-                {(dateFrom || dateTo) && (
+              <Calendar
+                mode="range"
+                selected={{
+                  from: dateFrom,
+                  to: dateTo
+                }}
+                onSelect={(range) => {
+                  setDateFrom(range?.from);
+                  setDateTo(range?.to);
+                }}
+                numberOfMonths={1}
+                className={cn("p-3 pointer-events-auto")}
+              />
+              {(dateFrom || dateTo) && (
+                <div className="p-3 border-t">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -560,13 +550,13 @@ export function ExpenseListReal() {
                       setDateFrom(undefined);
                       setDateTo(undefined);
                     }}
-                    className="w-full mt-2"
+                    className="w-full"
                   >
                     <X className="h-4 w-4 mr-2" />
                     ล้างวันที่
                   </Button>
-                )}
-              </div>
+                </div>
+              )}
             </PopoverContent>
           </Popover>
         </div>
