@@ -77,11 +77,11 @@ export function ExpenseListReal() {
 
   // Get unique categories and projects from expenses
   const uniqueCategories = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.category))).sort();
+    return Array.from(new Set(expenses.map(e => e.category).filter(c => c && c.trim() !== ''))).sort();
   }, [expenses]);
 
   const uniqueProjects = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.project).filter(Boolean))).sort();
+    return Array.from(new Set(expenses.map(e => e.project).filter(p => p && p.trim() !== ''))).sort();
   }, [expenses]);
 
   const uniqueSubcategories = useMemo(() => {

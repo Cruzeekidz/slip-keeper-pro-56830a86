@@ -30,7 +30,7 @@ export default function DataMigration() {
         .select('project')
         .order('project');
       
-      const uniqueProjects = [...new Set(data?.map(item => item.project).filter(Boolean) || [])] as string[];
+      const uniqueProjects = [...new Set(data?.map(item => item.project).filter(p => p && p.trim() !== '') || [])] as string[];
       setAvailableProjects(uniqueProjects);
     };
 
