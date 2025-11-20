@@ -582,7 +582,7 @@ export function ExpenseListReal() {
         <div className="space-y-3">
           {filteredExpenses.map((expense, index) => (
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-start gap-4 flex-wrap">
                 {/* วันที่ */}
                 <div className="text-sm text-muted-foreground w-24 shrink-0">
                   <span className="whitespace-nowrap">
@@ -597,20 +597,31 @@ export function ExpenseListReal() {
                   </span>
                 </div>
 
-                {/* ชื่อรายการ */}
+                {/* รายละเอียด */}
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-foreground truncate block">
+                  <div className="font-medium text-foreground mb-1">
                     {expense.description || "ค่าใช้จ่าย"}
-                  </span>
-                  {(expense.sender || expense.receiver || expense.merchant) && (
-                    <div className="text-xs text-muted-foreground space-y-0.5">
-                      {expense.sender && <div>จาก: {expense.sender}</div>}
-                      {expense.receiver && <div>ถึง: {expense.receiver}</div>}
-                      {!expense.sender && !expense.receiver && expense.merchant && (
-                        <div>ผู้รับเงิน: {expense.merchant}</div>
-                      )}
-                    </div>
-                  )}
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    {expense.sender && (
+                      <div className="flex items-start gap-1">
+                        <span className="font-medium min-w-[50px]">ผู้ส่ง:</span>
+                        <span className="break-words">{expense.sender}</span>
+                      </div>
+                    )}
+                    {expense.receiver && (
+                      <div className="flex items-start gap-1">
+                        <span className="font-medium min-w-[50px]">ผู้รับ:</span>
+                        <span className="break-words">{expense.receiver}</span>
+                      </div>
+                    )}
+                    {!expense.sender && !expense.receiver && expense.merchant && (
+                      <div className="flex items-start gap-1">
+                        <span className="font-medium min-w-[50px]">ร้านค้า:</span>
+                        <span className="break-words">{expense.merchant}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* ประเภท - Dropdown */}
