@@ -137,6 +137,89 @@ export type Database = {
         }
         Relationships: []
       }
+      import_history: {
+        Row: {
+          error_count: number
+          file_name: string | null
+          id: string
+          import_type: string
+          imported_at: string
+          notes: string | null
+          rolled_back_at: string | null
+          status: string
+          success_count: number
+          total_rows: number
+          update_count: number
+          user_id: string
+        }
+        Insert: {
+          error_count?: number
+          file_name?: string | null
+          id?: string
+          import_type?: string
+          imported_at?: string
+          notes?: string | null
+          rolled_back_at?: string | null
+          status?: string
+          success_count?: number
+          total_rows?: number
+          update_count?: number
+          user_id: string
+        }
+        Update: {
+          error_count?: number
+          file_name?: string | null
+          id?: string
+          import_type?: string
+          imported_at?: string
+          notes?: string | null
+          rolled_back_at?: string | null
+          status?: string
+          success_count?: number
+          total_rows?: number
+          update_count?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      import_items: {
+        Row: {
+          action_type: string
+          created_at: string
+          expense_id: string
+          id: string
+          import_history_id: string
+          row_data: Json | null
+          row_number: number | null
+        }
+        Insert: {
+          action_type: string
+          created_at?: string
+          expense_id: string
+          id?: string
+          import_history_id: string
+          row_data?: Json | null
+          row_number?: number | null
+        }
+        Update: {
+          action_type?: string
+          created_at?: string
+          expense_id?: string
+          id?: string
+          import_history_id?: string
+          row_data?: Json | null
+          row_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_items_import_history_id_fkey"
+            columns: ["import_history_id"]
+            isOneToOne: false
+            referencedRelation: "import_history"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
