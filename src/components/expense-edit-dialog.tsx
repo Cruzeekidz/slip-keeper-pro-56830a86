@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar } from "lucide-react";
+import { Calendar, Send, UserCheck, Store } from "lucide-react";
 
 interface Expense {
   id: string;
@@ -17,6 +17,9 @@ interface Expense {
   description: string | null;
   expense_date: string;
   receipt_url: string | null;
+  sender: string | null;
+  receiver: string | null;
+  merchant: string | null;
 }
 
 interface ExpenseEditDialogProps {
@@ -34,10 +37,16 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     project: "",
     description: "",
     expense_date: "",
+    sender: "",
+    receiver: "",
+    merchant: "",
   });
   const [categories, setCategories] = useState<string[]>([]);
   const [subcategories, setSubcategories] = useState<string[]>([]);
   const [projects, setProjects] = useState<string[]>([]);
+  const [senders, setSenders] = useState<string[]>([]);
+  const [receivers, setReceivers] = useState<string[]>([]);
+  const [merchants, setMerchants] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -50,6 +59,9 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         project: expense.project || "",
         description: expense.description || "",
         expense_date: expense.expense_date,
+        sender: expense.sender || "",
+        receiver: expense.receiver || "",
+        merchant: expense.merchant || "",
       });
     }
   }, [expense]);
@@ -83,6 +95,30 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       
       const uniqueProjects = [...new Set(projectData?.map(item => item.project).filter(Boolean) || [])] as string[];
       setProjects(uniqueProjects);
+
+      const { data: senderData } = await supabase
+        .from('expenses')
+        .select('sender')
+        .order('sender');
+      
+      const uniqueSenders = [...new Set(senderData?.map(item => item.sender).filter(Boolean) || [])] as string[];
+      setSenders(uniqueSenders);
+
+      const { data: receiverData } = await supabase
+        .from('expenses')
+        .select('receiver')
+        .order('receiver');
+      
+      const uniqueReceivers = [...new Set(receiverData?.map(item => item.receiver).filter(Boolean) || [])] as string[];
+      setReceivers(uniqueReceivers);
+
+      const { data: merchantData } = await supabase
+        .from('expenses')
+        .select('merchant')
+        .order('merchant');
+      
+      const uniqueMerchants = [...new Set(merchantData?.map(item => item.merchant).filter(Boolean) || [])] as string[];
+      setMerchants(uniqueMerchants);
     } catch (error) {
       console.error('Error fetching categories and projects:', error);
     }
@@ -103,6 +139,9 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           project: formData.project || null,
           description: formData.description || null,
           expense_date: formData.expense_date,
+          sender: formData.sender || null,
+          receiver: formData.receiver || null,
+          merchant: formData.merchant || null,
         })
         .eq('id', expense.id);
 
@@ -190,6 +229,69 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             <datalist id="projects-list">
               {projects.map((proj) => (
                 <option key={proj} value={proj} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <Label htmlFor="sender">
+              <div className="flex items-center gap-2">
+                <Send className="h-4 w-4" />
+                <span>ผู้โอน</span>
+              </div>
+            </Label>
+            <Input
+              id="sender"
+              value={formData.sender}
+              onChange={(e) => setFormData({ ...formData, sender: e.target.value })}
+              list="senders-list"
+              placeholder="ระบุผู้โอน (ถ้ามี)"
+            />
+            <datalist id="senders-list">
+              {senders.map((sender) => (
+                <option key={sender} value={sender} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <Label htmlFor="receiver">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-4 w-4" />
+                <span>ผู้รับ</span>
+              </div>
+            </Label>
+            <Input
+              id="receiver"
+              value={formData.receiver}
+              onChange={(e) => setFormData({ ...formData, receiver: e.target.value })}
+              list="receivers-list"
+              placeholder="ระบุผู้รับ (ถ้ามี)"
+            />
+            <datalist id="receivers-list">
+              {receivers.map((receiver) => (
+                <option key={receiver} value={receiver} />
+              ))}
+            </datalist>
+          </div>
+
+          <div>
+            <Label htmlFor="merchant">
+              <div className="flex items-center gap-2">
+                <Store className="h-4 w-4" />
+                <span>ร้านค้า</span>
+              </div>
+            </Label>
+            <Input
+              id="merchant"
+              value={formData.merchant}
+              onChange={(e) => setFormData({ ...formData, merchant: e.target.value })}
+              list="merchants-list"
+              placeholder="ระบุร้านค้า (ถ้ามี)"
+            />
+            <datalist id="merchants-list">
+              {merchants.map((merchant) => (
+                <option key={merchant} value={merchant} />
               ))}
             </datalist>
           </div>
