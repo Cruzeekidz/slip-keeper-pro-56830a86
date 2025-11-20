@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Upload, X, CheckCircle, AlertCircle, ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { CSVPreviewDialog, type CSVRow } from "@/components/csv-preview-dialog";
 
 interface UploadedFile {
   file: File;
@@ -17,6 +18,8 @@ interface UploadedFile {
 export default function BulkUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewRows, setPreviewRows] = useState<CSVRow[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -149,6 +152,60 @@ export default function BulkUpload() {
     }
   };
 
+  // Validation functions
+  const validateDate = (dateStr: string): boolean => {
+    if (!dateStr) return false;
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(dateStr)) return false;
+    const date = new Date(dateStr);
+    return date instanceof Date && !isNaN(date.getTime());
+  };
+
+  const validateAmount = (amountStr: string): boolean => {
+    if (!amountStr) return false;
+    const amount = parseFloat(amountStr);
+    return !isNaN(amount) && amount > 0;
+  };
+
+  const validateRow = (expense: any, rowNumber: number): CSVRow => {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    // Required field validation
+    if (!expense.expense_date) {
+      errors.push('ไม่มีวันที่');
+    } else if (!validateDate(expense.expense_date)) {
+      errors.push('รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
+    }
+
+    if (!expense.amount) {
+      errors.push('ไม่มีจำนวนเงิน');
+    } else if (!validateAmount(expense.amount)) {
+      errors.push('จำนวนเงินไม่ถูกต้อง (ต้องเป็นตัวเลขที่มากกว่า 0)');
+    }
+
+    if (!expense.category) {
+      errors.push('ไม่มีประเภทค่าใช้จ่าย');
+    }
+
+    // Warnings
+    if (!expense.description) {
+      warnings.push('ไม่มีรายละเอียด');
+    }
+
+    if (!expense.project) {
+      warnings.push('ไม่ได้ระบุโปรเจค');
+    }
+
+    return {
+      rowNumber,
+      data: expense,
+      errors,
+      warnings,
+      isValid: errors.length === 0,
+    };
+  };
+
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -175,85 +232,33 @@ export default function BulkUpload() {
         const headers = lines[0].split(',').map(h => h.trim());
         const dataLines = lines.slice(1);
 
-        let successCount = 0;
-        let errorCount = 0;
-        let updateCount = 0;
-
-        for (const line of dataLines) {
+        // Parse and validate all rows
+        const validatedRows: CSVRow[] = [];
+        
+        dataLines.forEach((line, index) => {
           const values = line.split(',').map(v => v.trim());
           
-          if (values.length !== headers.length) continue;
+          if (values.length !== headers.length) return;
 
           const expense: any = {};
-          headers.forEach((header, index) => {
-            const value = values[index];
+          headers.forEach((header, headerIndex) => {
+            const value = values[headerIndex];
             if (value) {
               expense[header] = value;
             }
           });
 
-          if (!expense.expense_date || !expense.amount || !expense.category) {
-            errorCount++;
-            continue;
-          }
-
-          try {
-            // ถ้ามี ID = UPDATE, ถ้าไม่มี ID = INSERT
-            if (expense.id) {
-              const { error } = await supabase
-                .from('expenses')
-                .update({
-                  expense_date: expense.expense_date,
-                  amount: parseFloat(expense.amount),
-                  category: expense.category,
-                  project: expense.project || null,
-                  subcategory: expense.subcategory || null,
-                  merchant: expense.merchant || null,
-                  description: expense.description || null,
-                  sender: expense.sender || null,
-                  receiver: expense.receiver || null,
-                  transaction_id: expense.transaction_id || null,
-                })
-                .eq('id', expense.id)
-                .eq('user_id', user.id); // Security: ต้องเป็น expense ของ user เท่านั้น
-
-              if (error) throw error;
-              updateCount++;
-            } else {
-              const { error } = await supabase.from('expenses').insert({
-                user_id: user.id,
-                expense_date: expense.expense_date,
-                amount: parseFloat(expense.amount),
-                category: expense.category,
-                project: expense.project || null,
-                subcategory: expense.subcategory || null,
-                merchant: expense.merchant || null,
-                description: expense.description || null,
-                sender: expense.sender || null,
-                receiver: expense.receiver || null,
-                transaction_id: expense.transaction_id || null,
-              });
-
-              if (error) throw error;
-              successCount++;
-            }
-          } catch (err) {
-            console.error('Error processing row:', err);
-            errorCount++;
-          }
-        }
-
-        const summary = [];
-        if (successCount > 0) summary.push(`สร้างใหม่ ${successCount} รายการ`);
-        if (updateCount > 0) summary.push(`อัพเดต ${updateCount} รายการ`);
-        if (errorCount > 0) summary.push(`ล้มเหลว ${errorCount} รายการ`);
-
-        toast({
-          title: "นำเข้าข้อมูลเสร็จสิ้น",
-          description: summary.join(', '),
+          const validatedRow = validateRow(expense, index + 2); // +2 because row 1 is header, and index starts at 0
+          validatedRows.push(validatedRow);
         });
 
-        setTimeout(() => navigate('/'), 1500);
+        if (validatedRows.length === 0) {
+          throw new Error('ไม่พบข้อมูลในไฟล์ CSV');
+        }
+
+        // Show preview dialog
+        setPreviewRows(validatedRows);
+        setShowPreview(true);
       } catch (error) {
         console.error('Error parsing CSV:', error);
         toast({
@@ -265,6 +270,88 @@ export default function BulkUpload() {
     };
 
     reader.readAsText(file);
+    // Reset file input
+    e.target.value = '';
+  };
+
+  const confirmImport = async () => {
+    const validRows = previewRows.filter(r => r.isValid);
+    
+    if (validRows.length === 0) {
+      toast({
+        title: "ไม่มีรายการที่ถูกต้อง",
+        description: "กรุณาแก้ไขข้อมูลในไฟล์ CSV แล้วลองใหม่",
+        variant: "destructive",
+      });
+      setShowPreview(false);
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    let updateCount = 0;
+
+    for (const row of validRows) {
+      const expense = row.data;
+      
+      try {
+        // ถ้ามี ID = UPDATE, ถ้าไม่มี ID = INSERT
+        if (expense.id) {
+          const { error } = await supabase
+            .from('expenses')
+            .update({
+              expense_date: expense.expense_date,
+              amount: parseFloat(expense.amount),
+              category: expense.category,
+              project: expense.project || null,
+              subcategory: expense.subcategory || null,
+              merchant: expense.merchant || null,
+              description: expense.description || null,
+              sender: expense.sender || null,
+              receiver: expense.receiver || null,
+              transaction_id: expense.transaction_id || null,
+            })
+            .eq('id', expense.id)
+            .eq('user_id', user.id); // Security: ต้องเป็น expense ของ user เท่านั้น
+
+          if (error) throw error;
+          updateCount++;
+        } else {
+          const { error } = await supabase.from('expenses').insert({
+            user_id: user.id,
+            expense_date: expense.expense_date,
+            amount: parseFloat(expense.amount),
+            category: expense.category,
+            project: expense.project || null,
+            subcategory: expense.subcategory || null,
+            merchant: expense.merchant || null,
+            description: expense.description || null,
+            sender: expense.sender || null,
+            receiver: expense.receiver || null,
+            transaction_id: expense.transaction_id || null,
+          });
+
+          if (error) throw error;
+          successCount++;
+        }
+      } catch (err) {
+        console.error('Error processing row:', err);
+        errorCount++;
+      }
+    }
+
+    const summary = [];
+    if (successCount > 0) summary.push(`สร้างใหม่ ${successCount} รายการ`);
+    if (updateCount > 0) summary.push(`อัพเดต ${updateCount} รายการ`);
+    if (errorCount > 0) summary.push(`ล้มเหลว ${errorCount} รายการ`);
+
+    toast({
+      title: "นำเข้าข้อมูลเสร็จสิ้น",
+      description: summary.join(', '),
+    });
+
+    setShowPreview(false);
+    setTimeout(() => navigate('/'), 1500);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -634,6 +721,15 @@ export default function BulkUpload() {
             </div>
           </div>
         </Card>
+
+        {/* CSV Preview Dialog */}
+        <CSVPreviewDialog
+          open={showPreview}
+          onOpenChange={setShowPreview}
+          rows={previewRows}
+          onConfirm={confirmImport}
+          onCancel={() => setShowPreview(false)}
+        />
       </div>
     </div>
   );
