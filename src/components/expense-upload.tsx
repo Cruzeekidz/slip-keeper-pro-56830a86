@@ -8,6 +8,7 @@ import { Upload, X, Receipt, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import imageCompression from 'browser-image-compression';
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -231,7 +232,30 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
       // Upload receipt files if any
       if (files.length > 0) {
-        const file = files[0]; // Use first file
+        let file = files[0]; // Use first file
+        
+        // Compress image if it's an image file
+        if (file.type.startsWith('image/')) {
+          try {
+            const options = {
+              maxSizeMB: 1,
+              maxWidthOrHeight: 1920,
+              useWebWorker: true,
+              initialQuality: 0.8
+            };
+            file = await imageCompression(file, options);
+            
+            toast({
+              title: "บีบอัดภาพสำเร็จ",
+              description: `ลดขนาดจาก ${(files[0].size / 1024 / 1024).toFixed(2)} MB เหลือ ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+            });
+          } catch (compressionError) {
+            console.error('Compression error:', compressionError);
+            // Continue with original file if compression fails
+            file = files[0];
+          }
+        }
+        
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
         const userId = (await supabase.auth.getUser()).data.user?.id;
