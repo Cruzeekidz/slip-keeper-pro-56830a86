@@ -555,6 +555,28 @@ export function ExpenseListReal() {
             ))}
           </SelectContent>
         </Select>
+
+        {/* Clear Filters Button */}
+        {(filterCategory !== "all" || filterProject !== "all" || filterSender !== "all" || 
+          filterReceiver !== "all" || filterMerchant !== "all" || dateFrom || dateTo || searchTerm) && (
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSearchTerm("");
+              setFilterCategory("all");
+              setFilterProject("all");
+              setFilterSender("all");
+              setFilterReceiver("all");
+              setFilterMerchant("all");
+              setDateFrom(undefined);
+              setDateTo(undefined);
+            }}
+            className="col-span-full"
+          >
+            <X className="h-4 w-4 mr-2" />
+            ล้างฟิลเตอร์ทั้งหมด
+          </Button>
+        )}
       </div>
 
       {/* Sort and Date Controls */}
