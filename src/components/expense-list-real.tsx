@@ -37,6 +37,9 @@ export function ExpenseListReal() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterProject, setFilterProject] = useState("all");
+  const [filterSender, setFilterSender] = useState("all");
+  const [filterReceiver, setFilterReceiver] = useState("all");
+  const [filterMerchant, setFilterMerchant] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "name-asc" | "name-desc">("date-desc");
@@ -54,7 +57,7 @@ export function ExpenseListReal() {
 
   useEffect(() => {
     filterExpenses();
-  }, [expenses, searchTerm, filterCategory, filterProject, dateFrom, dateTo, sortBy]);
+  }, [expenses, searchTerm, filterCategory, filterProject, filterSender, filterReceiver, filterMerchant, dateFrom, dateTo, sortBy]);
 
   const fetchExpenses = async () => {
     try {
@@ -89,6 +92,18 @@ export function ExpenseListReal() {
     return Array.from(new Set(expenses.map(e => e.subcategory).filter(s => s && s.trim() !== ''))).sort();
   }, [expenses]);
 
+  const uniqueSenders = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.sender).filter(s => s && s.trim() !== ''))).sort();
+  }, [expenses]);
+
+  const uniqueReceivers = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.receiver).filter(r => r && r.trim() !== ''))).sort();
+  }, [expenses]);
+
+  const uniqueMerchants = useMemo(() => {
+    return Array.from(new Set(expenses.map(e => e.merchant).filter(m => m && m.trim() !== ''))).sort();
+  }, [expenses]);
+
   const filterExpenses = () => {
     let filtered = expenses;
 
@@ -105,6 +120,18 @@ export function ExpenseListReal() {
 
     if (filterProject !== "all") {
       filtered = filtered.filter(expense => expense.project === filterProject);
+    }
+
+    if (filterSender !== "all") {
+      filtered = filtered.filter(expense => expense.sender === filterSender);
+    }
+
+    if (filterReceiver !== "all") {
+      filtered = filtered.filter(expense => expense.receiver === filterReceiver);
+    }
+
+    if (filterMerchant !== "all") {
+      filtered = filtered.filter(expense => expense.merchant === filterMerchant);
     }
 
     // Filter by date range
@@ -439,7 +466,7 @@ export function ExpenseListReal() {
       </div>
 
       {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -478,6 +505,60 @@ export function ExpenseListReal() {
           </SelectContent>
         </Select>
 
+        <Select value={filterSender} onValueChange={setFilterSender}>
+          <SelectTrigger>
+            <SelectValue placeholder="ผู้โอน" />
+          </SelectTrigger>
+          <SelectContent className="bg-background">
+            <SelectItem value="all">ทุกผู้โอน</SelectItem>
+            {uniqueSenders.map((sender) => (
+              <SelectItem key={sender} value={sender!}>
+                <div className="flex items-center gap-2">
+                  <Send className="h-3 w-3" />
+                  <span>{sender}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterReceiver} onValueChange={setFilterReceiver}>
+          <SelectTrigger>
+            <SelectValue placeholder="ผู้รับ" />
+          </SelectTrigger>
+          <SelectContent className="bg-background">
+            <SelectItem value="all">ทุกผู้รับ</SelectItem>
+            {uniqueReceivers.map((receiver) => (
+              <SelectItem key={receiver} value={receiver!}>
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-3 w-3" />
+                  <span>{receiver}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterMerchant} onValueChange={setFilterMerchant}>
+          <SelectTrigger>
+            <SelectValue placeholder="ร้านค้า" />
+          </SelectTrigger>
+          <SelectContent className="bg-background">
+            <SelectItem value="all">ทุกร้านค้า</SelectItem>
+            {uniqueMerchants.map((merchant) => (
+              <SelectItem key={merchant} value={merchant!}>
+                <div className="flex items-center gap-2">
+                  <Store className="h-3 w-3" />
+                  <span>{merchant}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Sort and Date Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
         <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
           <SelectTrigger>
             <SelectValue placeholder="เรียงลำดับ" />
