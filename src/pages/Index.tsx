@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -162,6 +162,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/duplicate-checker')}>
                     <AlertTriangle className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการซ้ำ
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/deleted-history')}>
+                    <History className="h-4 w-4 mr-2" />
+                    ประวัติการลบ
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/data-migration')}>
                     <Database className="h-4 w-4 mr-2" />

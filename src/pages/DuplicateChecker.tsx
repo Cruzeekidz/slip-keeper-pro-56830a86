@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, AlertTriangle, Receipt, CheckCircle } from "lucide-react";
+import { ArrowLeft, Trash2, AlertTriangle, Receipt, CheckCircle, FileDown, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Expense {
   id: string;
@@ -253,6 +255,71 @@ export default function DuplicateChecker() {
     }
   };
 
+  const exportToPDF = async () => {
+    try {
+      const doc = new jsPDF();
+      
+      // Title
+      doc.setFont("helvetica");
+      doc.setFontSize(18);
+      doc.text("Duplicate Report", 14, 20);
+      
+      doc.setFontSize(11);
+      doc.text(`Date: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 28);
+      doc.text(`Duplicate Groups: ${duplicateGroups.length}`, 14, 34);
+
+      let yPos = 45;
+
+      duplicateGroups.forEach((group, groupIndex) => {
+        if (yPos > 250) {
+          doc.addPage();
+          yPos = 20;
+        }
+
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Group ${groupIndex + 1}: ${group.reason}`, 14, yPos);
+        yPos += 7;
+
+        const tableData = group.expenses.map((exp, idx) => [
+          `#${idx + 1}`,
+          format(new Date(exp.expense_date), 'dd/MM/yyyy'),
+          exp.expense_time || '-',
+          `${exp.amount.toLocaleString()}`,
+          exp.sender || '-',
+          exp.receiver || exp.merchant || '-',
+          exp.transaction_id || '-'
+        ]);
+
+        autoTable(doc, {
+          startY: yPos,
+          head: [['#', 'Date', 'Time', 'Amount', 'Sender', 'Receiver', 'Ref']],
+          body: tableData,
+          theme: 'grid',
+          styles: { fontSize: 8 },
+          headStyles: { fillColor: [59, 130, 246] },
+          margin: { left: 14 },
+        });
+
+        yPos = (doc as any).lastAutoTable.finalY + 10;
+      });
+
+      doc.save(`duplicate-report-${format(new Date(), 'yyyyMMdd-HHmm')}.pdf`);
+
+      toast({
+        title: "ส่งออกสำเร็จ",
+        description: "ดาวน์โหลดรายงาน PDF เรียบร้อยแล้ว",
+      });
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถส่งออก PDF ได้",
+        variant: "destructive",
+      });
+    }
+  };
+
   const viewReceipt = async (receiptUrl: string) => {
     try {
       // Extract the path from the full URL (remove domain if present)
@@ -305,16 +372,34 @@ export default function DuplicateChecker() {
                 : `พบกลุ่มรายการซ้ำ ${duplicateGroups.length} กลุ่ม`}
             </p>
           </div>
-          {selectedIds.size > 0 && (
-            <Button 
-              variant="destructive" 
-              onClick={deleteSelected}
-              disabled={deleting}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/deleted-history')}
             >
-              <Trash2 className="h-4 w-4 mr-2" />
-              ลบที่เลือก ({selectedIds.size})
+              <History className="h-4 w-4 mr-2" />
+              ประวัติการลบ
             </Button>
-          )}
+            {duplicateGroups.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={exportToPDF}
+              >
+                <FileDown className="h-4 w-4 mr-2" />
+                ส่งออก PDF
+              </Button>
+            )}
+            {selectedIds.size > 0 && (
+              <Button 
+                variant="destructive" 
+                onClick={deleteSelected}
+                disabled={deleting}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                ลบที่เลือก ({selectedIds.size})
+              </Button>
+            )}
+          </div>
         </div>
 
         {duplicateGroups.length === 0 ? (
