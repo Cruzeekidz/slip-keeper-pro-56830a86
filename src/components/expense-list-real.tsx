@@ -686,29 +686,32 @@ export function ExpenseListReal() {
           {filteredExpenses.map((expense, index) => (
             <Card key={expense.id} className="hover:shadow-md transition-shadow">
               {/* บรรทัดแรก: วันที่ + ยอดเงิน + รายการและรายละเอียด */}
-              <div className="p-4 flex items-start gap-4 border-b">
-                {/* วันที่ */}
-                <div className="w-24 shrink-0 flex items-center gap-2">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">
-                    {format(new Date(expense.expense_date), "d MMM yy", { locale: th })}
-                  </span>
+              <div className="p-3 md:p-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-4 border-b">
+                {/* Mobile: วันที่และยอดเงินในบรรทัดเดียวกัน, Desktop: แยกกัน */}
+                <div className="flex items-center justify-between md:contents">
+                  {/* วันที่ */}
+                  <div className="shrink-0 flex items-center gap-1.5 md:gap-2 md:w-24">
+                    <CalendarIcon className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground" />
+                    <span className="text-xs md:text-sm">
+                      {format(new Date(expense.expense_date), "d MMM yy", { locale: th })}
+                    </span>
+                  </div>
+
+                  {/* ยอดเงิน */}
+                  <div className="shrink-0 md:w-32">
+                    <span className="font-bold text-base md:text-lg text-red-600">
+                      -฿{expense.amount.toLocaleString()}
+                    </span>
+                  </div>
                 </div>
 
-                {/* ยอดเงิน */}
-                <div className="w-32 shrink-0">
-                  <span className="font-bold text-lg text-red-600">
-                    -฿{expense.amount.toLocaleString()}
-                  </span>
-                </div>
-
-                {/* รายการและรายละเอียด (ใช้พื้นที่ที่เหลือทั้งหมด) */}
+                {/* รายการและรายละเอียด */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-foreground text-base mb-1">
+                  <div className="font-medium text-foreground text-sm md:text-base mb-1">
                     {expense.description || "ค่าใช้จ่าย"}
                   </div>
                   {(expense.sender || expense.receiver || expense.merchant) && (
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                    <div className="flex flex-wrap gap-x-3 md:gap-x-4 gap-y-1 text-xs md:text-sm text-muted-foreground">
                       {expense.sender && (
                         <div className="flex items-center gap-1">
                           <Send className="h-3 w-3" />
@@ -731,8 +734,8 @@ export function ExpenseListReal() {
                   )}
                 </div>
 
-                {/* ปุ่มจัดการ */}
-                <div className="flex items-center gap-1 shrink-0">
+                {/* ปุ่มจัดการ - ซ่อนบน mobile ใน row แรก */}
+                <div className="hidden md:flex items-center gap-1 shrink-0">
                   {expense.receipt_url && (
                     <>
                       <Button
@@ -780,86 +783,222 @@ export function ExpenseListReal() {
               </div>
 
               {/* บรรทัดที่สอง: ช่องใส่ประเภทต่างๆ */}
-              <div className="p-4 flex items-center gap-3">
-                {/* ประเภท */}
-                <div className="w-40 shrink-0">
-                  <Input
-                    defaultValue={expense.category || ""}
-                    list={`categories-list-${expense.id}`}
-                    placeholder="ประเภท"
-                    className="h-9 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'category', value);
-                    }}
-                  />
-                  <datalist id={`categories-list-${expense.id}`}>
-                    <option value="personal" />
-                    <option value="company" />
-                    {uniqueCategories
-                      .filter(cat => cat !== 'personal' && cat !== 'company')
-                      .map((category) => (
-                        <option key={category} value={category} />
+              <div className="p-3 md:p-4">
+                {/* Desktop: แสดงเป็น row */}
+                <div className="hidden md:flex items-center gap-3">
+                  {/* ประเภท */}
+                  <div className="w-40 shrink-0">
+                    <Input
+                      defaultValue={expense.category || ""}
+                      list={`categories-list-${expense.id}`}
+                      placeholder="ประเภท"
+                      className="h-9 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'category', value);
+                      }}
+                    />
+                    <datalist id={`categories-list-${expense.id}`}>
+                      <option value="personal" />
+                      <option value="company" />
+                      {uniqueCategories
+                        .filter(cat => cat !== 'personal' && cat !== 'company')
+                        .map((category) => (
+                          <option key={category} value={category} />
+                        ))}
+                    </datalist>
+                  </div>
+
+                  {/* ประเภทย่อย */}
+                  <div className="w-40 shrink-0">
+                    <Input
+                      defaultValue={expense.subcategory || ""}
+                      list={`subcategories-list-${expense.id}`}
+                      placeholder="ประเภทย่อย"
+                      className="h-9 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
+                      }}
+                    />
+                    <datalist id={`subcategories-list-${expense.id}`}>
+                      {uniqueSubcategories.map((subcategory) => (
+                        <option key={subcategory} value={subcategory as string} />
                       ))}
-                  </datalist>
+                    </datalist>
+                  </div>
+
+                  {/* โปรเจค */}
+                  <div className="w-40 shrink-0">
+                    <Input
+                      defaultValue={expense.project || ""}
+                      list={`projects-list-${expense.id}`}
+                      placeholder="โปรเจค"
+                      className="h-9 text-sm"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          (e.currentTarget as HTMLInputElement).blur();
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const value = e.currentTarget.value.trim();
+                        updateExpense(expense.id, 'project', value === '' ? 'none' : value);
+                      }}
+                    />
+                    <datalist id={`projects-list-${expense.id}`}>
+                      <option value="booth" />
+                      <option value="online" />
+                      <option value="event" />
+                      {uniqueProjects
+                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                        .map((project) => (
+                          <option key={project} value={project as string} />
+                        ))}
+                    </datalist>
+                  </div>
                 </div>
 
-                {/* ประเภทย่อย */}
-                <div className="w-40 shrink-0">
-                  <Input
-                    defaultValue={expense.subcategory || ""}
-                    list={`subcategories-list-${expense.id}`}
-                    placeholder="ประเภทย่อย"
-                    className="h-9 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
-                    }}
-                  />
-                  <datalist id={`subcategories-list-${expense.id}`}>
-                    {uniqueSubcategories.map((subcategory) => (
-                      <option key={subcategory} value={subcategory as string} />
-                    ))}
-                  </datalist>
-                </div>
+                {/* Mobile: แสดงเป็น grid 2 columns + ปุ่มจัดการ */}
+                <div className="md:hidden space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* ประเภท */}
+                    <div>
+                      <Input
+                        defaultValue={expense.category || ""}
+                        list={`categories-list-mobile-${expense.id}`}
+                        placeholder="ประเภท"
+                        className="h-9 text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.currentTarget as HTMLInputElement).blur();
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.currentTarget.value.trim();
+                          updateExpense(expense.id, 'category', value);
+                        }}
+                      />
+                      <datalist id={`categories-list-mobile-${expense.id}`}>
+                        <option value="personal" />
+                        <option value="company" />
+                        {uniqueCategories
+                          .filter(cat => cat !== 'personal' && cat !== 'company')
+                          .map((category) => (
+                            <option key={category} value={category} />
+                          ))}
+                      </datalist>
+                    </div>
 
-                {/* โปรเจค */}
-                <div className="w-40 shrink-0">
-                  <Input
-                    defaultValue={expense.project || ""}
-                    list={`projects-list-${expense.id}`}
-                    placeholder="โปรเจค"
-                    className="h-9 text-sm"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'project', value === '' ? 'none' : value);
-                    }}
-                  />
-                  <datalist id={`projects-list-${expense.id}`}>
-                    <option value="booth" />
-                    <option value="online" />
-                    <option value="event" />
-                    {uniqueProjects
-                      .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                      .map((project) => (
-                        <option key={project} value={project as string} />
-                      ))}
-                  </datalist>
+                    {/* ประเภทย่อย */}
+                    <div>
+                      <Input
+                        defaultValue={expense.subcategory || ""}
+                        list={`subcategories-list-mobile-${expense.id}`}
+                        placeholder="ประเภทย่อย"
+                        className="h-9 text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.currentTarget as HTMLInputElement).blur();
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.currentTarget.value.trim();
+                          updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
+                        }}
+                      />
+                      <datalist id={`subcategories-list-mobile-${expense.id}`}>
+                        {uniqueSubcategories.map((subcategory) => (
+                          <option key={subcategory} value={subcategory as string} />
+                        ))}
+                      </datalist>
+                    </div>
+
+                    {/* โปรเจค */}
+                    <div className="col-span-2">
+                      <Input
+                        defaultValue={expense.project || ""}
+                        list={`projects-list-mobile-${expense.id}`}
+                        placeholder="โปรเจค"
+                        className="h-9 text-sm"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            (e.currentTarget as HTMLInputElement).blur();
+                          }
+                        }}
+                        onBlur={(e) => {
+                          const value = e.currentTarget.value.trim();
+                          updateExpense(expense.id, 'project', value === '' ? 'none' : value);
+                        }}
+                      />
+                      <datalist id={`projects-list-mobile-${expense.id}`}>
+                        <option value="booth" />
+                        <option value="online" />
+                        <option value="event" />
+                        {uniqueProjects
+                          .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                          .map((project) => (
+                            <option key={project} value={project as string} />
+                          ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  {/* ปุ่มจัดการสำหรับ Mobile */}
+                  <div className="flex items-center justify-end gap-1 pt-2 border-t">
+                    {expense.receipt_url && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => viewReceipt(index)}
+                          className="h-9 px-3"
+                        >
+                          <Eye className="h-4 w-4 mr-1.5" />
+                          <span className="text-xs">ดู</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => downloadReceipt(expense.receipt_url!)}
+                          className="h-9 px-3"
+                        >
+                          <Download className="h-4 w-4 mr-1.5" />
+                          <span className="text-xs">ดาวน์โหลด</span>
+                        </Button>
+                      </>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditingExpense(expense);
+                        setEditDialogOpen(true);
+                      }}
+                      className="h-9 px-3"
+                    >
+                      <Edit3 className="h-4 w-4 mr-1.5" />
+                      <span className="text-xs">แก้ไข</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteExpense(expense.id, expense.receipt_url)}
+                      className="h-9 px-3 text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1.5" />
+                      <span className="text-xs">ลบ</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </Card>
