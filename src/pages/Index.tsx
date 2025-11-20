@@ -8,6 +8,7 @@ import { ProjectSummary } from "@/components/project-summary";
 import { PeriodSummary } from "@/components/period-summary";
 import { CategoryChart } from "@/components/category-chart";
 import { EventAnalysis } from "@/components/event-analysis";
+import { StorageStats } from "@/components/storage-stats";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -181,6 +182,9 @@ const Index = () => {
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         {/* Stats Overview */}
         <StatsReal />
+
+        {/* Storage Stats */}
+        <StorageStats />
 
         {/* Category Chart */}
         <CategoryChart />
