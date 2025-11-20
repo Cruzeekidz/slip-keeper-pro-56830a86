@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Edit2, Trash2, Check, X } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Check, X, Send, UserCheck, Store, Search, Filter } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -523,10 +523,22 @@ const MasterData = () => {
 
       <main className="max-w-7xl mx-auto p-6">
         <Tabs defaultValue="category" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="category">ประเภท</TabsTrigger>
             <TabsTrigger value="subcategory">ประเภทย่อย</TabsTrigger>
             <TabsTrigger value="project">โปรเจค</TabsTrigger>
+            <TabsTrigger value="receivers">
+              <UserCheck className="h-4 w-4 mr-2" />
+              ผู้รับ
+            </TabsTrigger>
+            <TabsTrigger value="merchants">
+              <Store className="h-4 w-4 mr-2" />
+              ร้านค้า
+            </TabsTrigger>
+            <TabsTrigger value="senders">
+              <Send className="h-4 w-4 mr-2" />
+              ผู้โอน
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="category" className="mt-6">
@@ -539,6 +551,18 @@ const MasterData = () => {
           
           <TabsContent value="project" className="mt-6">
             {renderItemList(projects, 'project', 'รายการโปรเจคทั้งหมด')}
+          </TabsContent>
+
+          <TabsContent value="receivers" className="mt-6">
+            {renderTransactionPartyList(receivers, 'receiver', 'รายการผู้รับทั้งหมด')}
+          </TabsContent>
+
+          <TabsContent value="merchants" className="mt-6">
+            {renderTransactionPartyList(merchants, 'merchant', 'รายการร้านค้าทั้งหมด')}
+          </TabsContent>
+
+          <TabsContent value="senders" className="mt-6">
+            {renderTransactionPartyList(senders, 'sender', 'รายการผู้โอนทั้งหมด')}
           </TabsContent>
         </Tabs>
       </main>
