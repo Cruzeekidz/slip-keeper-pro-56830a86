@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X, Send, UserCheck, Store } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
@@ -604,10 +604,23 @@ export function ExpenseListReal() {
                   </span>
                   {(expense.sender || expense.receiver || expense.merchant) && (
                     <div className="text-xs text-muted-foreground space-y-0.5">
-                      {expense.sender && <div>จาก: {expense.sender}</div>}
-                      {expense.receiver && <div>ถึง: {expense.receiver}</div>}
+                      {expense.sender && (
+                        <div className="flex items-center gap-1">
+                          <Send className="h-3 w-3" />
+                          <span>จาก: {expense.sender}</span>
+                        </div>
+                      )}
+                      {expense.receiver && (
+                        <div className="flex items-center gap-1">
+                          <UserCheck className="h-3 w-3" />
+                          <span>ถึง: {expense.receiver}</span>
+                        </div>
+                      )}
                       {!expense.sender && !expense.receiver && expense.merchant && (
-                        <div>ผู้รับเงิน: {expense.merchant}</div>
+                        <div className="flex items-center gap-1">
+                          <Store className="h-3 w-3" />
+                          <span>ผู้รับเงิน: {expense.merchant}</span>
+                        </div>
                       )}
                     </div>
                   )}
