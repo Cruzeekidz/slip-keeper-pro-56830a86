@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import useEmblaCarousel from 'embla-carousel-react';
 
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
 interface ReceiptGalleryProps {
   receipts: Array<{
     id: string;
@@ -69,7 +71,9 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
             }
             
             if (data?.signedUrl) {
-              newUrls.set(receipt.id, data.signedUrl);
+              // Add SUPABASE_URL to the relative path
+              const fullUrl = `${SUPABASE_URL}${data.signedUrl}`;
+              newUrls.set(receipt.id, fullUrl);
             }
           } catch (error) {
             console.error('Error loading receipt:', error);
