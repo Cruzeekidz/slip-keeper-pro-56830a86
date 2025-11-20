@@ -50,19 +50,29 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     };
   }, [emblaApi]);
 
-  // Load image URLs
+  // Load image URLs with signed URLs for private bucket
   useEffect(() => {
     const loadImageUrls = async () => {
       const newUrls = new Map<string, string>();
       
       for (const receipt of receiptsWithImages) {
         if (receipt.receipt_url && !imageUrls.has(receipt.id)) {
-          const { data } = supabase.storage
-            .from('receipts')
-            .getPublicUrl(receipt.receipt_url);
-          
-          if (data.publicUrl) {
-            newUrls.set(receipt.id, data.publicUrl);
+          try {
+            // Use createSignedUrl for private bucket instead of getPublicUrl
+            const { data, error } = await supabase.storage
+              .from('receipts')
+              .createSignedUrl(receipt.receipt_url, 3600); // Valid for 1 hour
+            
+            if (error) {
+              console.error('Error creating signed URL:', error);
+              continue;
+            }
+            
+            if (data?.signedUrl) {
+              newUrls.set(receipt.id, data.signedUrl);
+            }
+          } catch (error) {
+            console.error('Error loading receipt:', error);
           }
         }
       }
@@ -179,10 +189,17 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         alt={receipt.description || 'Receipt'}
                         className="max-w-full max-h-full object-contain animate-fade-in"
                         draggable={false}
+                        onError={(e) => {
+                          console.error('Image failed to load:', receipt.receipt_url);
+                          e.currentTarget.src = '';
+                        }}
                       />
                     ) : (
-                      <div className="flex items-center justify-center text-white">
-                        <p>กำลังโหลดภาพ...</p>
+                      <div className="flex items-center justify-center text-white min-h-[200px]">
+                        <div className="text-center">
+                          <p className="text-lg mb-2">กำลังโหลดภาพ...</p>
+                          <p className="text-sm opacity-70">กรุณารอสักครู่</p>
+                        </div>
                       </div>
                     )}
                   </div>
