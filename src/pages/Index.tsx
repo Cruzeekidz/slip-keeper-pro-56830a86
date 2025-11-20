@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -13,6 +13,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
@@ -136,52 +142,45 @@ const Index = () => {
               </Button>
             </div>
 
-            {/* Buttons Section - 2 rows on small screens */}
+            {/* Buttons Section - Dropdown for tools */}
             <div className="flex flex-wrap gap-2">
-              <Button 
-                onClick={() => navigate('/bulk-upload')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
-                size="sm"
-              >
-                <Upload className="h-4 w-4 mr-1.5" />
-                <span className="hidden lg:inline">อัพโหลดหลายไฟล์</span>
-                <span className="lg:hidden">อัพโหลด</span>
-              </Button>
-              <Button 
-                onClick={() => navigate('/duplicate-checker')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
-                size="sm"
-              >
-                <AlertTriangle className="h-4 w-4 mr-1.5" />
-                <span className="hidden lg:inline">ตรวจสอบรายการซ้ำ</span>
-                <span className="lg:hidden">ซ้ำ</span>
-              </Button>
-              <Button 
-                onClick={() => navigate('/data-migration')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
-                size="sm"
-              >
-                <Database className="h-4 w-4 mr-1.5" />
-                <span className="hidden lg:inline">แปลงข้อมูล</span>
-                <span className="lg:hidden">แปลง</span>
-              </Button>
-              <Button 
-                onClick={() => navigate('/master-data')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
-                size="sm"
-              >
-                <Settings className="h-4 w-4 mr-1.5" />
-                <span className="hidden lg:inline">จัดการข้อมูลหลัก</span>
-                <span className="lg:hidden">ข้อมูล</span>
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                    size="sm"
+                  >
+                    <Menu className="h-4 w-4 mr-1.5" />
+                    เครื่องมือ
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-popover border-border">
+                  <DropdownMenuItem onClick={() => navigate('/bulk-upload')}>
+                    <Upload className="h-4 w-4 mr-2" />
+                    อัพโหลดหลายไฟล์
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/duplicate-checker')}>
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    ตรวจสอบรายการซ้ำ
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/data-migration')}>
+                    <Database className="h-4 w-4 mr-2" />
+                    แปลงข้อมูล
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/master-data')}>
+                    <Settings className="h-4 w-4 mr-2" />
+                    จัดการข้อมูลหลัก
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button 
                 onClick={exportToCSV}
                 className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
                 size="sm"
               >
                 <Download className="h-4 w-4 mr-1.5" />
-                <span className="hidden lg:inline">ส่งออก CSV</span>
-                <span className="lg:hidden">CSV</span>
+                <span className="hidden sm:inline">ส่งออก CSV</span>
+                <span className="sm:hidden">CSV</span>
               </Button>
               <Button 
                 onClick={signOut}
