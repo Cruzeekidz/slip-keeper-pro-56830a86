@@ -273,43 +273,39 @@ const MasterData = () => {
     const { type, name } = deletingItem;
 
     try {
-      let columnName: string;
+      const columnMap: Record<string, string> = {
+        'category': 'category',
+        'subcategory': 'subcategory',
+        'project': 'project',
+        'receiver': 'receiver',
+        'merchant': 'merchant',
+        'sender': 'sender'
+      };
       
-      if (type === 'category') {
-        columnName = 'category';
-      } else if (type === 'subcategory') {
-        columnName = 'subcategory';
-      } else if (type === 'project') {
-        columnName = 'project';
-      } else if (type === 'receiver') {
-        columnName = 'receiver';
-      } else if (type === 'merchant') {
-        columnName = 'merchant';
-      } else if (type === 'sender') {
-        columnName = 'sender';
-      } else {
-        return;
-      }
+      const columnName = columnMap[type];
+      if (!columnName) return;
       
-      let error;
+      let deleteError = null;
       
       if (name === '(ไม่ระบุ)') {
+        // @ts-ignore - Type inference issue with dynamic column names
         const result = await supabase
           .from('expenses')
           .delete()
           .eq('user_id', user.id)
           .is(columnName, null);
-        error = result.error;
+        deleteError = result.error;
       } else {
+        // @ts-ignore - Type inference issue with dynamic column names
         const result = await supabase
           .from('expenses')
           .delete()
           .eq('user_id', user.id)
           .eq(columnName, name);
-        error = result.error;
+        deleteError = result.error;
       }
-
-      if (error) throw error;
+      
+      if (deleteError) throw deleteError;
 
       toast({
         title: "ลบสำเร็จ",

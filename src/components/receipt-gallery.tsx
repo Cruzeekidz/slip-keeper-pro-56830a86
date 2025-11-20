@@ -173,12 +173,18 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                     className="relative transition-transform duration-300 ease-out"
                     style={{ transform: `scale(${zoom})` }}
                   >
-                    <img
-                      src={imageUrls.get(receipt.id)}
-                      alt={receipt.description || 'Receipt'}
-                      className="max-w-full max-h-full object-contain animate-fade-in"
-                      draggable={false}
-                    />
+                    {imageUrls.get(receipt.id) ? (
+                      <img
+                        src={imageUrls.get(receipt.id)}
+                        alt={receipt.description || 'Receipt'}
+                        className="max-w-full max-h-full object-contain animate-fade-in"
+                        draggable={false}
+                      />
+                    ) : (
+                      <div className="flex items-center justify-center text-white">
+                        <p>กำลังโหลดภาพ...</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
