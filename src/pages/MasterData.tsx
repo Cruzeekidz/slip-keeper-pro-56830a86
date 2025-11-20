@@ -24,6 +24,12 @@ interface MasterItem {
   count: number;
 }
 
+interface TransactionParty {
+  name: string;
+  count: number;
+  missingCount: number;
+}
+
 const MasterData = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -32,6 +38,12 @@ const MasterData = () => {
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [subcategories, setSubcategories] = useState<MasterItem[]>([]);
   const [projects, setProjects] = useState<MasterItem[]>([]);
+  const [receivers, setReceivers] = useState<TransactionParty[]>([]);
+  const [merchants, setMerchants] = useState<TransactionParty[]>([]);
+  const [senders, setSenders] = useState<TransactionParty[]>([]);
+  
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showMissingOnly, setShowMissingOnly] = useState(false);
 
   const [editingItem, setEditingItem] = useState<{ type: string; oldName: string; newName: string } | null>(null);
   const [deletingItem, setDeletingItem] = useState<{ type: string; name: string; count: number } | null>(null);
@@ -50,7 +62,7 @@ const MasterData = () => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('category, subcategory, project')
+        .select('category, subcategory, project, receiver, merchant, sender')
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -59,6 +71,13 @@ const MasterData = () => {
       const categoryMap = new Map<string, number>();
       const subcategoryMap = new Map<string, number>();
       const projectMap = new Map<string, number>();
+      const receiverMap = new Map<string, { count: number; missingCount: number }>();
+      const merchantMap = new Map<string, { count: number; missingCount: number }>();
+      const senderMap = new Map<string, { count: number; missingCount: number }>();
+      
+      let missingReceiverCount = 0;
+      let missingMerchantCount = 0;
+      let missingSenderCount = 0;
 
       expenses?.forEach((exp) => {
         if (exp.category) {
@@ -69,6 +88,30 @@ const MasterData = () => {
         }
         if (exp.project) {
           projectMap.set(exp.project, (projectMap.get(exp.project) || 0) + 1);
+        }
+        
+        // Count receivers
+        if (exp.receiver) {
+          const current = receiverMap.get(exp.receiver) || { count: 0, missingCount: 0 };
+          receiverMap.set(exp.receiver, { ...current, count: current.count + 1 });
+        } else {
+          missingReceiverCount++;
+        }
+        
+        // Count merchants
+        if (exp.merchant) {
+          const current = merchantMap.get(exp.merchant) || { count: 0, missingCount: 0 };
+          merchantMap.set(exp.merchant, { ...current, count: current.count + 1 });
+        } else {
+          missingMerchantCount++;
+        }
+        
+        // Count senders
+        if (exp.sender) {
+          const current = senderMap.get(exp.sender) || { count: 0, missingCount: 0 };
+          senderMap.set(exp.sender, { ...current, count: current.count + 1 });
+        } else {
+          missingSenderCount++;
         }
       });
 
@@ -89,6 +132,27 @@ const MasterData = () => {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => a.name.localeCompare(b.name, 'th'))
       );
+      
+      setReceivers([
+        { name: '(ไม่ระบุ)', count: 0, missingCount: missingReceiverCount },
+        ...Array.from(receiverMap.entries())
+          .map(([name, data]) => ({ name, count: data.count, missingCount: 0 }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+      ]);
+      
+      setMerchants([
+        { name: '(ไม่ระบุ)', count: 0, missingCount: missingMerchantCount },
+        ...Array.from(merchantMap.entries())
+          .map(([name, data]) => ({ name, count: data.count, missingCount: 0 }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+      ]);
+      
+      setSenders([
+        { name: '(ไม่ระบุ)', count: 0, missingCount: missingSenderCount },
+        ...Array.from(senderMap.entries())
+          .map(([name, data]) => ({ name, count: data.count, missingCount: 0 }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+      ]);
 
     } catch (error) {
       console.error('Error fetching master data:', error);
@@ -111,7 +175,72 @@ const MasterData = () => {
     }
 
     try {
-      const columnName = type === 'category' ? 'category' : type === 'subcategory' ? 'subcategory' : 'project';
+      if (type === 'receiver' && oldName === '(ไม่ระบุ)') {
+        const { error } = await supabase
+          .from('expenses')
+          .update({ receiver: newName.trim() })
+          .eq('user_id', user.id)
+          .is('receiver', null);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "อัปเดตสำเร็จ",
+          description: `เพิ่มชื่อผู้รับ "${newName}" เรียบร้อย`,
+        });
+        
+        setEditingItem(null);
+        fetchMasterData();
+        return;
+      }
+      
+      if (type === 'merchant' && oldName === '(ไม่ระบุ)') {
+        const { error } = await supabase
+          .from('expenses')
+          .update({ merchant: newName.trim() })
+          .eq('user_id', user.id)
+          .is('merchant', null);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "อัปเดตสำเร็จ",
+          description: `เพิ่มชื่อร้านค้า "${newName}" เรียบร้อย`,
+        });
+        
+        setEditingItem(null);
+        fetchMasterData();
+        return;
+      }
+      
+      if (type === 'sender' && oldName === '(ไม่ระบุ)') {
+        const { error } = await supabase
+          .from('expenses')
+          .update({ sender: newName.trim() })
+          .eq('user_id', user.id)
+          .is('sender', null);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "อัปเดตสำเร็จ",
+          description: `เพิ่มชื่อผู้โอน "${newName}" เรียบร้อย`,
+        });
+        
+        setEditingItem(null);
+        fetchMasterData();
+        return;
+      }
+      
+      const columnName = 
+        type === 'category' ? 'category' : 
+        type === 'subcategory' ? 'subcategory' : 
+        type === 'project' ? 'project' :
+        type === 'receiver' ? 'receiver' :
+        type === 'merchant' ? 'merchant' :
+        type === 'sender' ? 'sender' : '';
+      
+      if (!columnName) return;
       
       const { error } = await supabase
         .from('expenses')
@@ -144,13 +273,41 @@ const MasterData = () => {
     const { type, name } = deletingItem;
 
     try {
-      const columnName = type === 'category' ? 'category' : type === 'subcategory' ? 'subcategory' : 'project';
+      let columnName: string;
       
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('user_id', user.id)
-        .eq(columnName, name);
+      if (type === 'category') {
+        columnName = 'category';
+      } else if (type === 'subcategory') {
+        columnName = 'subcategory';
+      } else if (type === 'project') {
+        columnName = 'project';
+      } else if (type === 'receiver') {
+        columnName = 'receiver';
+      } else if (type === 'merchant') {
+        columnName = 'merchant';
+      } else if (type === 'sender') {
+        columnName = 'sender';
+      } else {
+        return;
+      }
+      
+      let error;
+      
+      if (name === '(ไม่ระบุ)') {
+        const result = await supabase
+          .from('expenses')
+          .delete()
+          .eq('user_id', user.id)
+          .is(columnName, null);
+        error = result.error;
+      } else {
+        const result = await supabase
+          .from('expenses')
+          .delete()
+          .eq('user_id', user.id)
+          .eq(columnName, name);
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -169,6 +326,101 @@ const MasterData = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const renderTransactionPartyList = (items: TransactionParty[], type: string, title: string) => {
+    const filteredItems = items.filter(item => {
+      const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMissing = !showMissingOnly || item.name === '(ไม่ระบุ)';
+      return matchesSearch && matchesMissing;
+    });
+    
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{title}</CardTitle>
+          <CardDescription>จำนวนทั้งหมด: {items.length} รายการ</CardDescription>
+          <div className="flex gap-2 mt-4">
+            <Input
+              placeholder="ค้นหา..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              variant={showMissingOnly ? "default" : "outline"}
+              onClick={() => setShowMissingOnly(!showMissingOnly)}
+            >
+              {showMissingOnly ? "แสดงทั้งหมด" : "ที่ขาดข้อมูล"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {filteredItems.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">ไม่มีข้อมูล</p>
+            ) : (
+              filteredItems.map((item) => (
+                <div
+                  key={item.name}
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                >
+                  {editingItem?.type === type && editingItem?.oldName === item.name ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={editingItem.newName}
+                        onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })}
+                        className="flex-1"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleRename();
+                          if (e.key === 'Escape') setEditingItem(null);
+                        }}
+                      />
+                      <Button size="sm" onClick={handleRename} variant="ghost">
+                        <Check className="h-4 w-4 text-green-600" />
+                      </Button>
+                      <Button size="sm" onClick={() => setEditingItem(null)} variant="ghost">
+                        <X className="h-4 w-4 text-red-600" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex-1">
+                        <p className="font-medium">{item.name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {item.name === '(ไม่ระบุ)' 
+                            ? `${item.missingCount} รายการที่ขาดข้อมูล` 
+                            : `ใช้งาน ${item.count} รายการ`}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setEditingItem({ type, oldName: item.name, newName: item.name === '(ไม่ระบุ)' ? '' : item.name })}
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </Button>
+                        {item.name !== '(ไม่ระบุ)' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setDeletingItem({ type, name: item.name, count: item.count })}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
   };
 
   const renderItemList = (items: MasterItem[], type: string, title: string) => (
