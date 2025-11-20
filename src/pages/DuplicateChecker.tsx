@@ -138,6 +138,40 @@ export default function DuplicateChecker() {
         }
       });
 
+      // Group 3: Potential Duplicate Payments (same receiver + same amount, different dates)
+      const receiverAmountGroups = new Map<string, Expense[]>();
+      expenses?.forEach(exp => {
+        if (!processedIds.has(exp.id)) {
+          const receiver = exp.receiver || exp.merchant;
+          if (receiver) {
+            const key = `${receiver}-${exp.amount}`;
+            if (!receiverAmountGroups.has(key)) {
+              receiverAmountGroups.set(key, []);
+            }
+            receiverAmountGroups.get(key)!.push(exp);
+          }
+        }
+      });
+
+      receiverAmountGroups.forEach((exps, key) => {
+        if (exps.length > 1) {
+          // Filter out pairs marked as non-duplicate
+          const validExps = exps.filter((exp1, i) => 
+            !exps.some((exp2, j) => i !== j && isNonDuplicatePair(exp1, exp2))
+          );
+
+          if (validExps.length > 1) {
+            validExps.forEach(e => processedIds.add(e.id));
+            const [receiver, amount] = key.split('-');
+            groups.push({
+              key: `recv-${key}`,
+              expenses: validExps,
+              reason: `⚠️ การจ่ายซ้ำที่อาจเกิดขึ้น: จ่าย ฿${parseFloat(amount).toLocaleString()} ให้ "${receiver}" หลายครั้ง`
+            });
+          }
+        }
+      });
+
       setDuplicateGroups(groups);
     } catch (error) {
       console.error('Error finding duplicates:', error);
@@ -414,12 +448,19 @@ export default function DuplicateChecker() {
               <Card key={group.key} className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-orange-600 flex items-center gap-2">
+                    <h3 className={`text-lg font-semibold flex items-center gap-2 ${
+                      group.key.startsWith('recv-') ? 'text-yellow-600' : 'text-orange-600'
+                    }`}>
                       <AlertTriangle className="h-5 w-5" />
                       {group.reason}
                     </h3>
                     <p className="text-sm text-muted-foreground">
-                      พบ {group.expenses.length} รายการที่ซ้ำกัน
+                      พบ {group.expenses.length} รายการ
+                      {group.key.startsWith('recv-') && (
+                        <span className="ml-2 text-yellow-600">
+                          (อาจเป็นการจ่ายซ้ำ หรือการจ่ายแบบ recurring)
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -522,11 +563,12 @@ export default function DuplicateChecker() {
         <Card className="p-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
           <h4 className="font-semibold mb-2 text-blue-900 dark:text-blue-100">💡 คำแนะนำ</h4>
           <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-            <li>• ระบบตรวจสอบรายการซ้ำโดยเปรียบเทียบรหัสอ้างอิง (Transaction ID)</li>
-            <li>• หรือเปรียบเทียบยอดโอน + วันที่ + เวลาที่เหมือนกันทุกประการ</li>
+            <li>• <strong>รายการซ้ำจากการอัพโหลด:</strong> ตรวจสอบโดยเปรียบเทียบรหัสอ้างอิง หรือยอดโอน + วันที่ + เวลาที่เหมือนกันทุกประการ</li>
+            <li>• <strong>⚠️ การจ่ายซ้ำที่อาจเกิดขึ้น:</strong> ตรวจพบการจ่ายยอดเงินเดียวกันให้กับผู้รับโอนรายเดียวกันหลายครั้ง (อาจเป็นการจ่ายซ้ำโดยไม่ตั้งใจ หรือเป็นค่าใช้จ่ายแบบ recurring)</li>
             <li>• คุณสามารถกดดูสลิปเพื่อตรวจสอบความถูกต้องก่อนลบได้</li>
             <li>• เลือกรายการที่ต้องการลบด้วยตัวเอง หรือใช้ปุ่ม "เลือกทั้งหมด (เว้นรายการแรก)"</li>
-            <li>• ตรวจสอบข้อมูลให้ละเอียดก่อนลบ เพราะการลบไม่สามารถย้อนกลับได้</li>
+            <li>• หากรายการไม่ซ้ำกัน ให้กดปุ่ม "ไม่ซ้ำกัน" เพื่อไม่ให้แสดงในอนาคต</li>
+            <li>• สำหรับรายการจ่ายซ้ำ: ตรวจสอบวันที่และรายละเอียดก่อนตัดสินใจว่าควรลบหรือไม่</li>
           </ul>
         </Card>
 
