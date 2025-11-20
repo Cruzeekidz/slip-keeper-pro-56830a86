@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      deleted_expenses: {
+        Row: {
+          amount: number
+          can_restore: boolean | null
+          category: string
+          deleted_at: string
+          deleted_reason: string | null
+          description: string | null
+          expense_date: string
+          expense_time: string | null
+          id: string
+          merchant: string | null
+          original_expense_id: string
+          project: string | null
+          receipt_url: string | null
+          receiver: string | null
+          sender: string | null
+          subcategory: string | null
+          transaction_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          can_restore?: boolean | null
+          category: string
+          deleted_at?: string
+          deleted_reason?: string | null
+          description?: string | null
+          expense_date: string
+          expense_time?: string | null
+          id?: string
+          merchant?: string | null
+          original_expense_id: string
+          project?: string | null
+          receipt_url?: string | null
+          receiver?: string | null
+          sender?: string | null
+          subcategory?: string | null
+          transaction_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          can_restore?: boolean | null
+          category?: string
+          deleted_at?: string
+          deleted_reason?: string | null
+          description?: string | null
+          expense_date?: string
+          expense_time?: string | null
+          id?: string
+          merchant?: string | null
+          original_expense_id?: string
+          project?: string | null
+          receipt_url?: string | null
+          receiver?: string | null
+          sender?: string | null
+          subcategory?: string | null
+          transaction_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
