@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { ExpenseEditDialog } from "./expense-edit-dialog";
+import { ReceiptGallery } from "./receipt-gallery";
 import { cn } from "@/lib/utils";
 
 interface Expense {
@@ -42,8 +43,8 @@ export function ExpenseListReal() {
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
-  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [viewingReceipt, setViewingReceipt] = useState<number>(-1);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const { toast } = useToast();
 
@@ -350,24 +351,9 @@ export function ExpenseListReal() {
     }
   };
 
-  const viewReceipt = async (receiptUrl: string) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('receipts')
-        .createSignedUrl(receiptUrl, 3600); // 1 hour expiry
-
-      if (error) throw error;
-
-      setViewingReceipt(data.signedUrl);
-      setReceiptDialogOpen(true);
-    } catch (error) {
-      console.error('Error viewing receipt:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถดูใบเสร็จได้",
-        variant: "destructive",
-      });
-    }
+  const viewReceipt = (expenseIndex: number) => {
+    setViewingReceipt(expenseIndex);
+    setGalleryOpen(true);
   };
 
   const downloadReceipt = async (receiptUrl: string) => {
@@ -594,7 +580,7 @@ export function ExpenseListReal() {
         </div>
       ) : viewMode === "card" ? (
         <div className="space-y-3">
-          {filteredExpenses.map((expense) => (
+          {filteredExpenses.map((expense, index) => (
             <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center gap-4 flex-wrap">
                 {/* วันที่ */}
@@ -715,7 +701,7 @@ export function ExpenseListReal() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => viewReceipt(expense.receipt_url!)}
+                        onClick={() => viewReceipt(index)}
                         className="h-8 w-8 p-0"
                         title="ดูใบเสร็จ"
                       >
@@ -784,7 +770,7 @@ export function ExpenseListReal() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredExpenses.map((expense) => (
+              {filteredExpenses.map((expense, index) => (
                 <TableRow key={expense.id}>
                   <TableCell className="whitespace-nowrap text-sm">
                     {format(new Date(expense.expense_date), 'dd/MM/yyyy')}
@@ -879,7 +865,7 @@ export function ExpenseListReal() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => viewReceipt(expense.receipt_url!)}
+                          onClick={() => viewReceipt(index)}
                           className="h-8 w-8 p-0"
                           title="ดูใบเสร็จ"
                         >
@@ -947,29 +933,12 @@ export function ExpenseListReal() {
         onSuccess={fetchExpenses}
       />
 
-      <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>ดูใบเสร็จ</DialogTitle>
-          </DialogHeader>
-          <div className="overflow-auto max-h-[75vh]">
-            {viewingReceipt && (
-              <img 
-                src={viewingReceipt} 
-                alt="Receipt" 
-                className="w-full h-auto rounded-lg"
-                onError={(e) => {
-                  // If image fails to load, try rendering as PDF
-                  const container = e.currentTarget.parentElement;
-                  if (container) {
-                    container.innerHTML = `<iframe src="${viewingReceipt}" class="w-full h-[600px] rounded-lg"></iframe>`;
-                  }
-                }}
-              />
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <ReceiptGallery
+        receipts={filteredExpenses}
+        initialIndex={viewingReceipt >= 0 ? viewingReceipt : 0}
+        open={galleryOpen}
+        onOpenChange={setGalleryOpen}
+      />
     </Card>
   );
 }
