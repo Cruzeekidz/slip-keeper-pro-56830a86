@@ -211,6 +211,7 @@ export default function DuplicateChecker() {
     }
   };
 
+  const deleteSelected = async () => {
     if (selectedIds.size === 0) {
       toast({
         title: "ไม่มีรายการที่เลือก",
