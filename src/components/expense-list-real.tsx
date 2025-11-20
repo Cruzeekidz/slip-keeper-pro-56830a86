@@ -684,29 +684,31 @@ export function ExpenseListReal() {
       ) : viewMode === "card" ? (
         <div className="space-y-3">
           {filteredExpenses.map((expense, index) => (
-            <Card key={expense.id} className="p-4 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-4 flex-wrap">
+            <Card key={expense.id} className="hover:shadow-md transition-shadow">
+              {/* บรรทัดแรก: วันที่ + ยอดเงิน + รายการและรายละเอียด */}
+              <div className="p-4 flex items-start gap-4 border-b">
                 {/* วันที่ */}
-                <div className="text-sm text-muted-foreground w-24 shrink-0">
-                  <span className="whitespace-nowrap">
-                    {format(new Date(expense.expense_date), 'dd/MM/yy')}
+                <div className="w-24 shrink-0 flex items-center gap-2">
+                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">
+                    {format(new Date(expense.expense_date), "d MMM yy", { locale: th })}
                   </span>
                 </div>
 
                 {/* ยอดเงิน */}
-                <div className="w-28 text-right shrink-0">
-                  <span className="text-base font-semibold text-red-600">
+                <div className="w-32 shrink-0">
+                  <span className="font-bold text-lg text-red-600">
                     -฿{expense.amount.toLocaleString()}
                   </span>
                 </div>
 
-                {/* ชื่อรายการ */}
+                {/* รายการและรายละเอียด (ใช้พื้นที่ที่เหลือทั้งหมด) */}
                 <div className="flex-1 min-w-0">
-                  <span className="font-medium text-foreground truncate block">
+                  <div className="font-medium text-foreground text-base mb-1">
                     {expense.description || "ค่าใช้จ่าย"}
-                  </span>
+                  </div>
                   {(expense.sender || expense.receiver || expense.merchant) && (
-                    <div className="text-xs text-muted-foreground space-y-0.5">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
                       {expense.sender && (
                         <div className="flex items-center gap-1">
                           <Send className="h-3 w-3" />
@@ -727,87 +729,6 @@ export function ExpenseListReal() {
                       )}
                     </div>
                   )}
-                </div>
-
-                {/* ประเภท - Dropdown */}
-                <div className="w-28 shrink-0">
-                  <Input
-                    defaultValue={expense.category || ""}
-                    list={`categories-list-${expense.id}`}
-                    placeholder="ประเภท"
-                    className="h-8 text-xs"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'category', value);
-                    }}
-                  />
-                  <datalist id={`categories-list-${expense.id}`}>
-                    <option value="personal" />
-                    <option value="company" />
-                    {uniqueCategories
-                      .filter(cat => cat !== 'personal' && cat !== 'company')
-                      .map((category) => (
-                        <option key={category} value={category} />
-                      ))}
-                  </datalist>
-                </div>
-
-                {/* ประเภทย่อย - Dropdown */}
-                <div className="w-32 shrink-0">
-                  <Input
-                    defaultValue={expense.subcategory || ""}
-                    list={`subcategories-list-${expense.id}`}
-                    placeholder="ประเภทย่อย"
-                    className="h-8 text-xs"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
-                    }}
-                  />
-                  <datalist id={`subcategories-list-${expense.id}`}>
-                    {uniqueSubcategories.map((subcategory) => (
-                      <option key={subcategory} value={subcategory as string} />
-                    ))}
-                  </datalist>
-                </div>
-
-                {/* โปรเจค - Dropdown */}
-                <div className="w-32 shrink-0">
-                  <Input
-                    defaultValue={expense.project || ""}
-                    list={`projects-list-${expense.id}`}
-                    placeholder="โปรเจค"
-                    className="h-8 text-xs"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        (e.currentTarget as HTMLInputElement).blur();
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const value = e.currentTarget.value.trim();
-                      updateExpense(expense.id, 'project', value === '' ? 'none' : value);
-                    }}
-                  />
-                  <datalist id={`projects-list-${expense.id}`}>
-                    <option value="booth" />
-                    <option value="online" />
-                    <option value="event" />
-                    {uniqueProjects
-                      .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                      .map((project) => (
-                        <option key={project} value={project as string} />
-                      ))}
-                  </datalist>
                 </div>
 
                 {/* ปุ่มจัดการ */}
@@ -832,15 +753,6 @@ export function ExpenseListReal() {
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteReceipt(expense.id, expense.receipt_url!)}
-                        className="h-8 w-8 p-0 hover:text-orange-600"
-                        title="ลบเฉพาะสลิป"
-                      >
-                        <Receipt className="h-4 w-4" />
-                      </Button>
                     </>
                   )}
                   <Button
@@ -851,7 +763,7 @@ export function ExpenseListReal() {
                       setEditDialogOpen(true);
                     }}
                     className="h-8 w-8 p-0"
-                    title="แก้ไขรายการ"
+                    title="แก้ไข"
                   >
                     <Edit3 className="h-4 w-4" />
                   </Button>
@@ -864,6 +776,90 @@ export function ExpenseListReal() {
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
+                </div>
+              </div>
+
+              {/* บรรทัดที่สอง: ช่องใส่ประเภทต่างๆ */}
+              <div className="p-4 flex items-center gap-3">
+                {/* ประเภท */}
+                <div className="w-40 shrink-0">
+                  <Input
+                    defaultValue={expense.category || ""}
+                    list={`categories-list-${expense.id}`}
+                    placeholder="ประเภท"
+                    className="h-9 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'category', value);
+                    }}
+                  />
+                  <datalist id={`categories-list-${expense.id}`}>
+                    <option value="personal" />
+                    <option value="company" />
+                    {uniqueCategories
+                      .filter(cat => cat !== 'personal' && cat !== 'company')
+                      .map((category) => (
+                        <option key={category} value={category} />
+                      ))}
+                  </datalist>
+                </div>
+
+                {/* ประเภทย่อย */}
+                <div className="w-40 shrink-0">
+                  <Input
+                    defaultValue={expense.subcategory || ""}
+                    list={`subcategories-list-${expense.id}`}
+                    placeholder="ประเภทย่อย"
+                    className="h-9 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
+                    }}
+                  />
+                  <datalist id={`subcategories-list-${expense.id}`}>
+                    {uniqueSubcategories.map((subcategory) => (
+                      <option key={subcategory} value={subcategory as string} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* โปรเจค */}
+                <div className="w-40 shrink-0">
+                  <Input
+                    defaultValue={expense.project || ""}
+                    list={`projects-list-${expense.id}`}
+                    placeholder="โปรเจค"
+                    className="h-9 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        (e.currentTarget as HTMLInputElement).blur();
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = e.currentTarget.value.trim();
+                      updateExpense(expense.id, 'project', value === '' ? 'none' : value);
+                    }}
+                  />
+                  <datalist id={`projects-list-${expense.id}`}>
+                    <option value="booth" />
+                    <option value="online" />
+                    <option value="event" />
+                    {uniqueProjects
+                      .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
+                      .map((project) => (
+                        <option key={project} value={project as string} />
+                      ))}
+                  </datalist>
                 </div>
               </div>
             </Card>
