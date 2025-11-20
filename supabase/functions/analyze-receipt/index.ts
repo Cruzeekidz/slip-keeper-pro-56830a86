@@ -88,21 +88,24 @@ serve(async (req) => {
 - project = null  
 - subcategory = null
 
+**สำคัญมาก**: สำหรับฟิลด์ category, project, subcategory - ถ้าหาข้อมูลไม่พบให้ใส่ null เท่านั้น **ห้ามใส่ค่า "ไม่ระบุ" หรือค่าอื่นๆ**
+
 ตอบกลับในรูปแบบ JSON เท่านั้น:
 {
   "amount": "จำนวนเงินเป็นตัวเลข",
   "date": "YYYY-MM-DD (ค.ศ.)",
+  "time": "HH:MM:SS หรือ null",
   "description": "ชื่อรายการ",
   "merchant": "ชื่อผู้รับ/ร้านค้า",
   "sender": "ชื่อผู้โอน/ผู้ส่งเงิน",
   "receiver": "ชื่อผู้รับเงิน",
   "transaction_id": "รหัสอ้างอิง",
-  "category": "ประเภท (ถ้ามีใน pattern)",
-  "project": "โปรเจค (ถ้ามีใน pattern)",
-  "subcategory": "ประเภทย่อย (ถ้ามีใน pattern)"
+  "category": "ประเภท (ถ้ามีใน pattern) หรือ null",
+  "project": "โปรเจค (ถ้ามีใน pattern) หรือ null",
+  "subcategory": "ประเภทย่อย (ถ้ามีใน pattern) หรือ null"
 }
 
-ถ้าหาข้อมูลไหนไม่พบให้ใส่ null`
+ถ้าหาข้อมูลไหนไม่พบให้ใส่ null เท่านั้น`
               },
               {
                 type: "image_url",
