@@ -3,8 +3,9 @@ import { Card } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { PieChartIcon } from "lucide-react";
+import { PieChartIcon, Maximize2, Minimize2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 
 interface CategoryData {
   name: string;
@@ -31,6 +32,7 @@ export function CategoryChart() {
   const [yearData, setYearData] = useState<YearData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState<string>("compare");
+  const [isExpanded, setIsExpanded] = useState(false);
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
@@ -152,40 +154,52 @@ export function CategoryChart() {
   };
 
   return (
-    <Card className="p-6 bg-gradient-card shadow-card">
+    <Card className={`p-6 bg-gradient-card shadow-card transition-all duration-300 ${isExpanded ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <PieChartIcon className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-bold text-foreground">การกระจายค่าใช้จ่ายตามหมวดหมู่</h2>
         </div>
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="compare">เปรียบเทียบ 2 ปี</SelectItem>
-            {yearData.map(({ year }) => (
-              <SelectItem key={year} value={year.toString()}>
-                ปี {year + 543}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          <Select value={selectedYear} onValueChange={setSelectedYear}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="compare">เปรียบเทียบ 2 ปี</SelectItem>
+              {yearData.map(({ year }) => (
+                <SelectItem key={year} value={year.toString()}>
+                  ปี {year + 543}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="shrink-0"
+          >
+            {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </Button>
+        </div>
       </div>
 
-      {selectedYear === "compare" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {renderPieChart(currentYearData?.categories, `ปี ${currentYear + 543}`)}
-          {renderPieChart(lastYearData?.categories, `ปี ${currentYear - 1 + 543}`)}
-        </div>
-      ) : (
-        <div className="max-w-2xl mx-auto">
-          {renderPieChart(
-            yearData.find(y => y.year === parseInt(selectedYear))?.categories,
-            `ปี ${parseInt(selectedYear) + 543}`
-          )}
-        </div>
-      )}
+      <div className={`transition-all duration-300 ${isExpanded ? 'h-[calc(100vh-200px)]' : ''}`}>
+        {selectedYear === "compare" ? (
+          <div className={`grid gap-6 ${isExpanded ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
+            {renderPieChart(currentYearData?.categories, `ปี ${currentYear + 543}`)}
+            {renderPieChart(lastYearData?.categories, `ปี ${currentYear - 1 + 543}`)}
+          </div>
+        ) : (
+          <div className="max-w-2xl mx-auto">
+            {renderPieChart(
+              yearData.find(y => y.year === parseInt(selectedYear))?.categories,
+              `ปี ${parseInt(selectedYear) + 543}`
+            )}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }
