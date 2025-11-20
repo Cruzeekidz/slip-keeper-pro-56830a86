@@ -85,7 +85,7 @@ export function ExpenseListReal() {
   }, [expenses]);
 
   const uniqueSubcategories = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.subcategory).filter(Boolean))).sort();
+    return Array.from(new Set(expenses.map(e => e.subcategory).filter(s => s && s.trim() !== ''))).sort();
   }, [expenses]);
 
   const filterExpenses = () => {
