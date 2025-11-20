@@ -7,6 +7,7 @@ import { Upload, X, CheckCircle, AlertCircle, ArrowLeft, Download, FileSpreadshe
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CSVPreviewDialog, type CSVRow } from "@/components/csv-preview-dialog";
+import { ImportHistory } from "@/components/import-history";
 
 interface UploadedFile {
   file: File;
@@ -287,9 +288,37 @@ export default function BulkUpload() {
       return;
     }
 
+    // Create import history record first
+    const { data: historyRecord, error: historyError } = await supabase
+      .from('import_history')
+      .insert({
+        user_id: user!.id,
+        file_name: 'CSV Import',
+        total_rows: previewRows.length,
+        success_count: 0,
+        update_count: 0,
+        error_count: 0,
+        import_type: 'csv',
+        status: 'completed',
+      })
+      .select()
+      .single();
+
+    if (historyError) {
+      console.error('Error creating import history:', historyError);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถบันทึกประวัติการ import ได้",
+        variant: "destructive",
+      });
+      setShowPreview(false);
+      return;
+    }
+
     let successCount = 0;
     let errorCount = 0;
     let updateCount = 0;
+    const importItems: any[] = [];
 
     for (const row of validRows) {
       const expense = row.data;
@@ -297,6 +326,14 @@ export default function BulkUpload() {
       try {
         // ถ้ามี ID = UPDATE, ถ้าไม่มี ID = INSERT
         if (expense.id) {
+          // Fetch original data before update for rollback
+          const { data: originalData } = await supabase
+            .from('expenses')
+            .select('*')
+            .eq('id', expense.id)
+            .eq('user_id', user!.id)
+            .single();
+
           const { error } = await supabase
             .from('expenses')
             .update({
@@ -312,26 +349,50 @@ export default function BulkUpload() {
               transaction_id: expense.transaction_id || null,
             })
             .eq('id', expense.id)
-            .eq('user_id', user.id); // Security: ต้องเป็น expense ของ user เท่านั้น
+            .eq('user_id', user!.id);
 
           if (error) throw error;
+          
+          // Record the update with original data for rollback
+          importItems.push({
+            import_history_id: historyRecord.id,
+            expense_id: expense.id,
+            action_type: 'update',
+            row_number: row.rowNumber,
+            row_data: originalData, // Store original data for rollback
+          });
+          
           updateCount++;
         } else {
-          const { error } = await supabase.from('expenses').insert({
-            user_id: user.id,
-            expense_date: expense.expense_date,
-            amount: parseFloat(expense.amount),
-            category: expense.category,
-            project: expense.project || null,
-            subcategory: expense.subcategory || null,
-            merchant: expense.merchant || null,
-            description: expense.description || null,
-            sender: expense.sender || null,
-            receiver: expense.receiver || null,
-            transaction_id: expense.transaction_id || null,
-          });
+          const { data: newExpense, error } = await supabase
+            .from('expenses')
+            .insert({
+              user_id: user!.id,
+              expense_date: expense.expense_date,
+              amount: parseFloat(expense.amount),
+              category: expense.category,
+              project: expense.project || null,
+              subcategory: expense.subcategory || null,
+              merchant: expense.merchant || null,
+              description: expense.description || null,
+              sender: expense.sender || null,
+              receiver: expense.receiver || null,
+              transaction_id: expense.transaction_id || null,
+            })
+            .select()
+            .single();
 
           if (error) throw error;
+
+          // Record the insert
+          importItems.push({
+            import_history_id: historyRecord.id,
+            expense_id: newExpense.id,
+            action_type: 'insert',
+            row_number: row.rowNumber,
+            row_data: expense, // Store inserted data
+          });
+          
           successCount++;
         }
       } catch (err) {
@@ -339,6 +400,21 @@ export default function BulkUpload() {
         errorCount++;
       }
     }
+
+    // Save all import items
+    if (importItems.length > 0) {
+      await supabase.from('import_items').insert(importItems);
+    }
+
+    // Update import history with final counts
+    await supabase
+      .from('import_history')
+      .update({
+        success_count: successCount,
+        update_count: updateCount,
+        error_count: errorCount,
+      })
+      .eq('id', historyRecord.id);
 
     const summary = [];
     if (successCount > 0) summary.push(`สร้างใหม่ ${successCount} รายการ`);
@@ -721,6 +797,9 @@ export default function BulkUpload() {
             </div>
           </div>
         </Card>
+
+        {/* Import History Section */}
+        <ImportHistory />
 
         {/* CSV Preview Dialog */}
         <CSVPreviewDialog
