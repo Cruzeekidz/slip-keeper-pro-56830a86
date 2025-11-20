@@ -71,8 +71,8 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
             }
             
             if (data?.signedUrl) {
-              // Add SUPABASE_URL to the relative path
-              const fullUrl = `${SUPABASE_URL}${data.signedUrl}`;
+              // signedUrl already includes the full path, just prepend the base URL
+              const fullUrl = `${SUPABASE_URL}/storage/v1${data.signedUrl}`;
               newUrls.set(receipt.id, fullUrl);
             }
           } catch (error) {
@@ -89,7 +89,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     if (open && receiptsWithImages.length > 0) {
       loadImageUrls();
     }
-  }, [open, receiptsWithImages]);
+  }, [open, receiptsWithImages.length]); // เปลี่ยนจาก receiptsWithImages เป็น receiptsWithImages.length
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();
