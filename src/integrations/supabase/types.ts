@@ -21,8 +21,10 @@ export type Database = {
           created_at: string
           description: string | null
           expense_date: string
+          expense_time: string | null
           id: string
           merchant: string | null
+          non_duplicate_pairs: string[] | null
           project: string | null
           receipt_url: string | null
           receiver: string | null
@@ -38,8 +40,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           expense_date: string
+          expense_time?: string | null
           id?: string
           merchant?: string | null
+          non_duplicate_pairs?: string[] | null
           project?: string | null
           receipt_url?: string | null
           receiver?: string | null
@@ -55,8 +59,10 @@ export type Database = {
           created_at?: string
           description?: string | null
           expense_date?: string
+          expense_time?: string | null
           id?: string
           merchant?: string | null
+          non_duplicate_pairs?: string[] | null
           project?: string | null
           receipt_url?: string | null
           receiver?: string | null

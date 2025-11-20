@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Trash2, AlertTriangle, Receipt } from "lucide-react";
+import { ArrowLeft, Trash2, AlertTriangle, Receipt, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 interface Expense {
   id: string;
@@ -16,12 +16,14 @@ interface Expense {
   category: string;
   description: string | null;
   expense_date: string;
+  expense_time: string | null;
   merchant: string | null;
   sender: string | null;
   receiver: string | null;
   transaction_id: string | null;
   receipt_url: string | null;
   created_at: string;
+  non_duplicate_pairs: string[];
 }
 
 interface DuplicateGroup {
@@ -62,6 +64,16 @@ export default function DuplicateChecker() {
       const groups: DuplicateGroup[] = [];
       const processedIds = new Set<string>();
 
+      // Helper function to check if pair was marked as non-duplicate
+      const isNonDuplicatePair = (exp1: Expense, exp2: Expense) => {
+        const pairKey1 = `${exp1.id}-${exp2.id}`;
+        const pairKey2 = `${exp2.id}-${exp1.id}`;
+        return exp1.non_duplicate_pairs?.includes(pairKey1) || 
+               exp1.non_duplicate_pairs?.includes(pairKey2) ||
+               exp2.non_duplicate_pairs?.includes(pairKey1) ||
+               exp2.non_duplicate_pairs?.includes(pairKey2);
+      };
+
       // Group 1: Duplicate by transaction_id
       const transactionGroups = new Map<string, Expense[]>();
       expenses?.forEach(exp => {
@@ -75,12 +87,19 @@ export default function DuplicateChecker() {
 
       transactionGroups.forEach((exps, txId) => {
         if (exps.length > 1) {
-          exps.forEach(e => processedIds.add(e.id));
-          groups.push({
-            key: `tx-${txId}`,
-            expenses: exps,
-            reason: `รหัสอ้างอิงเดียวกัน: ${txId}`
-          });
+          // Filter out pairs marked as non-duplicate
+          const validExps = exps.filter((exp1, i) => 
+            !exps.some((exp2, j) => i !== j && isNonDuplicatePair(exp1, exp2))
+          );
+
+          if (validExps.length > 1) {
+            validExps.forEach(e => processedIds.add(e.id));
+            groups.push({
+              key: `tx-${txId}`,
+              expenses: validExps,
+              reason: `รหัสอ้างอิงเดียวกัน: ${txId}`
+            });
+          }
         }
       });
 
@@ -88,8 +107,8 @@ export default function DuplicateChecker() {
       const amountDateTimeGroups = new Map<string, Expense[]>();
       expenses?.forEach(exp => {
         if (!processedIds.has(exp.id)) {
-          // ใช้ยอดโอน + วันที่และเวลา
-          const key = `${exp.amount}-${exp.expense_date}`;
+          const timeKey = exp.expense_time || '';
+          const key = `${exp.amount}-${exp.expense_date}-${timeKey}`;
           if (!amountDateTimeGroups.has(key)) {
             amountDateTimeGroups.set(key, []);
           }
@@ -99,13 +118,21 @@ export default function DuplicateChecker() {
 
       amountDateTimeGroups.forEach((exps, key) => {
         if (exps.length > 1) {
-          exps.forEach(e => processedIds.add(e.id));
-          const [amount, dateTime] = key.split('-');
-          groups.push({
-            key: `amt-${key}`,
-            expenses: exps,
-            reason: `ยอดโอน วันที่ และเวลาเดียวกัน: ฿${parseFloat(amount).toLocaleString()}`
-          });
+          // Filter out pairs marked as non-duplicate
+          const validExps = exps.filter((exp1, i) => 
+            !exps.some((exp2, j) => i !== j && isNonDuplicatePair(exp1, exp2))
+          );
+
+          if (validExps.length > 1) {
+            validExps.forEach(e => processedIds.add(e.id));
+            const [amount, date, time] = key.split('-');
+            const timeStr = time ? ` เวลา ${time}` : '';
+            groups.push({
+              key: `amt-${key}`,
+              expenses: validExps,
+              reason: `ยอดโอนและเวลาเดียวกัน: ฿${parseFloat(amount).toLocaleString()}${timeStr}`
+            });
+          }
         }
       });
 
@@ -144,7 +171,46 @@ export default function DuplicateChecker() {
     setSelectedIds(newSet);
   };
 
-  const deleteSelected = async () => {
+  const markAsNotDuplicate = async (group: DuplicateGroup) => {
+    try {
+      // Create pair keys for all combinations in this group
+      const pairKeys: string[] = [];
+      for (let i = 0; i < group.expenses.length; i++) {
+        for (let j = i + 1; j < group.expenses.length; j++) {
+          pairKeys.push(`${group.expenses[i].id}-${group.expenses[j].id}`);
+        }
+      }
+
+      // Update each expense with the pair keys
+      for (const expense of group.expenses) {
+        const existingPairs = expense.non_duplicate_pairs || [];
+        const updatedPairs = Array.from(new Set([...existingPairs, ...pairKeys]));
+        
+        const { error } = await supabase
+          .from('expenses')
+          .update({ non_duplicate_pairs: updatedPairs })
+          .eq('id', expense.id);
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "บันทึกสำเร็จ",
+        description: "ทำเครื่องหมายว่ารายการเหล่านี้ไม่ซ้ำกันแล้ว",
+      });
+
+      // Refresh the list
+      findDuplicates();
+    } catch (error) {
+      console.error('Error marking as non-duplicate:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถบันทึกได้",
+        variant: "destructive",
+      });
+    }
+  };
+
     if (selectedIds.size === 0) {
       toast({
         title: "ไม่มีรายการที่เลือก",
@@ -274,6 +340,14 @@ export default function DuplicateChecker() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => markAsNotDuplicate(group)}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      ไม่ซ้ำกัน
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => selectAllInGroup(group, true)}
                     >
                       เลือกทั้งหมด (เว้นรายการแรก)
@@ -373,6 +447,8 @@ export default function DuplicateChecker() {
         {/* Receipt Viewer Dialog */}
         <Dialog open={!!viewingReceipt} onOpenChange={() => setViewingReceipt(null)}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+            <DialogTitle>สลิปการโอนเงิน</DialogTitle>
+            <DialogDescription>รายละเอียดสลิปการโอนเงิน</DialogDescription>
             {viewingReceipt && (
               <img 
                 src={viewingReceipt} 
