@@ -65,7 +65,7 @@ export function EventAnalysis() {
 
       // Get unique categories
       const uniqueCategories = Array.from(new Set(
-        expenses?.map(e => e.category).filter(Boolean) as string[]
+        expenses?.map(e => e.category).filter(c => c && c.trim() !== '') as string[]
       )).sort();
       setCategories(uniqueCategories);
     } catch (error) {
@@ -86,7 +86,7 @@ export function EventAnalysis() {
 
       // Get unique projects
       const uniqueProjects = Array.from(new Set(
-        expenses?.map(e => e.project).filter(Boolean) as string[]
+        expenses?.map(e => e.project).filter(p => p && p.trim() !== '') as string[]
       )).sort();
       setProjects(uniqueProjects);
 
