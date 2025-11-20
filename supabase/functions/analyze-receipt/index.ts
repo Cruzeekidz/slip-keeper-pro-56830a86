@@ -66,6 +66,7 @@ serve(async (req) => {
   - ถ้าปีขึ้นต้นด้วย 25 (เช่น 2568) = ปี พ.ศ. ให้แปลงเป็น ค.ศ. โดยลบ 543 (เช่น 2568 -> 2025)
   - ถ้าปีขึ้นต้นด้วย 20 (เช่น 2025) = ปี ค.ศ. ใช้ตามที่เป็น
   ต้องส่งกลับมาเป็นปี ค.ศ. เสมอในรูปแบบ YYYY-MM-DD
+- เวลาทำรายการ (time) ในรูปแบบ HH:MM:SS (24 ชั่วโมง) ถ้าไม่มีเวลาในสลิปให้ใส่ null
 - ชื่อผู้รับหรือร้านค้า (merchant)
 - ชื่อผู้โอน/ผู้ส่งเงิน (sender) - ชื่อบัญชีผู้โอน
 - ชื่อผู้รับเงิน (receiver) - ชื่อบัญชีผู้รับ
@@ -123,6 +124,7 @@ serve(async (req) => {
                 properties: {
                   amount: { type: ["number", "null"] },
                   date: { type: ["string", "null"] },
+                  time: { type: ["string", "null"] },
                   description: { type: ["string", "null"] },
                   merchant: { type: ["string", "null"] },
                   sender: { type: ["string", "null"] },
@@ -132,7 +134,7 @@ serve(async (req) => {
                   project: { type: ["string", "null"] },
                   subcategory: { type: ["string", "null"] }
                 },
-                required: ["amount", "date", "description", "merchant", "sender", "receiver", "transaction_id", "category", "project", "subcategory"],
+                required: ["amount", "date", "time", "description", "merchant", "sender", "receiver", "transaction_id", "category", "project", "subcategory"],
                 additionalProperties: false
               }
             }
