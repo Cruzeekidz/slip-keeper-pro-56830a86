@@ -23,6 +23,7 @@ export default function BulkUpload() {
 
   const downloadCSVTemplate = () => {
     const headers = [
+      'id',
       'expense_date',
       'amount', 
       'category',
@@ -36,6 +37,7 @@ export default function BulkUpload() {
     ];
 
     const exampleRow = [
+      '', // ไม่ใส่ ID = สร้างรายการใหม่
       '2025-01-15',
       '1500.00',
       'ส่วนตัว',
@@ -51,7 +53,7 @@ export default function BulkUpload() {
     const csvContent = [
       headers.join(','),
       exampleRow.join(','),
-      ',,,,,,,,,' // Empty row for user to fill
+      ',,,,,,,,,,' // Empty row for user to fill
     ].join('\n');
 
     const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -62,8 +64,89 @@ export default function BulkUpload() {
     
     toast({
       title: "ดาวน์โหลดเทมเพลตสำเร็จ",
-      description: "กรอกข้อมูลในไฟล์ CSV แล้วอัพโหลดกลับมา",
+      description: "กรอกข้อมูลในไฟล์ CSV แล้วอัพโหลดกลับมา (ไม่ต้องใส่ ID สำหรับรายการใหม่)",
     });
+  };
+
+  const exportCurrentData = async () => {
+    if (!user) {
+      toast({
+        title: "กรุณาเข้าสู่ระบบ",
+        description: "คุณต้องเข้าสู่ระบบก่อน Export ข้อมูล",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('expense_date', { ascending: false });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        toast({
+          title: "ไม่มีข้อมูล",
+          description: "ยังไม่มีรายการค่าใช้จ่ายในระบบ",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const headers = [
+        'id',
+        'expense_date',
+        'amount', 
+        'category',
+        'project',
+        'subcategory',
+        'merchant',
+        'description',
+        'sender',
+        'receiver',
+        'transaction_id'
+      ];
+
+      const rows = data.map(expense => [
+        expense.id,
+        expense.expense_date,
+        expense.amount,
+        expense.category || '',
+        expense.project || '',
+        expense.subcategory || '',
+        expense.merchant || '',
+        expense.description || '',
+        expense.sender || '',
+        expense.receiver || '',
+        expense.transaction_id || ''
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.join(','))
+      ].join('\n');
+
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `expenses_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      
+      toast({
+        title: "Export สำเร็จ",
+        description: `ดาวน์โหลดข้อมูล ${data.length} รายการแล้ว (แก้ไขแล้ว upload กลับมาได้)`,
+      });
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: "ไม่สามารถ Export ข้อมูลได้",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCSVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -94,6 +177,7 @@ export default function BulkUpload() {
 
         let successCount = 0;
         let errorCount = 0;
+        let updateCount = 0;
 
         for (const line of dataLines) {
           const values = line.split(',').map(v => v.trim());
@@ -114,31 +198,59 @@ export default function BulkUpload() {
           }
 
           try {
-            const { error } = await supabase.from('expenses').insert({
-              user_id: user.id,
-              expense_date: expense.expense_date,
-              amount: parseFloat(expense.amount),
-              category: expense.category,
-              project: expense.project || null,
-              subcategory: expense.subcategory || null,
-              merchant: expense.merchant || null,
-              description: expense.description || null,
-              sender: expense.sender || null,
-              receiver: expense.receiver || null,
-              transaction_id: expense.transaction_id || null,
-            });
+            // ถ้ามี ID = UPDATE, ถ้าไม่มี ID = INSERT
+            if (expense.id) {
+              const { error } = await supabase
+                .from('expenses')
+                .update({
+                  expense_date: expense.expense_date,
+                  amount: parseFloat(expense.amount),
+                  category: expense.category,
+                  project: expense.project || null,
+                  subcategory: expense.subcategory || null,
+                  merchant: expense.merchant || null,
+                  description: expense.description || null,
+                  sender: expense.sender || null,
+                  receiver: expense.receiver || null,
+                  transaction_id: expense.transaction_id || null,
+                })
+                .eq('id', expense.id)
+                .eq('user_id', user.id); // Security: ต้องเป็น expense ของ user เท่านั้น
 
-            if (error) throw error;
-            successCount++;
+              if (error) throw error;
+              updateCount++;
+            } else {
+              const { error } = await supabase.from('expenses').insert({
+                user_id: user.id,
+                expense_date: expense.expense_date,
+                amount: parseFloat(expense.amount),
+                category: expense.category,
+                project: expense.project || null,
+                subcategory: expense.subcategory || null,
+                merchant: expense.merchant || null,
+                description: expense.description || null,
+                sender: expense.sender || null,
+                receiver: expense.receiver || null,
+                transaction_id: expense.transaction_id || null,
+              });
+
+              if (error) throw error;
+              successCount++;
+            }
           } catch (err) {
-            console.error('Error inserting row:', err);
+            console.error('Error processing row:', err);
             errorCount++;
           }
         }
 
+        const summary = [];
+        if (successCount > 0) summary.push(`สร้างใหม่ ${successCount} รายการ`);
+        if (updateCount > 0) summary.push(`อัพเดต ${updateCount} รายการ`);
+        if (errorCount > 0) summary.push(`ล้มเหลว ${errorCount} รายการ`);
+
         toast({
           title: "นำเข้าข้อมูลเสร็จสิ้น",
-          description: `สำเร็จ ${successCount} รายการ${errorCount > 0 ? `, ล้มเหลว ${errorCount} รายการ` : ''}`,
+          description: summary.join(', '),
         });
 
         setTimeout(() => navigate('/'), 1500);
@@ -382,14 +494,22 @@ export default function BulkUpload() {
               <p className="text-sm text-green-800 dark:text-green-200 mb-4">
                 ดาวน์โหลดเทมเพลต กรอกข้อมูล แล้วอัพโหลดกลับมาเพื่อนำเข้าข้อมูลจำนวนมาก
               </p>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Button
                   onClick={downloadCSVTemplate}
                   variant="outline"
                   className="bg-white dark:bg-gray-900"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  ดาวน์โหลดเทมเพลต CSV
+                  ดาวน์โหลดเทมเพลต
+                </Button>
+                <Button
+                  onClick={exportCurrentData}
+                  variant="outline"
+                  className="bg-white dark:bg-gray-900"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export ข้อมูลที่มีอยู่
                 </Button>
                 <input
                   type="file"
@@ -497,9 +617,11 @@ export default function BulkUpload() {
             <div>
               <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">สำหรับ CSV:</p>
               <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-                <li>• ดาวน์โหลดเทมเพลตเพื่อดูรูปแบบช่องข้อมูล</li>
+                <li>• <strong>ดาวน์โหลดเทมเพลต</strong> = สร้างรายการใหม่ (ไม่ต้องใส่ ID)</li>
+                <li>• <strong>Export ข้อมูล</strong> = แก้ไขรายการที่มีอยู่ (มี ID แล้ว)</li>
                 <li>• ฟิลด์ที่จำเป็น: expense_date, amount, category</li>
                 <li>• วันที่ต้องอยู่ในรูปแบบ YYYY-MM-DD (เช่น 2025-01-15)</li>
+                <li>• <strong className="text-red-600 dark:text-red-400">⚠️ ห้ามลบหรือแก้ไขคอลัมน์ ID</strong> (ถ้ามี ID จะ Update, ไม่มีจะ Insert)</li>
               </ul>
             </div>
             <div>
