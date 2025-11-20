@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -84,18 +84,6 @@ const Index = () => {
     }
   };
 
-  // Listen for export CSV event from sidebar
-  useEffect(() => {
-    const handleExportEvent = () => {
-      exportToCSV();
-    };
-
-    window.addEventListener('export-csv', handleExportEvent);
-    return () => {
-      window.removeEventListener('export-csv', handleExportEvent);
-    };
-  }, [user]);
-
   useEffect(() => {
     if (!loading && !user) {
       navigate("/auth");
@@ -114,57 +102,123 @@ const Index = () => {
     return null;
   }
 
+  if (showUpload) {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-2xl mx-auto pt-8">
+          <ExpenseUpload onClose={() => setShowUpload(false)} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Simplified Header */}
+      {/* Header */}
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl md:text-2xl font-bold">จัดการค่าใช้จ่าย</h1>
-              <p className="text-primary-foreground/80 mt-1 text-sm md:text-base">
-                สวัสดี {user.email}
-              </p>
+          <div className="flex flex-col gap-4">
+            {/* Title Section */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold">จัดการค่าใช้จ่าย</h1>
+                <p className="text-primary-foreground/80 mt-1 text-sm md:text-base">
+                  สวัสดี {user.email}
+                </p>
+              </div>
+              <Button 
+                onClick={() => setShowUpload(true)}
+                className="bg-white text-primary hover:bg-white/90 shrink-0"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">เพิ่มรายการ</span>
+                <span className="sm:hidden">เพิ่ม</span>
+              </Button>
             </div>
-            <Button 
-              onClick={() => setShowUpload(true)}
-              className="bg-white text-primary hover:bg-white/90"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              เพิ่มรายการ
-            </Button>
+
+            {/* Buttons Section - 2 rows on small screens */}
+            <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => navigate('/bulk-upload')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <Upload className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">อัพโหลดหลายไฟล์</span>
+                <span className="lg:hidden">อัพโหลด</span>
+              </Button>
+              <Button 
+                onClick={() => navigate('/duplicate-checker')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <AlertTriangle className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">ตรวจสอบรายการซ้ำ</span>
+                <span className="lg:hidden">ซ้ำ</span>
+              </Button>
+              <Button 
+                onClick={() => navigate('/data-migration')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <Database className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">แปลงข้อมูล</span>
+                <span className="lg:hidden">แปลง</span>
+              </Button>
+              <Button 
+                onClick={() => navigate('/master-data')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <Settings className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">จัดการข้อมูลหลัก</span>
+                <span className="lg:hidden">ข้อมูล</span>
+              </Button>
+              <Button 
+                onClick={exportToCSV}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <Download className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">ส่งออก CSV</span>
+                <span className="lg:hidden">CSV</span>
+              </Button>
+              <Button 
+                onClick={signOut}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm ml-auto"
+                size="sm"
+              >
+                <LogOut className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
+                <span className="sm:hidden">ออก</span>
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
-      {showUpload ? (
-        <div className="max-w-2xl mx-auto p-4 md:p-8">
-          <ExpenseUpload onClose={() => setShowUpload(false)} />
+      <main className="max-w-7xl mx-auto p-6 space-y-8">
+        {/* Stats Overview */}
+        <StatsReal />
+
+        {/* Storage Stats */}
+        <StorageStats />
+
+        {/* Category Chart */}
+        <CategoryChart />
+
+        {/* Event Analysis */}
+        <EventAnalysis />
+
+        {/* Summary Tables */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <ProjectSummary />
+          <PeriodSummary />
         </div>
-      ) : (
-        <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-8">
-          {/* Stats Overview */}
-          <StatsReal />
 
-          {/* Storage Stats */}
-          <StorageStats />
-
-          {/* Category Chart */}
-          <CategoryChart />
-
-          {/* Event Analysis */}
-          <EventAnalysis />
-
-          {/* Summary Tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ProjectSummary />
-            <PeriodSummary />
-          </div>
-
-          {/* Recent Transactions */}
-          <ExpenseListReal />
-        </main>
-      )}
+        {/* Recent Transactions */}
+        <ExpenseListReal />
+      </main>
     </div>
   );
 };

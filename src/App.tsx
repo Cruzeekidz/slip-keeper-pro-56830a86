@@ -4,7 +4,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
-import { AppLayout } from "./components/app-layout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import BulkUpload from "./pages/BulkUpload";
@@ -23,22 +22,12 @@ const App = () => (
           <Toaster />
           <Sonner />
           <Routes>
+            <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
-            <Route element={<AppLayout><Index /></AppLayout>}>
-              <Route path="/" element={<Index />} />
-            </Route>
-            <Route element={<AppLayout><BulkUpload /></AppLayout>}>
-              <Route path="/bulk-upload" element={<BulkUpload />} />
-            </Route>
-            <Route element={<AppLayout><DataMigration /></AppLayout>}>
-              <Route path="/data-migration" element={<DataMigration />} />
-            </Route>
-            <Route element={<AppLayout><DuplicateChecker /></AppLayout>}>
-              <Route path="/duplicate-checker" element={<DuplicateChecker />} />
-            </Route>
-            <Route element={<AppLayout><MasterData /></AppLayout>}>
-              <Route path="/master-data" element={<MasterData />} />
-            </Route>
+            <Route path="/bulk-upload" element={<BulkUpload />} />
+          <Route path="/data-migration" element={<DataMigration />} />
+          <Route path="/duplicate-checker" element={<DuplicateChecker />} />
+          <Route path="/master-data" element={<MasterData />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
