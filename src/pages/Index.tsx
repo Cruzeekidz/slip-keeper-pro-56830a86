@@ -115,64 +115,82 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-gradient-primary text-primary-foreground p-6 shadow-elevated">
+      <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
         <div className="max-w-7xl mx-auto">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">จัดการค่าใช้จ่าย</h1>
-              <p className="text-primary-foreground/80 mt-1">
-                สวัสดี {user.email}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-4">
+            {/* Title Section */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-xl md:text-2xl font-bold">จัดการค่าใช้จ่าย</h1>
+                <p className="text-primary-foreground/80 mt-1 text-sm md:text-base">
+                  สวัสดี {user.email}
+                </p>
+              </div>
               <Button 
                 onClick={() => setShowUpload(true)}
-                className="bg-white text-primary hover:bg-white/90"
+                className="bg-white text-primary hover:bg-white/90 shrink-0"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                เพิ่มรายการ
+                <span className="hidden sm:inline">เพิ่มรายการ</span>
+                <span className="sm:hidden">เพิ่ม</span>
               </Button>
+            </div>
+
+            {/* Buttons Section - 2 rows on small screens */}
+            <div className="flex flex-wrap gap-2">
               <Button 
                 onClick={() => navigate('/bulk-upload')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
               >
-                <Upload className="h-4 w-4 mr-2" />
-                อัพโหลดหลายไฟล์
+                <Upload className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">อัพโหลดหลายไฟล์</span>
+                <span className="lg:hidden">อัพโหลด</span>
               </Button>
               <Button 
                 onClick={() => navigate('/duplicate-checker')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
               >
-                <AlertTriangle className="h-4 w-4 mr-2" />
-                ตรวจสอบรายการซ้ำ
+                <AlertTriangle className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">ตรวจสอบรายการซ้ำ</span>
+                <span className="lg:hidden">ซ้ำ</span>
               </Button>
               <Button 
                 onClick={() => navigate('/data-migration')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
               >
-                <Database className="h-4 w-4 mr-2" />
-                แปลงข้อมูล
+                <Database className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">แปลงข้อมูล</span>
+                <span className="lg:hidden">แปลง</span>
               </Button>
               <Button 
                 onClick={() => navigate('/master-data')}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
               >
-                <Settings className="h-4 w-4 mr-2" />
-                จัดการข้อมูลหลัก
+                <Settings className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">จัดการข้อมูลหลัก</span>
+                <span className="lg:hidden">ข้อมูล</span>
               </Button>
               <Button 
                 onClick={exportToCSV}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
               >
-                <Download className="h-4 w-4 mr-2" />
-                ส่งออก CSV
+                <Download className="h-4 w-4 mr-1.5" />
+                <span className="hidden lg:inline">ส่งออก CSV</span>
+                <span className="lg:hidden">CSV</span>
               </Button>
               <Button 
                 onClick={signOut}
-                className="bg-white/10 text-white border border-white/20 hover:bg-white/20"
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm ml-auto"
+                size="sm"
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                ออกจากระบบ
+                <LogOut className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">ออกจากระบบ</span>
+                <span className="sm:hidden">ออก</span>
               </Button>
             </div>
           </div>
