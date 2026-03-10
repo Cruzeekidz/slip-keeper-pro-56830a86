@@ -5,68 +5,48 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { Folder } from "lucide-react";
 
-interface ProjectSummary {
-  project: string;
+interface ProjectSummaryData {
+  tag: string;
   totalAmount: number;
   count: number;
 }
 
 export function ProjectSummary() {
-  const [projectData, setProjectData] = useState<ProjectSummary[]>([]);
+  const [projectData, setProjectData] = useState<ProjectSummaryData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
-  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [viewBy, setViewBy] = useState<"project_tag" | "category_group">("project_tag");
 
   useEffect(() => {
-    fetchProjectSummary();
-  }, [selectedYear]);
+    fetchSummary();
+  }, [viewBy]);
 
-  const isTransferCategory = (category: string) => {
-    return category === 'การโอนเงินระหว่างบัญชี' || category === 'การโอนข้ามบัญชี';
-  };
-
-  const fetchProjectSummary = async () => {
+  const fetchSummary = async () => {
+    setLoading(true);
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('project, amount, expense_date, category');
+        .select('project_tag, category_group, transaction_type, amount');
 
       if (error) throw error;
 
-      // Get unique years for the dropdown
-      const years = new Set<number>();
+      const map = new Map<string, { totalAmount: number; count: number }>();
+
       expenses?.forEach(expense => {
-        const year = new Date(expense.expense_date).getFullYear();
-        years.add(year);
-      });
-      setAvailableYears(Array.from(years).sort((a, b) => b - a));
+        if (expense.transaction_type === 'TRANSFER') return;
 
-      // Filter by selected year and exclude transfers
-      const filteredExpenses = expenses?.filter(expense => {
-        if (isTransferCategory(expense.category)) return false;
-        
-        if (selectedYear === "all") return true;
-        const expenseYear = new Date(expense.expense_date).getFullYear();
-        return expenseYear === parseInt(selectedYear);
+        const key = viewBy === "project_tag"
+          ? expense.project_tag || 'ไม่ระบุแท็ก'
+          : expense.transaction_type === 'BUSINESS'
+            ? expense.category_group || 'ไม่ระบุกลุ่ม'
+            : expense.transaction_type || 'ไม่ระบุ';
+
+        const current = map.get(key) || { totalAmount: 0, count: 0 };
+        map.set(key, { totalAmount: current.totalAmount + expense.amount, count: current.count + 1 });
       });
 
-      // Group by project
-      const projectMap = new Map<string, { totalAmount: number; count: number }>();
-      
-      filteredExpenses?.forEach(expense => {
-        const projectName = expense.project || "ไม่ระบุโปรเจค";
-        const current = projectMap.get(projectName) || { totalAmount: 0, count: 0 };
-        projectMap.set(projectName, {
-          totalAmount: current.totalAmount + expense.amount,
-          count: current.count + 1
-        });
-      });
-
-      const summaries: ProjectSummary[] = Array.from(projectMap.entries()).map(([project, data]) => ({
-        project,
-        totalAmount: data.totalAmount,
-        count: data.count
-      })).sort((a, b) => b.totalAmount - a.totalAmount);
+      const summaries = Array.from(map.entries())
+        .map(([tag, data]) => ({ tag, ...data }))
+        .sort((a, b) => b.totalAmount - a.totalAmount);
 
       setProjectData(summaries);
     } catch (error) {
@@ -76,32 +56,20 @@ export function ProjectSummary() {
     }
   };
 
-  if (loading) {
-    return (
-      <Card className="p-6">
-        <p className="text-muted-foreground">กำลังโหลด...</p>
-      </Card>
-    );
-  }
+  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Folder className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-bold text-foreground">สรุปยอดตามโปรเจค</h2>
+          <h2 className="text-xl font-bold text-foreground">สรุปยอด (ไม่รวม TRANSFER)</h2>
         </div>
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
+        <Select value={viewBy} onValueChange={(v) => setViewBy(v as any)}>
+          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">ทุกปี</SelectItem>
-            {availableYears.map((year) => (
-              <SelectItem key={year} value={year.toString()}>
-                ปี {year + 543}
-              </SelectItem>
-            ))}
+            <SelectItem value="project_tag">ตามแท็กโปรเจค</SelectItem>
+            <SelectItem value="category_group">ตามกลุ่ม</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -109,19 +77,17 @@ export function ProjectSummary() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>โปรเจค</TableHead>
-              <TableHead className="text-right">จำนวนรายการ</TableHead>
+              <TableHead>{viewBy === "project_tag" ? "แท็กโปรเจค" : "กลุ่ม"}</TableHead>
+              <TableHead className="text-right">จำนวน</TableHead>
               <TableHead className="text-right">ยอดรวม</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {projectData.map((item) => (
-              <TableRow key={item.project}>
-                <TableCell className="font-medium">{item.project}</TableCell>
+              <TableRow key={item.tag}>
+                <TableCell className="font-medium">{item.tag}</TableCell>
                 <TableCell className="text-right">{item.count}</TableCell>
-                <TableCell className="text-right font-semibold text-expense">
-                  ฿{item.totalAmount.toLocaleString()}
-                </TableCell>
+                <TableCell className="text-right font-semibold text-expense">฿{item.totalAmount.toLocaleString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>
