@@ -2,3 +2,6 @@ project_id = "rdkgewggphezuvpdmtvv"
 
 [functions.analyze-receipt]
 verify_jwt = true
+
+[functions.migrate-categories]
+verify_jwt = false
