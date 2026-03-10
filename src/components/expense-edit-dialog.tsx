@@ -142,7 +142,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
-  const showDirection = formData.transaction_type === 'BUSINESS' && formData.category_group === 'EVENT';
+  const showDirection = true;
 
   const existingPayeeGroupNames = [...new Set(payeeGroups.map(p => p.name))];
 
