@@ -72,6 +72,7 @@ const MasterData = () => {
       const categoryMap = new Map<string, number>();
       const subcategoryMap = new Map<string, number>();
       const projectMap = new Map<string, number>();
+      const eventMap = new Map<string, number>();
       const receiverMap = new Map<string, { count: number; missingCount: number }>();
       const merchantMap = new Map<string, { count: number; missingCount: number }>();
       const senderMap = new Map<string, { count: number; missingCount: number }>();
