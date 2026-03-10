@@ -115,6 +115,17 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     }
   };
 
+  // Auto-suggest payee group when merchant/receiver changes
+  useEffect(() => {
+    const payee = formData.merchant || formData.receiver;
+    if (payee && payeeGroups.length > 0 && !formData.payee_group) {
+      const match = payeeGroups.find(pg => pg.pattern === payee);
+      if (match) {
+        setFormData(prev => ({ ...prev, payee_group: match.name }));
+      }
+    }
+  }, [formData.merchant, formData.receiver, payeeGroups]);
+
   const direction = formData.transaction_direction || 'EXPENSE';
   const defaultSubcats = getSubcategoriesForType(
     formData.transaction_type as TransactionType || null,

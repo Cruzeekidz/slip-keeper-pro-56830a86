@@ -12,6 +12,7 @@ import DuplicateChecker from "./pages/DuplicateChecker";
 import DeletedHistory from "./pages/DeletedHistory";
 import MasterData from "./pages/MasterData";
 import TransactionReport from "./pages/TransactionReport";
+import PayeeGroupManagement from "./pages/PayeeGroupManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -32,6 +33,7 @@ const App = () => (
             <Route path="/deleted-history" element={<DeletedHistory />} />
             <Route path="/master-data" element={<MasterData />} />
             <Route path="/transaction-report" element={<TransactionReport />} />
+            <Route path="/payee-groups" element={<PayeeGroupManagement />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
