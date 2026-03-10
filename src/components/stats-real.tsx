@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { StatsCard } from "@/components/ui/stats-card";
 import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, ArrowRightLeft, AlertTriangle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 export function StatsReal() {
   const [stats, setStats] = useState({
@@ -20,6 +21,8 @@ export function StatsReal() {
   useEffect(() => {
     fetchStats();
   }, []);
+
+  useExpensesRealtime(useCallback(() => fetchStats(), []));
 
   const fetchStats = async () => {
     try {

@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { HardDrive, FileImage, AlertCircle } from "lucide-react";
 import { StatsCard } from "@/components/ui/stats-card";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 export function StorageStats() {
   const [stats, setStats] = useState({
@@ -15,6 +16,8 @@ export function StorageStats() {
   useEffect(() => {
     fetchStorageStats();
   }, []);
+
+  useExpensesRealtime(useCallback(() => fetchStorageStats(), []));
 
   const fetchStorageStats = async () => {
     try {

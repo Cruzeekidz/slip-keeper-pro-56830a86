@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PieChartIcon, Maximize2, Minimize2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 interface CategoryData {
   name: string;
@@ -36,6 +37,8 @@ export function CategoryChart() {
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => { fetchData(); }, [viewMode]);
+
+  useExpensesRealtime(useCallback(() => fetchData(), [viewMode]));
 
   const fetchData = async () => {
     try {

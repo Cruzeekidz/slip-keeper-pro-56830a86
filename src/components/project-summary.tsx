@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { Folder } from "lucide-react";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 interface ProjectSummaryData {
   tag: string;
@@ -19,6 +20,8 @@ export function ProjectSummary() {
   useEffect(() => {
     fetchSummary();
   }, [viewBy]);
+
+  useExpensesRealtime(useCallback(() => fetchSummary(), [viewBy]));
 
   const fetchSummary = async () => {
     setLoading(true);
