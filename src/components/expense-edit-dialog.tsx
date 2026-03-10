@@ -218,10 +218,10 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Direction toggle for EVENT */}
+          {/* Direction toggle */}
           {showDirection && (
             <div>
-              <Label>ทิศทาง</Label>
+              <Label>ทิศทาง (รายรับ/รายจ่าย)</Label>
               <Select
                 value={formData.transaction_direction}
                 onValueChange={(v) => setFormData({ ...formData, transaction_direction: v as TransactionDirection, subcategory: "" })}

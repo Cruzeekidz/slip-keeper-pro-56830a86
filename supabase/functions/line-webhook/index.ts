@@ -330,6 +330,24 @@ serve(async (req) => {
           expenseData.user_id = mapping.supabase_user_id;
         }
 
+        // Check for duplicate transaction_id before inserting
+        const txnId = expenseData.transaction_id as string | null;
+        if (txnId && mapping?.supabase_user_id) {
+          const { data: existingTxn } = await supabase
+            .from('expenses')
+            .select('id')
+            .eq('user_id', mapping.supabase_user_id)
+            .eq('transaction_id', txnId)
+            .maybeSingle();
+
+          if (existingTxn) {
+            console.log("Duplicate transaction_id found:", txnId);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว\n🔢 เลขที่รายการ: ${txnId}\nไม่ได้บันทึกซ้ำครับ`);
+            continue;
+          }
+        }
+
         console.log("Inserting expense data:", JSON.stringify(expenseData));
 
         const { data: insertData, error: insertError } = await supabase
