@@ -231,7 +231,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
         
         // 6. Save to expenses
         const category = extractedData?.transaction_type || "PERSONAL";
-        const expenseData = {
+        const expenseData: Record<string, unknown> = {
           amount: extractedData?.amount || 0,
           expense_date: extractedData?.date || new Date().toISOString().split('T')[0],
           expense_time: extractedData?.time || null,
@@ -249,27 +249,36 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
           confidence_score: extractedData?.confidence_score || null,
           needs_review: (extractedData?.confidence_score || 0) < 75,
           receipt_url: storagePath,
-          // user_id will be set via line_user_mappings
         };
 
         // Check if we have a LINE → Supabase user mapping
-        const { data: mapping } = await supabase
+        const { data: mapping, error: mappingError } = await supabase
           .from('line_user_mappings')
           .select('supabase_user_id')
           .eq('line_user_id', userId)
           .maybeSingle();
 
-        if (mapping?.supabase_user_id) {
-          (expenseData as Record<string, unknown>).user_id = mapping.supabase_user_id;
+        if (mappingError) {
+          console.error("Mapping lookup error:", mappingError);
         }
 
-        const { error: insertError } = await supabase
+        if (mapping?.supabase_user_id) {
+          expenseData.user_id = mapping.supabase_user_id;
+        }
+
+        console.log("Inserting expense data:", JSON.stringify(expenseData));
+
+        const { data: insertData, error: insertError } = await supabase
           .from('expenses')
-          .insert(expenseData);
+          .insert(expenseData)
+          .select();
 
         if (insertError) {
-          throw new Error(`Insert failed: ${insertError.message}`);
+          console.error("INSERT ERROR:", JSON.stringify(insertError));
+          throw new Error(`Insert failed: ${insertError.message} (code: ${insertError.code}, details: ${insertError.details})`);
         }
+
+        console.log("Insert success:", JSON.stringify(insertData));
 
         // 7. Reply to user
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
