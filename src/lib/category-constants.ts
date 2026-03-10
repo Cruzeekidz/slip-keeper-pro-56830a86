@@ -1,8 +1,9 @@
-// ===== New Category System =====
-// 3 top-level transaction types
+// ===== Category System =====
+// 3 top-level transaction types, with ENTITY support
 
 export type TransactionType = 'TRANSFER' | 'BUSINESS' | 'PERSONAL';
-export type CategoryGroup = 'EVENT' | 'PROGRAM' | 'VENUE' | 'GENERAL';
+export type CategoryGroup = 'EVENT' | 'PROGRAM' | 'VENUE' | 'GENERAL' | 'ENTITY_KUKANANG' | 'ENTITY_BCC';
+export type TransactionDirection = 'INCOME' | 'EXPENSE';
 
 export const TRANSACTION_TYPES: { value: TransactionType; label: string; color: string }[] = [
   { value: 'TRANSFER', label: 'โอนเงิน', color: 'bg-type-transfer text-type-transfer-foreground' },
@@ -10,10 +11,17 @@ export const TRANSACTION_TYPES: { value: TransactionType; label: string; color: 
   { value: 'PERSONAL', label: 'ส่วนตัว', color: 'bg-type-personal text-type-personal-foreground' },
 ];
 
+export const TRANSACTION_DIRECTIONS: { value: TransactionDirection; label: string }[] = [
+  { value: 'EXPENSE', label: 'รายจ่าย' },
+  { value: 'INCOME', label: 'รายรับ' },
+];
+
 export const CATEGORY_GROUPS: { value: CategoryGroup; label: string; color: string }[] = [
   { value: 'EVENT', label: 'อีเวนท์', color: 'bg-group-event text-group-event-foreground' },
   { value: 'PROGRAM', label: 'โปรแกรม', color: 'bg-group-program text-group-program-foreground' },
   { value: 'VENUE', label: 'สนาม', color: 'bg-group-venue text-group-venue-foreground' },
+  { value: 'ENTITY_KUKANANG', label: 'คู่ขนาน', color: 'bg-group-entity text-group-entity-foreground' },
+  { value: 'ENTITY_BCC', label: 'BCC', color: 'bg-group-entity text-group-entity-foreground' },
   { value: 'GENERAL', label: 'ทั่วไป', color: 'bg-group-general text-group-general-foreground' },
 ];
 
@@ -24,8 +32,12 @@ export const TRANSFER_SUBCATEGORIES = [
   'ผ่อนชำระ',
 ];
 
-export const EVENT_SUBCATEGORIES = [
+export const EVENT_EXPENSE_SUBCATEGORIES = [
   'Staff', 'Printing', 'Venue', 'Prizes', 'Transport', 'Marketing', 'Refund', 'Other',
+];
+
+export const EVENT_INCOME_SUBCATEGORIES = [
+  'Registration', 'Sponsorship', 'Product Sales', 'Other Income',
 ];
 
 export const PROGRAM_SUBCATEGORIES = [
@@ -38,7 +50,11 @@ export const VENUE_SUBCATEGORIES = [
 
 export const GENERAL_SUBCATEGORIES = [
   'Salary', 'Marketing & Ads', 'Accounting', 'Consulting', 'Vehicle',
-  'Software & Subscription', 'Legal', 'Logistics', 'Investment', 'Other',
+  'Software & Subscription', 'Legal', 'Logistics', 'Investment', 'Utilities', 'Other',
+];
+
+export const ENTITY_SUBCATEGORIES = [
+  'Staff', 'Venue', 'Equipment', 'Marketing', 'Utilities', 'Other',
 ];
 
 export const PERSONAL_SUBCATEGORIES = [
@@ -56,15 +72,20 @@ export const DEFAULT_PROGRAM_TAGS = [
 
 export function getSubcategoriesForType(
   type: TransactionType | null,
-  group: CategoryGroup | null
+  group: CategoryGroup | null,
+  direction: TransactionDirection = 'EXPENSE'
 ): string[] {
   if (type === 'TRANSFER') return TRANSFER_SUBCATEGORIES;
   if (type === 'PERSONAL') return PERSONAL_SUBCATEGORIES;
   if (type === 'BUSINESS') {
     switch (group) {
-      case 'EVENT': return EVENT_SUBCATEGORIES;
+      case 'EVENT':
+        return direction === 'INCOME' ? EVENT_INCOME_SUBCATEGORIES : EVENT_EXPENSE_SUBCATEGORIES;
       case 'PROGRAM': return PROGRAM_SUBCATEGORIES;
       case 'VENUE': return VENUE_SUBCATEGORIES;
+      case 'ENTITY_KUKANANG':
+      case 'ENTITY_BCC':
+        return ENTITY_SUBCATEGORIES;
       case 'GENERAL': return GENERAL_SUBCATEGORIES;
       default: return [];
     }
@@ -96,6 +117,7 @@ export function getTypeBadgeClass(type: TransactionType | null, group?: Category
     if (group === 'EVENT') return 'bg-group-event/15 text-group-event border-group-event/30';
     if (group === 'PROGRAM') return 'bg-group-program/15 text-group-program border-group-program/30';
     if (group === 'VENUE') return 'bg-group-venue/15 text-group-venue border-group-venue/30';
+    if (group === 'ENTITY_KUKANANG' || group === 'ENTITY_BCC') return 'bg-group-entity/15 text-group-entity border-group-entity/30';
     return 'bg-group-general/15 text-group-general border-group-general/30';
   }
   return 'bg-muted text-muted-foreground';
@@ -112,4 +134,8 @@ export function formatTypeLabel(type: TransactionType | null, group?: CategoryGr
     return tag ? `${base} > ${tag}` : base;
   }
   return typeInfo?.label || type;
+}
+
+export function showProjectTag(group: CategoryGroup | null): boolean {
+  return group === 'EVENT' || group === 'PROGRAM';
 }
