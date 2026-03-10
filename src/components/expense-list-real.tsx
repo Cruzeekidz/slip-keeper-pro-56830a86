@@ -118,7 +118,12 @@ export function ExpenseListReal() {
     } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
   };
 
-  const viewReceipt = (i: number) => { setViewingReceipt(i); setGalleryOpen(true); };
+  const viewReceipt = (expenseId: string) => {
+    const receiptsOnly = filteredExpenses.filter(e => e.receipt_url);
+    const idx = receiptsOnly.findIndex(e => e.id === expenseId);
+    setViewingReceipt(idx >= 0 ? idx : 0);
+    setGalleryOpen(true);
+  };
 
   const downloadReceipt = async (receiptUrl: string) => {
     try {
