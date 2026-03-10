@@ -142,7 +142,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
-  const showDirection = formData.transaction_type === 'BUSINESS' && formData.category_group === 'EVENT';
+  const showDirection = true;
 
   const existingPayeeGroupNames = [...new Set(payeeGroups.map(p => p.name))];
 
@@ -218,10 +218,10 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Direction toggle for EVENT */}
+          {/* Direction toggle */}
           {showDirection && (
             <div>
-              <Label>ทิศทาง</Label>
+              <Label>ทิศทาง (รายรับ/รายจ่าย)</Label>
               <Select
                 value={formData.transaction_direction}
                 onValueChange={(v) => setFormData({ ...formData, transaction_direction: v as TransactionDirection, subcategory: "" })}
