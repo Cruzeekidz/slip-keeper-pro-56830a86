@@ -71,9 +71,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
             }
             
             if (data?.signedUrl) {
-              // signedUrl already includes the full path, just prepend the base URL
-              const fullUrl = `${SUPABASE_URL}/storage/v1${data.signedUrl}`;
-              newUrls.set(receipt.id, fullUrl);
+              newUrls.set(receipt.id, data.signedUrl);
             }
           } catch (error) {
             console.error('Error loading receipt:', error);
