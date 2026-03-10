@@ -21,12 +21,15 @@ export type Database = {
           category: string
           category_group: string | null
           confidence_score: number | null
+          days_worked: number | null
           deleted_at: string
           deleted_reason: string | null
           description: string | null
+          event_name: string | null
           expense_date: string
           expense_time: string | null
           id: string
+          memo_text: string | null
           merchant: string | null
           needs_review: boolean | null
           original_expense_id: string
@@ -36,6 +39,7 @@ export type Database = {
           receipt_url: string | null
           receiver: string | null
           sender: string | null
+          staff_name: string | null
           subcategory: string | null
           transaction_direction: string
           transaction_id: string | null
@@ -48,12 +52,15 @@ export type Database = {
           category: string
           category_group?: string | null
           confidence_score?: number | null
+          days_worked?: number | null
           deleted_at?: string
           deleted_reason?: string | null
           description?: string | null
+          event_name?: string | null
           expense_date: string
           expense_time?: string | null
           id?: string
+          memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
           original_expense_id: string
@@ -63,6 +70,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
           transaction_id?: string | null
@@ -75,12 +83,15 @@ export type Database = {
           category?: string
           category_group?: string | null
           confidence_score?: number | null
+          days_worked?: number | null
           deleted_at?: string
           deleted_reason?: string | null
           description?: string | null
+          event_name?: string | null
           expense_date?: string
           expense_time?: string | null
           id?: string
+          memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
           original_expense_id?: string
@@ -90,6 +101,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
           transaction_id?: string | null
@@ -105,10 +117,13 @@ export type Database = {
           category_group: string | null
           confidence_score: number | null
           created_at: string
+          days_worked: number | null
           description: string | null
+          event_name: string | null
           expense_date: string
           expense_time: string | null
           id: string
+          memo_text: string | null
           merchant: string | null
           needs_review: boolean | null
           non_duplicate_pairs: string[] | null
@@ -118,6 +133,7 @@ export type Database = {
           receipt_url: string | null
           receiver: string | null
           sender: string | null
+          staff_name: string | null
           subcategory: string | null
           transaction_direction: string
           transaction_id: string | null
@@ -131,10 +147,13 @@ export type Database = {
           category_group?: string | null
           confidence_score?: number | null
           created_at?: string
+          days_worked?: number | null
           description?: string | null
+          event_name?: string | null
           expense_date: string
           expense_time?: string | null
           id?: string
+          memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
@@ -144,6 +163,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
           transaction_id?: string | null
@@ -157,10 +177,13 @@ export type Database = {
           category_group?: string | null
           confidence_score?: number | null
           created_at?: string
+          days_worked?: number | null
           description?: string | null
+          event_name?: string | null
           expense_date?: string
           expense_time?: string | null
           id?: string
+          memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
@@ -170,6 +193,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
           transaction_id?: string | null
@@ -261,6 +285,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      line_pending_memos: {
+        Row: {
+          created_at: string
+          id: string
+          line_user_id: string
+          memo_text: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          line_user_id: string
+          memo_text: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          line_user_id?: string
+          memo_text?: string
+        }
+        Relationships: []
       }
       line_user_mappings: {
         Row: {
