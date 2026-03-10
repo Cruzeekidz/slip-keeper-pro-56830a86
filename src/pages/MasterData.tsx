@@ -534,10 +534,14 @@ const MasterData = () => {
 
       <main className="max-w-7xl mx-auto p-6">
         <Tabs defaultValue="category" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="category">ประเภท</TabsTrigger>
             <TabsTrigger value="subcategory">ประเภทย่อย</TabsTrigger>
             <TabsTrigger value="project">โปรเจค</TabsTrigger>
+            <TabsTrigger value="events">
+              <Calendar className="h-4 w-4 mr-2" />
+              อีเวนท์
+            </TabsTrigger>
             <TabsTrigger value="receivers">
               <UserCheck className="h-4 w-4 mr-2" />
               ผู้รับ
