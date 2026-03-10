@@ -71,9 +71,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
             }
             
             if (data?.signedUrl) {
-              // signedUrl already includes the full path, just prepend the base URL
-              const fullUrl = `${SUPABASE_URL}/storage/v1${data.signedUrl}`;
-              newUrls.set(receipt.id, fullUrl);
+              newUrls.set(receipt.id, data.signedUrl);
             }
           } catch (error) {
             console.error('Error loading receipt:', error);
@@ -148,7 +146,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-7xl h-[90vh] p-0 bg-black/95">
+      <DialogContent className="max-w-md max-h-[80vh] p-0 bg-black/95 overflow-hidden">
         <div className="relative h-full flex flex-col">
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
