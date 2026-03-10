@@ -262,6 +262,30 @@ export type Database = {
           },
         ]
       }
+      line_user_mappings: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          line_user_id: string
+          supabase_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          line_user_id: string
+          supabase_user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          line_user_id?: string
+          supabase_user_id?: string
+        }
+        Relationships: []
+      }
       payee_groups: {
         Row: {
           created_at: string
