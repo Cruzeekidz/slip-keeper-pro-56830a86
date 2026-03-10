@@ -29,6 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/bulk-upload" element={<BulkUpload />} />
             <Route path="/data-migration" element={<DataMigration />} />
             <Route path="/duplicate-checker" element={<DuplicateChecker />} />
