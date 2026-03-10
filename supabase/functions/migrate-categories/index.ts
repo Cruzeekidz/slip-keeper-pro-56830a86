@@ -16,7 +16,6 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Get auth user from request
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -30,7 +29,6 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Fetch all user expenses that don't have transaction_type yet
     const { data: expenses, error } = await supabase
       .from('expenses')
       .select('id, category, subcategory, project, description, merchant, receiver, sender, amount')
@@ -40,26 +38,19 @@ serve(async (req) => {
     if (error) throw error;
 
     let migrated = 0;
-    const results: { id: string; transaction_type: string; category_group: string | null; project_tag: string | null; subcategory: string | null; needs_review: boolean }[] = [];
 
     for (const exp of (expenses || [])) {
       const classification = classifyExpense(exp);
-      results.push({ id: exp.id, ...classification });
-    }
-
-    // Batch update
-    for (const r of results) {
       const { error: updateError } = await supabase
         .from('expenses')
         .update({
-          transaction_type: r.transaction_type,
-          category_group: r.category_group,
-          project_tag: r.project_tag,
-          subcategory: r.subcategory || undefined,
-          needs_review: r.needs_review,
-          // Keep old category for reference
+          transaction_type: classification.transaction_type,
+          category_group: classification.category_group,
+          project_tag: classification.project_tag,
+          subcategory: classification.subcategory || undefined,
+          needs_review: classification.needs_review,
         })
-        .eq('id', r.id);
+        .eq('id', exp.id);
 
       if (!updateError) migrated++;
     }
@@ -102,42 +93,43 @@ function classifyExpense(exp: ExpenseInput): {
   const project = (exp.project || '').toLowerCase();
   const combined = `${cat} ${desc} ${merchant} ${receiver} ${project}`;
 
-  // === TRANSFER detection ===
-  if (cat.includes('โอนเงินระหว่างบัญชี') || cat.includes('โอนข้ามบัญชี') || cat === 'การโอนเงินระหว่างบัญชี' || cat === 'การโอนข้ามบัญชี') {
+  // === TRANSFER ===
+  if (cat.includes('โอนเงินระหว่างบัญชี') || cat.includes('โอนข้ามบัญชี') || cat === 'การโอนเงินระหว่างบัญชี') {
     return { transaction_type: 'TRANSFER', category_group: null, project_tag: null, subcategory: 'โอนข้ามบัญชี', needs_review: false };
   }
-  // Credit card payments
   if (combined.includes('cardx') || combined.includes('บัตรเครดิต') || 
       (receiver.includes('scb') || receiver.includes('ยูโอบี') || receiver.includes('กรุงศรี') || receiver.includes('uob') || receiver.includes('krungsri')) && exp.amount >= 5000) {
     return { transaction_type: 'TRANSFER', category_group: null, project_tag: null, subcategory: 'จ่ายบัตรเครดิต', needs_review: false };
   }
-  // Loan repayment (large amount to individual)
-  if ((desc.includes('คืนหนี้') || desc.includes('เงินยืม')) || 
-      (receiver.includes('mrs. orawan') || receiver.includes('orawan'))) {
+  if ((desc.includes('คืนหนี้') || desc.includes('เงินยืม')) || receiver.includes('mrs. orawan') || receiver.includes('orawan')) {
     return { transaction_type: 'TRANSFER', category_group: null, project_tag: null, subcategory: 'คืนหนี้/เงินยืม', needs_review: false };
   }
-  // Installments
-  if (combined.includes('ลีสซิ่ง') || combined.includes('ผ่อน')) {
-    // Vehicle leasing -> BUSINESS GENERAL Vehicle
-    if (combined.includes('ลีสซิ่ง') || combined.includes('ค่างวดรถ')) {
-      return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Vehicle', needs_review: false };
-    }
+  if (combined.includes('ลีสซิ่ง') || combined.includes('ค่างวดรถ')) {
+    return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Vehicle', needs_review: false };
+  }
+  if (combined.includes('ผ่อน')) {
     return { transaction_type: 'TRANSFER', category_group: null, project_tag: null, subcategory: 'ผ่อนชำระ', needs_review: false };
   }
 
-  // === BUSINESS detection ===
-  // Event related
-  if (combined.includes('rockstar') || combined.includes('kmt') || combined.includes('คู่ขนาน')) {
+  // === BUSINESS - ENTITY: คู่ขนาน ===
+  if (combined.includes('คู่ขนาน') && (combined.includes('พระราม') || cat.includes('คู่ขนาน'))) {
+    return { transaction_type: 'BUSINESS', category_group: 'ENTITY_KUKANANG', project_tag: null, subcategory: classifyEntitySubcategory(combined), needs_review: false };
+  }
+
+  // === Utilities (3BB, AIS, TRUE) → GENERAL ===
+  if (combined.includes('3bb') || combined.includes('ทริปเปิลที') || combined.includes('true') || combined.includes('ais fibre') || combined.includes('ais ') || combined.includes('internet') || combined.includes('ค่าเน็ต')) {
+    return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Utilities', needs_review: false };
+  }
+
+  // === BUSINESS EVENT ===
+  if (combined.includes('rockstar') || combined.includes('kmt')) {
     let eventTag = 'EVT-Other';
     if (combined.includes('rockstar')) eventTag = 'EVT-Rockstar3';
     else if (combined.includes('kmt')) eventTag = 'EVT-KMT41';
-    else if (combined.includes('คู่ขนาน')) eventTag = 'EVT-คู่ขนาน';
-
-    let subcat = classifyEventSubcategory(combined);
-    return { transaction_type: 'BUSINESS', category_group: 'EVENT', project_tag: eventTag, subcategory: subcat, needs_review: false };
+    return { transaction_type: 'BUSINESS', category_group: 'EVENT', project_tag: eventTag, subcategory: classifyEventSubcategory(combined), needs_review: false };
   }
 
-  // Program related
+  // === BUSINESS PROGRAM ===
   if (combined.includes('bike') || combined.includes('จักรยาน') || combined.includes('bikeclass') || combined.includes('ครูนัท') || combined.includes('สอน')) {
     return { transaction_type: 'BUSINESS', category_group: 'PROGRAM', project_tag: 'PROG-BikeClass', subcategory: classifyProgramSubcategory(combined), needs_review: false };
   }
@@ -145,12 +137,12 @@ function classifyExpense(exp: ExpenseInput): {
     return { transaction_type: 'BUSINESS', category_group: 'PROGRAM', project_tag: 'PROG-InlineSkate', subcategory: classifyProgramSubcategory(combined), needs_review: false };
   }
 
-  // Venue operations
+  // === BUSINESS VENUE ===
   if (combined.includes('สนามจักรยาน') || combined.includes('สนาม')) {
     return { transaction_type: 'BUSINESS', category_group: 'VENUE', project_tag: null, subcategory: classifyVenueSubcategory(combined), needs_review: false };
   }
 
-  // Business General patterns
+  // === BUSINESS GENERAL ===
   if (combined.includes('เงินเดือน') || combined.includes('salary') || receiver.includes('ปรียารัตน') || receiver.includes('piyanan')) {
     return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Salary', needs_review: false };
   }
@@ -163,7 +155,7 @@ function classifyExpense(exp: ExpenseInput): {
   if (combined.includes('ที่ปรึกษา') || combined.includes('consulting') || combined.includes('be better than')) {
     return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Consulting', needs_review: false };
   }
-  if (combined.includes('ค่างวดรถ') || combined.includes('vehicle') || combined.includes('ลีสซิ่งกสิกร')) {
+  if (combined.includes('vehicle') || combined.includes('ลีสซิ่งกสิกร')) {
     return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Vehicle', needs_review: false };
   }
   if (combined.includes('software') || combined.includes('subscription') || combined.includes('canva') || combined.includes('google workspace')) {
@@ -172,43 +164,33 @@ function classifyExpense(exp: ExpenseInput): {
   if (combined.includes('logistics') || combined.includes('ขนส่ง') || combined.includes('shipping')) {
     return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: 'Logistics', needs_review: false };
   }
-
-  // If old category was company/บริษัท
   if (cat.includes('บริษัท') || cat.includes('company') || cat === 'ค่าใช้จ่ายบริษัท') {
     return { transaction_type: 'BUSINESS', category_group: 'GENERAL', project_tag: null, subcategory: exp.subcategory || 'Other', needs_review: true };
   }
 
-  // === PERSONAL detection ===
+  // === PERSONAL ===
   if (cat.includes('ส่วนตัว') || cat === 'personal' || cat === 'ค่าใช้จ่ายส่วนตัว') {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: classifyPersonalSubcategory(combined, exp.subcategory), needs_review: false };
   }
-
-  // Food patterns
   if (combined.includes('อาหาร') || combined.includes('ส้มตำ') || combined.includes('ก๋วยเตี๋ยว') || combined.includes('ผลไม้') || combined.includes('food') || combined.includes('กาแฟ') || combined.includes('coffee')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Food & Drinks', needs_review: false };
   }
-  // Transport
   if (combined.includes('bts') || combined.includes('rabbit') || combined.includes('ค่าจอดรถ') || combined.includes('น้ำมัน') || combined.includes('grab') || combined.includes('bolt')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Transport', needs_review: false };
   }
-  // Health
   if (combined.includes('skincare') || combined.includes('rangsima') || combined.includes('สุขภาพ') || combined.includes('ยา') || combined.includes('หมอ')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Health & Wellness', needs_review: false };
   }
-  // Donation
   if (combined.includes('ทำบุญ') || combined.includes('ดอกคำ') || combined.includes('donation')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Donation', needs_review: false };
   }
-  // Self-development
   if (combined.includes('workshop') || combined.includes('anatomy') || combined.includes('course') || combined.includes('เรียน')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Self-Development', needs_review: false };
   }
-  // Entertainment
   if (combined.includes('wisora') || combined.includes('trip') || combined.includes('ท่องเที่ยว') || combined.includes('entertainment')) {
     return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Entertainment', needs_review: false };
   }
 
-  // Fallback: can't determine - flag for review
   return { transaction_type: 'PERSONAL', category_group: null, project_tag: null, subcategory: 'Other', needs_review: true };
 }
 
@@ -234,6 +216,15 @@ function classifyVenueSubcategory(combined: string): string {
   if (combined.includes('stock') || combined.includes('น้ำ') || combined.includes('ไอติม') || combined.includes('สินค้า')) return 'Stock (น้ำ/ไอติม)';
   if (combined.includes('maintenance') || combined.includes('ซ่อม')) return 'Maintenance';
   if (combined.includes('utilities') || combined.includes('ค่าน้ำ') || combined.includes('ค่าไฟ')) return 'Utilities';
+  return 'Other';
+}
+
+function classifyEntitySubcategory(combined: string): string {
+  if (combined.includes('staff') || combined.includes('ครู') || combined.includes('พนักงาน')) return 'Staff';
+  if (combined.includes('venue') || combined.includes('สถานที่')) return 'Venue';
+  if (combined.includes('equipment') || combined.includes('อุปกรณ์')) return 'Equipment';
+  if (combined.includes('marketing') || combined.includes('โฆษณา')) return 'Marketing';
+  if (combined.includes('utilities') || combined.includes('ค่าน้ำ') || combined.includes('ค่าไฟ') || combined.includes('ค่าเน็ต')) return 'Utilities';
   return 'Other';
 }
 

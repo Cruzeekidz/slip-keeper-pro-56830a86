@@ -5,13 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, Send, UserCheck, Store, AlertTriangle } from "lucide-react";
 import {
-  TransactionType, CategoryGroup,
-  TRANSACTION_TYPES, CATEGORY_GROUPS,
-  getSubcategoriesForType, getDefaultProjectTags,
+  TransactionType, CategoryGroup, TransactionDirection,
+  TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
+  getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
 
 interface Expense {
@@ -31,6 +32,8 @@ interface Expense {
   project_tag?: string | null;
   confidence_score?: number | null;
   needs_review?: boolean;
+  transaction_direction?: string | null;
+  payee_group?: string | null;
 }
 
 interface ExpenseEditDialogProps {
@@ -55,11 +58,15 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     category_group: "" as CategoryGroup | "",
     project_tag: "",
     needs_review: false,
+    transaction_direction: "EXPENSE" as TransactionDirection,
+    payee_group: "",
   });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
   const [merchants, setMerchants] = useState<string[]>([]);
   const [existingTags, setExistingTags] = useState<string[]>([]);
+  const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
+  const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -79,35 +86,43 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         category_group: (expense.category_group as CategoryGroup) || "",
         project_tag: expense.project_tag || "",
         needs_review: expense.needs_review || false,
+        transaction_direction: (expense.transaction_direction as TransactionDirection) || "EXPENSE",
+        payee_group: expense.payee_group || "",
       });
     }
   }, [expense]);
 
-  useEffect(() => {
-    fetchSuggestions();
-  }, []);
+  useEffect(() => { fetchSuggestions(); }, []);
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
         supabase.from('expenses').select('project_tag').not('project_tag', 'is', null),
+        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
+        supabase.from('payee_groups').select('payee_pattern, group_name'),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
       setMerchants([...new Set(merchantRes.data?.map(i => i.merchant).filter(Boolean) || [])] as string[]);
       setExistingTags([...new Set(tagRes.data?.map(i => i.project_tag).filter(Boolean) || [])] as string[]);
+      setExistingSubcategories([...new Set(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
+      setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
   };
 
-  const subcategories = getSubcategoriesForType(
+  const direction = formData.transaction_direction || 'EXPENSE';
+  const defaultSubcats = getSubcategoriesForType(
     formData.transaction_type as TransactionType || null,
-    formData.category_group as CategoryGroup || null
+    formData.category_group as CategoryGroup || null,
+    direction
   );
+  // Merge with existing custom subcategories
+  const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
   const projectTags = [
     ...getDefaultProjectTags(formData.category_group as CategoryGroup || null),
@@ -115,7 +130,10 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   ];
 
   const showGroup = formData.transaction_type === 'BUSINESS';
-  const showProjectTag = showGroup && (formData.category_group === 'EVENT' || formData.category_group === 'PROGRAM');
+  const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
+  const showDirection = formData.transaction_type === 'BUSINESS' && formData.category_group === 'EVENT';
+
+  const existingPayeeGroupNames = [...new Set(payeeGroups.map(p => p.name))];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -138,11 +156,29 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           transaction_type: formData.transaction_type || null,
           category_group: formData.category_group || null,
           project_tag: formData.project_tag || null,
-          needs_review: false, // Clear review flag on manual edit
+          needs_review: false,
+          transaction_direction: formData.transaction_direction,
+          payee_group: formData.payee_group || null,
         })
         .eq('id', expense.id);
 
       if (error) throw error;
+
+      // Save payee group if new
+      if (formData.payee_group && (formData.merchant || formData.receiver)) {
+        const payee = formData.merchant || formData.receiver;
+        const existing = payeeGroups.find(p => p.pattern === payee);
+        if (!existing || existing.name !== formData.payee_group) {
+          const userId = (await supabase.auth.getUser()).data.user?.id;
+          if (userId) {
+            await supabase.from('payee_groups').upsert({
+              user_id: userId,
+              payee_pattern: payee,
+              group_name: formData.payee_group,
+            }, { onConflict: 'user_id,payee_pattern' });
+          }
+        }
+      }
 
       toast({ title: "แก้ไขสำเร็จ", description: "บันทึกข้อมูลเรียบร้อยแล้ว" });
       onSuccess();
@@ -171,12 +207,32 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Direction toggle for EVENT */}
+          {showDirection && (
+            <div>
+              <Label>ทิศทาง</Label>
+              <Select
+                value={formData.transaction_direction}
+                onValueChange={(v) => setFormData({ ...formData, transaction_direction: v as TransactionDirection, subcategory: "" })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TRANSACTION_DIRECTIONS.map(d => (
+                    <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           {/* Transaction Type */}
           <div>
             <Label>ประเภทธุรกรรม</Label>
             <Select
               value={formData.transaction_type}
-              onValueChange={(v) => setFormData({ ...formData, transaction_type: v as TransactionType, category_group: "", subcategory: "", project_tag: "" })}
+              onValueChange={(v) => setFormData({ ...formData, transaction_type: v as TransactionType, category_group: "", subcategory: "", project_tag: "", transaction_direction: "EXPENSE" })}
             >
               <SelectTrigger>
                 <SelectValue placeholder="เลือกประเภท" />
@@ -209,39 +265,29 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             </div>
           )}
 
-          {/* Project Tag */}
-          {showProjectTag && (
+          {/* Project Tag - Combobox */}
+          {showTag && (
             <div>
               <Label>แท็กโปรเจค</Label>
-              <Input
+              <Combobox
+                options={projectTags}
                 value={formData.project_tag}
-                onChange={(e) => setFormData({ ...formData, project_tag: e.target.value })}
-                list="project-tags-list"
-                placeholder="เช่น EVT-Rockstar3"
+                onValueChange={(v) => setFormData({ ...formData, project_tag: v })}
+                placeholder="เลือกหรือพิมพ์แท็ก"
               />
-              <datalist id="project-tags-list">
-                {projectTags.map(t => <option key={t} value={t} />)}
-              </datalist>
             </div>
           )}
 
-          {/* Subcategory */}
-          {subcategories.length > 0 && (
+          {/* Subcategory - Combobox */}
+          {defaultSubcats.length > 0 && (
             <div>
               <Label>ประเภทย่อย</Label>
-              <Select
+              <Combobox
+                options={allSubcategories}
                 value={formData.subcategory}
                 onValueChange={(v) => setFormData({ ...formData, subcategory: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="เลือกประเภทย่อย" />
-                </SelectTrigger>
-                <SelectContent>
-                  {subcategories.map(s => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder="เลือกหรือพิมพ์ประเภทย่อย"
+              />
             </div>
           )}
 
@@ -279,6 +325,17 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             <Input id="merchant" value={formData.merchant} onChange={(e) => setFormData({ ...formData, merchant: e.target.value })}
               list="merchants-list" placeholder="ระบุร้านค้า (ถ้ามี)" />
             <datalist id="merchants-list">{merchants.map(m => <option key={m} value={m} />)}</datalist>
+          </div>
+
+          {/* Payee Group - Combobox */}
+          <div>
+            <Label>กลุ่มผู้รับเงิน (Payee Group)</Label>
+            <Combobox
+              options={existingPayeeGroupNames}
+              value={formData.payee_group}
+              onValueChange={(v) => setFormData({ ...formData, payee_group: v })}
+              placeholder="เช่น บัตรเครดิต, Marketing Agency"
+            />
           </div>
 
           <div>

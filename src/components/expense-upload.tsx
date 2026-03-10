@@ -5,15 +5,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox } from "@/components/ui/combobox";
 import { Upload, X, Receipt, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import imageCompression from 'browser-image-compression';
 import {
-  TransactionType, CategoryGroup,
-  TRANSACTION_TYPES, CATEGORY_GROUPS,
-  getSubcategoriesForType, getDefaultProjectTags,
+  TransactionType, CategoryGroup, TransactionDirection,
+  TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
+  getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
 
 interface ExpenseUploadProps {
@@ -42,21 +43,30 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [existingTags, setExistingTags] = useState<string[]>([]);
+  const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
+  const [payeeGroupNames, setPayeeGroupNames] = useState<string[]>([]);
   const [transactionType, setTransactionType] = useState<TransactionType | "">("");
   const [categoryGroup, setCategoryGroup] = useState<CategoryGroup | "">("");
   const [projectTag, setProjectTag] = useState("");
   const [subcategory, setSubcategory] = useState("");
+  const [transactionDirection, setTransactionDirection] = useState<TransactionDirection>("EXPENSE");
+  const [payeeGroup, setPayeeGroup] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchTags = async () => {
-      const { data } = await supabase.from('expenses').select('project_tag').not('project_tag', 'is', null);
-      if (data) setExistingTags([...new Set(data.map(i => i.project_tag).filter(Boolean))] as string[]);
+    const fetchData = async () => {
+      const [tagRes, subcatRes, pgRes] = await Promise.all([
+        supabase.from('expenses').select('project_tag').not('project_tag', 'is', null),
+        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
+        supabase.from('payee_groups').select('group_name'),
+      ]);
+      if (tagRes.data) setExistingTags([...new Set(tagRes.data.map(i => i.project_tag).filter(Boolean))] as string[]);
+      if (subcatRes.data) setExistingSubcategories([...new Set(subcatRes.data.map(i => i.subcategory).filter(Boolean))] as string[]);
+      if (pgRes.data) setPayeeGroupNames([...new Set(pgRes.data.map(i => i.group_name).filter(Boolean))] as string[]);
     };
-    fetchTags();
+    fetchData();
   }, []);
 
-  // When AI data arrives, prefill the new category fields
   useEffect(() => {
     if (extractedData) {
       if (extractedData.transaction_type) setTransactionType(extractedData.transaction_type as TransactionType);
@@ -66,25 +76,24 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     }
   }, [extractedData]);
 
-  const subcategories = getSubcategoriesForType(transactionType || null, categoryGroup || null);
+  const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, transactionDirection);
+  const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
   const projectTags = [
     ...getDefaultProjectTags(categoryGroup as CategoryGroup || null),
     ...existingTags.filter(t => !getDefaultProjectTags(categoryGroup as CategoryGroup || null).includes(t)),
   ];
   const showGroup = transactionType === 'BUSINESS';
-  const showProjectTag = showGroup && (categoryGroup === 'EVENT' || categoryGroup === 'PROGRAM');
+  const showTag = showGroup && shouldShowProjectTag(categoryGroup as CategoryGroup || null);
+  const showDirection = transactionType === 'BUSINESS' && categoryGroup === 'EVENT';
 
   const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
     else if (e.type === "dragleave") setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+    e.preventDefault(); e.stopPropagation(); setDragActive(false);
     setFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
   };
 
@@ -108,31 +117,20 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         reader.readAsDataURL(file);
       });
       const imageBase64 = await base64Promise;
-
       const { data, error } = await supabase.functions.invoke('analyze-receipt', {
         body: { fileBase64: imageBase64, isPDF: false }
       });
-
-      if (error) {
-        toast({ title: "ไม่สามารถวิเคราะห์สลิปได้", description: "กรุณากรอกข้อมูลด้วยตนเอง", variant: "destructive" });
-        setStep(2);
-        return;
-      }
-
+      if (error) { toast({ title: "ไม่สามารถวิเคราะห์สลิปได้", variant: "destructive" }); setStep(2); return; }
       if (data?.success && data?.data) {
         setExtractedData(data.data);
         setStep(2);
-        toast({ title: "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบและแก้ไขข้อมูลก่อนบันทึก" });
-      } else {
-        throw new Error("No data extracted");
-      }
+        toast({ title: "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบข้อมูล" });
+      } else { throw new Error("No data"); }
     } catch (error) {
       console.error('Error analyzing receipt:', error);
-      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถวิเคราะห์สลิปได้", variant: "destructive" });
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
       setStep(2);
-    } finally {
-      setIsAnalyzing(false);
-    }
+    } finally { setIsAnalyzing(false); }
   };
 
   const removeFile = (index: number) => setFiles(prev => prev.filter((_, i) => i !== index));
@@ -145,7 +143,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     const description = formData.get("description") as string;
 
     if (!amount || !transactionType || !date) {
-      toast({ title: "เกิดข้อผิดพลาด", description: "กรุณากรอกข้อมูลที่จำเป็น (จำนวนเงิน, ประเภทธุรกรรม, วันที่)", variant: "destructive" });
+      toast({ title: "กรุณากรอกข้อมูลที่จำเป็น", variant: "destructive" });
       return;
     }
 
@@ -154,24 +152,22 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       if (files.length > 0) {
         let file = files[0];
         if (file.type.startsWith('image/')) {
-          try {
-            file = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, initialQuality: 0.8 });
-          } catch { file = files[0]; }
+          try { file = await imageCompression(file, { maxSizeMB: 1, maxWidthOrHeight: 1920, useWebWorker: true, initialQuality: 0.8 }); } catch { file = files[0]; }
         }
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}.${fileExt}`;
         const userId = (await supabase.auth.getUser()).data.user?.id;
-        if (!userId) { toast({ title: "เกิดข้อผิดพลาด", description: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" }); return; }
+        if (!userId) { toast({ title: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" }); return; }
         const filePath = `${userId}/${fileName}`;
         const { error: uploadError } = await supabase.storage.from('receipts').upload(filePath, file);
-        if (uploadError) { toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถอัพโหลดไฟล์ได้", variant: "destructive" }); return; }
+        if (uploadError) { toast({ title: "ไม่สามารถอัพโหลดไฟล์ได้", variant: "destructive" }); return; }
         receiptUrl = filePath;
       }
 
       if (extractedData?.transaction_id) {
         const userId = (await supabase.auth.getUser()).data.user?.id;
         const { data: existing } = await supabase.from('expenses').select('id').eq('user_id', userId).eq('transaction_id', extractedData.transaction_id).maybeSingle();
-        if (existing) { toast({ title: "พบรายการซ้ำ", description: `สลิปนี้เคยอัพโหลดแล้ว`, variant: "destructive" }); return; }
+        if (existing) { toast({ title: "พบรายการซ้ำ", variant: "destructive" }); return; }
       }
 
       const isLowConfidence = extractedData?.confidence_score != null && extractedData.confidence_score < 75;
@@ -194,18 +190,31 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         project_tag: projectTag || null,
         confidence_score: extractedData?.confidence_score || null,
         needs_review: isLowConfidence,
+        transaction_direction: transactionDirection,
+        payee_group: payeeGroup || null,
       });
 
-      if (error) { toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
+      if (error) { toast({ title: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
+
+      // Save payee group
+      if (payeeGroup && (extractedData?.merchant || extractedData?.receiver)) {
+        const payee = extractedData?.merchant || extractedData?.receiver || '';
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        if (userId && payee) {
+          await supabase.from('payee_groups').upsert({
+            user_id: userId, payee_pattern: payee, group_name: payeeGroup,
+          }, { onConflict: 'user_id,payee_pattern' });
+        }
+      }
 
       toast({
         title: "บันทึกสำเร็จ",
-        description: isLowConfidence ? "บันทึกแล้ว - ⚠️ ควรตรวจสอบการจัดหมวดหมู่" : "บันทึกรายการเรียบร้อยแล้ว",
+        description: isLowConfidence ? "⚠️ ควรตรวจสอบการจัดหมวดหมู่" : "บันทึกรายการเรียบร้อย",
       });
       onClose();
     } catch (error) {
       console.error('Error:', error);
-      toast({ title: "เกิดข้อผิดพลาด", description: "กรุณาลองใหม่อีกครั้ง", variant: "destructive" });
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
     }
   };
 
@@ -213,7 +222,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     <Card className="p-6 bg-gradient-card shadow-elevated">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground">
-          {step === 1 ? "ขั้นตอนที่ 1: อัพโหลดสลิป" : "ขั้นตอนที่ 2: ตรวจสอบและแก้ไขข้อมูล"}
+          {step === 1 ? "ขั้นตอนที่ 1: อัพโหลดสลิป" : "ขั้นตอนที่ 2: ตรวจสอบข้อมูล"}
         </h2>
         <Button variant="ghost" size="sm" onClick={onClose}><X className="h-4 w-4" /></Button>
       </div>
@@ -225,7 +234,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
             <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}
               onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
               <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์สลิป..." : "ลากไฟล์มาวางหรือคลิกเพื่อเลือกไฟล์"}</p>
+              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์สลิป..." : "ลากไฟล์มาวางหรือคลิกเพื่อเลือก"}</p>
               <div className="relative inline-block">
                 <Button type="button" variant="outline" size="sm" disabled={isAnalyzing}>
                   {isAnalyzing ? "กำลังวิเคราะห์..." : "เลือกไฟล์"}
@@ -285,13 +294,13 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
             </div>
           )}
 
-          {/* New Category System: Transaction Type → Group → Subcategory */}
+          {/* Category System */}
           <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
             <h3 className="font-semibold text-sm text-foreground">การจัดหมวดหมู่</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>ประเภทธุรกรรม *</Label>
-                <Select value={transactionType} onValueChange={(v) => { setTransactionType(v as TransactionType); setCategoryGroup(""); setSubcategory(""); setProjectTag(""); }}>
+                <Select value={transactionType} onValueChange={(v) => { setTransactionType(v as TransactionType); setCategoryGroup(""); setSubcategory(""); setProjectTag(""); setTransactionDirection("EXPENSE"); }}>
                   <SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger>
                   <SelectContent>
                     {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
@@ -311,26 +320,39 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                 </div>
               )}
 
-              {showProjectTag && (
+              {showDirection && (
                 <div className="space-y-2">
-                  <Label>แท็กโปรเจค</Label>
-                  <Input value={projectTag} onChange={(e) => setProjectTag(e.target.value)}
-                    list="upload-tag-list" placeholder="เช่น EVT-Rockstar3" />
-                  <datalist id="upload-tag-list">
-                    {projectTags.map(t => <option key={t} value={t} />)}
-                  </datalist>
+                  <Label>ทิศทาง</Label>
+                  <Select value={transactionDirection} onValueChange={(v) => { setTransactionDirection(v as TransactionDirection); setSubcategory(""); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TRANSACTION_DIRECTIONS.map(d => <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 
-              {subcategories.length > 0 && (
+              {showTag && (
+                <div className="space-y-2">
+                  <Label>แท็กโปรเจค</Label>
+                  <Combobox
+                    options={projectTags}
+                    value={projectTag}
+                    onValueChange={setProjectTag}
+                    placeholder="เลือกหรือพิมพ์แท็ก"
+                  />
+                </div>
+              )}
+
+              {defaultSubcats.length > 0 && (
                 <div className="space-y-2">
                   <Label>ประเภทย่อย</Label>
-                  <Select value={subcategory} onValueChange={setSubcategory}>
-                    <SelectTrigger><SelectValue placeholder="เลือกประเภทย่อย" /></SelectTrigger>
-                    <SelectContent>
-                      {subcategories.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Combobox
+                    options={allSubcategories}
+                    value={subcategory}
+                    onValueChange={setSubcategory}
+                    placeholder="เลือกหรือพิมพ์ประเภทย่อย"
+                  />
                 </div>
               )}
             </div>
@@ -347,6 +369,17 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               <Input id="date" name="date" type="date"
                 defaultValue={extractedData?.date || new Date().toISOString().split('T')[0]} required />
             </div>
+          </div>
+
+          {/* Payee Group */}
+          <div className="space-y-2">
+            <Label>กลุ่มผู้รับเงิน (Payee Group)</Label>
+            <Combobox
+              options={payeeGroupNames}
+              value={payeeGroup}
+              onValueChange={setPayeeGroup}
+              placeholder="เช่น บัตรเครดิต, Marketing Agency"
+            />
           </div>
 
           <div className="space-y-2">

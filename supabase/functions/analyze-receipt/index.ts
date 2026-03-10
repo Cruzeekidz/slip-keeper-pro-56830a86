@@ -19,17 +19,15 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    console.log(`Analyzing receipt ${isPDF ? 'PDF' : 'image'}...`);
-
     let imageUrl = fileBase64;
     try {
       if (storagePath) {
         const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
         const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing Supabase env vars");
+        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing env vars");
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: signed, error: signErr } = await supabase.storage.from('receipts').createSignedUrl(storagePath, 300);
-        if (signErr || !signed?.signedUrl) throw new Error(`Failed to sign URL`);
+        if (signErr || !signed?.signedUrl) throw new Error("Failed to sign URL");
         imageUrl = signed.signedUrl;
       }
     } catch (e) {
@@ -50,7 +48,7 @@ serve(async (req) => {
             content: [
               {
                 type: "text",
-                text: `วิเคราะห์สลิปการโอนเงินนี้และจัดหมวดหมู่ตามระบบใหม่:
+                text: `วิเคราะห์สลิปการโอนเงินนี้และจัดหมวดหมู่ตามระบบ:
 
 ## ระบบหมวดหมู่ 3 ระดับ:
 
@@ -60,35 +58,38 @@ Subcategories: จ่ายบัตรเครดิต, คืนหนี้
 
 ### 2. BUSINESS (ค่าใช้จ่ายธุรกิจ)
 Groups:
-- EVENT: งานอีเวนท์ (Rockstar, KMT, คู่ขนาน) → project_tag = "EVT-ชื่ออีเวนท์"
-  Subcategories: Staff, Printing, Venue, Prizes, Transport, Marketing, Refund, Other
-- PROGRAM: โปรแกรมสอน (BikeClass, InlineSkate) → project_tag = "PROG-ชื่อโปรแกรม"
+- EVENT: งานอีเวนท์ → project_tag = "EVT-ชื่ออีเวนท์"
+  Expense Subcategories: Staff, Printing, Venue, Prizes, Transport, Marketing, Refund, Other
+  Income Subcategories: Registration, Sponsorship, Product Sales, Other Income
+- PROGRAM: โปรแกรมสอน → project_tag = "PROG-ชื่อโปรแกรม"
   Subcategories: Staff, Equipment, Venue, Other
 - VENUE: สนามจักรยาน operations
   Subcategories: Stock (น้ำ/ไอติม), Maintenance, Utilities, Other
+- ENTITY_KUKANANG: ธุรกิจคู่ขนาน (Parallel School)
+  Subcategories: Staff, Venue, Equipment, Marketing, Utilities, Other
+- ENTITY_BCC: ธุรกิจ BCC
+  Subcategories: Staff, Venue, Equipment, Marketing, Utilities, Other
 - GENERAL: ค่าใช้จ่ายทั่วไปบริษัท
-  Subcategories: Salary, Marketing & Ads, Accounting, Consulting, Vehicle, Software & Subscription, Legal, Logistics, Investment, Other
+  Subcategories: Salary, Marketing & Ads, Accounting, Consulting, Vehicle, Software & Subscription, Legal, Logistics, Investment, Utilities, Other
 
 ### 3. PERSONAL (ส่วนตัว)
 Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-Development, Donation, Entertainment, Insurance, Shopping, Other
 
-## ดึงข้อมูลต่อไปนี้:
-- amount (จำนวนเงิน)
-- date (YYYY-MM-DD ค.ศ. - ถ้าปี พ.ศ. ให้ลบ 543)
-- time (HH:MM:SS หรือ null)
-- description (รายละเอียด)
-- merchant (ชื่อร้านค้า/ผู้รับ)
-- sender (ผู้โอน)
-- receiver (ผู้รับเงิน)
-- transaction_id (รหัสอ้างอิง)
+## ข้อมูลที่ต้องดึง:
+- amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 - transaction_type: TRANSFER / BUSINESS / PERSONAL
-- category_group: EVENT / PROGRAM / VENUE / GENERAL (เฉพาะ BUSINESS) หรือ null
+- category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC / GENERAL (เฉพาะ BUSINESS) หรือ null
 - project_tag: เช่น "EVT-Rockstar3", "PROG-BikeClass" หรือ null
 - subcategory: จากรายการด้านบน
-- confidence_score: 0-100 (ความมั่นใจในการจัดหมวดหมู่)
+- transaction_direction: INCOME หรือ EXPENSE (default EXPENSE, ใช้ INCOME ถ้าเป็นรายรับ เช่น ค่าสมัคร/สปอนเซอร์)
+- confidence_score: 0-100
 
-**สำคัญ**: ถ้าหาข้อมูลไม่พบให้ใส่ null
-**สำคัญ**: ให้ confidence_score ต่ำ (<75) ถ้าไม่แน่ใจว่าเป็น TRANSFER/BUSINESS/PERSONAL`
+## กฎการจัดหมวดพิเศษ:
+- ถ้ามี "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
+- ถ้ามี "3BB", "ทริปเปิลที", "TRUE", "AIS" (internet/phone) → BUSINESS > GENERAL > Utilities
+- ถ้าเป็นเงินเข้า/ค่าสมัคร/สปอนเซอร์ → transaction_direction = INCOME
+
+**สำคัญ**: ถ้าหาข้อมูลไม่พบให้ใส่ null, ให้ confidence_score ต่ำ (<75) ถ้าไม่แน่ใจ`
               },
               {
                 type: "image_url",
@@ -102,7 +103,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
             type: "function",
             function: {
               name: "extract_receipt_data",
-              description: "Extract transaction data from receipt image with new category system",
+              description: "Extract transaction data from receipt image",
               parameters: {
                 type: "object",
                 properties: {
@@ -115,14 +116,15 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
                   receiver: { type: ["string", "null"] },
                   transaction_id: { type: ["string", "null"] },
                   transaction_type: { type: ["string", "null"], enum: ["TRANSFER", "BUSINESS", "PERSONAL", null] },
-                  category_group: { type: ["string", "null"], enum: ["EVENT", "PROGRAM", "VENUE", "GENERAL", null] },
+                  category_group: { type: ["string", "null"], enum: ["EVENT", "PROGRAM", "VENUE", "ENTITY_KUKANANG", "ENTITY_BCC", "GENERAL", null] },
                   project_tag: { type: ["string", "null"] },
                   category: { type: ["string", "null"] },
                   project: { type: ["string", "null"] },
                   subcategory: { type: ["string", "null"] },
-                  confidence_score: { type: ["number", "null"] }
+                  confidence_score: { type: ["number", "null"] },
+                  transaction_direction: { type: ["string", "null"], enum: ["INCOME", "EXPENSE", null] },
                 },
-                required: ["amount", "date", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score"],
+                required: ["amount", "date", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction"],
                 additionalProperties: false
               }
             }
@@ -135,12 +137,8 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
     if (!response.ok) {
       const errorText = await response.text();
       console.error("AI gateway error:", response.status, errorText);
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Payment required" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      if (response.status === 429) return new Response(JSON.stringify({ error: "Rate limit" }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (response.status === 402) return new Response(JSON.stringify({ error: "Payment required" }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       throw new Error(`AI gateway error: ${response.status}`);
     }
 
@@ -159,9 +157,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
           const extractedData = JSON.parse(jsonMatch[0]);
           return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
         }
-      } catch (e) {
-        console.error("Failed to parse JSON:", e);
-      }
+      } catch (e) { console.error("Failed to parse JSON:", e); }
     }
 
     throw new Error("Could not extract data from receipt");

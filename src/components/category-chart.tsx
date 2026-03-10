@@ -18,18 +18,15 @@ const TYPE_COLORS: Record<string, string> = {
   'BUSINESS/PROGRAM': 'hsl(265 60% 55%)',
   'BUSINESS/VENUE': 'hsl(160 60% 42%)',
   'BUSINESS/GENERAL': 'hsl(185 65% 42%)',
+  'BUSINESS/ENTITY_KUKANANG': 'hsl(340 65% 50%)',
+  'BUSINESS/ENTITY_BCC': 'hsl(340 65% 60%)',
   'PERSONAL': 'hsl(30 90% 55%)',
 };
 
 const COLORS = [
-  'hsl(220 75% 55%)',
-  'hsl(265 60% 55%)',
-  'hsl(160 60% 42%)',
-  'hsl(185 65% 42%)',
-  'hsl(30 90% 55%)',
-  'hsl(220 10% 55%)',
-  'hsl(142 76% 45%)',
-  'hsl(38 92% 50%)',
+  'hsl(220 75% 55%)', 'hsl(265 60% 55%)', 'hsl(160 60% 42%)',
+  'hsl(185 65% 42%)', 'hsl(30 90% 55%)', 'hsl(220 10% 55%)',
+  'hsl(142 76% 45%)', 'hsl(38 92% 50%)', 'hsl(340 65% 50%)',
 ];
 
 export function CategoryChart() {
@@ -38,23 +35,20 @@ export function CategoryChart() {
   const [viewMode, setViewMode] = useState<"type" | "group">("type");
   const [isExpanded, setIsExpanded] = useState(false);
 
-  useEffect(() => {
-    fetchData();
-  }, [viewMode]);
+  useEffect(() => { fetchData(); }, [viewMode]);
 
   const fetchData = async () => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('transaction_type, category_group, amount');
-
+        .select('transaction_type, category_group, amount, transaction_direction');
       if (error) throw error;
 
       const map = new Map<string, number>();
-
       expenses?.forEach(exp => {
-        if (exp.transaction_type === 'TRANSFER') return; // Exclude from P&L chart
-        
+        if (exp.transaction_type === 'TRANSFER') return;
+        // For P&L chart, subtract income from expense
+        const sign = exp.transaction_direction === 'INCOME' ? -1 : 1;
         let key: string;
         if (viewMode === "type") {
           key = exp.transaction_type || 'ไม่ระบุ';
@@ -65,24 +59,20 @@ export function CategoryChart() {
             key = exp.transaction_type || 'ไม่ระบุ';
           }
         }
-        map.set(key, (map.get(key) || 0) + exp.amount);
+        map.set(key, (map.get(key) || 0) + exp.amount * sign);
       });
 
       const data = Array.from(map.entries())
-        .map(([name, value]) => ({ name, value }))
+        .map(([name, value]) => ({ name, value: Math.abs(value) }))
         .sort((a, b) => b.value - a.value);
 
       setChartData(data);
     } catch (error) {
       console.error('Error fetching category data:', error);
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  if (loading) {
-    return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
-  }
+  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   const getColor = (name: string, index: number) => TYPE_COLORS[name] || COLORS[index % COLORS.length];
 
@@ -100,9 +90,7 @@ export function CategoryChart() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={viewMode} onValueChange={(v) => setViewMode(v as "type" | "group")}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="type">ตามประเภทหลัก</SelectItem>
               <SelectItem value="group">ตามกลุ่มธุรกิจ</SelectItem>

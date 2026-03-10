@@ -164,6 +164,8 @@ All colors MUST be HSL.
     --group-program-foreground: 220 15% 8%;
     --group-venue: 160 60% 52%;
     --group-venue-foreground: 220 15% 8%;
+    --group-entity: 340 65% 60%;
+    --group-entity-foreground: 220 15% 8%;
     --group-general: 185 65% 52%;
     --group-general-foreground: 220 15% 8%;
 
