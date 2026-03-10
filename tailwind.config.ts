@@ -44,6 +44,34 @@ export default {
           foreground: "hsl(var(--expense-foreground))",
           light: "hsl(var(--expense-light))",
         },
+        "type-transfer": {
+          DEFAULT: "hsl(var(--type-transfer))",
+          foreground: "hsl(var(--type-transfer-foreground))",
+        },
+        "type-business": {
+          DEFAULT: "hsl(var(--type-business))",
+          foreground: "hsl(var(--type-business-foreground))",
+        },
+        "type-personal": {
+          DEFAULT: "hsl(var(--type-personal))",
+          foreground: "hsl(var(--type-personal-foreground))",
+        },
+        "group-event": {
+          DEFAULT: "hsl(var(--group-event))",
+          foreground: "hsl(var(--group-event-foreground))",
+        },
+        "group-program": {
+          DEFAULT: "hsl(var(--group-program))",
+          foreground: "hsl(var(--group-program-foreground))",
+        },
+        "group-venue": {
+          DEFAULT: "hsl(var(--group-venue))",
+          foreground: "hsl(var(--group-venue-foreground))",
+        },
+        "group-general": {
+          DEFAULT: "hsl(var(--group-general))",
+          foreground: "hsl(var(--group-general-foreground))",
+        },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
