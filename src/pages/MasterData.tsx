@@ -38,6 +38,7 @@ const MasterData = () => {
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [subcategories, setSubcategories] = useState<MasterItem[]>([]);
   const [projects, setProjects] = useState<MasterItem[]>([]);
+  const [events, setEvents] = useState<MasterItem[]>([]);
   const [receivers, setReceivers] = useState<TransactionParty[]>([]);
   const [merchants, setMerchants] = useState<TransactionParty[]>([]);
   const [senders, setSenders] = useState<TransactionParty[]>([]);
