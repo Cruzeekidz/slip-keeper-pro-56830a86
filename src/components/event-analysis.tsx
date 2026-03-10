@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Calendar, TrendingUp, TrendingDown } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 interface EventPLData {
   tag: string;
@@ -28,6 +29,8 @@ export function EventAnalysis() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => { fetchEventPL(); }, []);
+
+  useExpensesRealtime(useCallback(() => fetchEventPL(), []));
 
   const fetchEventPL = async () => {
     try {

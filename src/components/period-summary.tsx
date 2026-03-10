@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "lucide-react";
+import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 interface PeriodData {
   period: string;
@@ -22,6 +23,8 @@ export function PeriodSummary() {
   useEffect(() => {
     fetchPeriodSummary();
   }, [periodType]);
+
+  useExpensesRealtime(useCallback(() => fetchPeriodSummary(), [periodType]));
 
   const fetchPeriodSummary = async () => {
     setLoading(true);
