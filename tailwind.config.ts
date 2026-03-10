@@ -68,6 +68,10 @@ export default {
           DEFAULT: "hsl(var(--group-venue))",
           foreground: "hsl(var(--group-venue-foreground))",
         },
+        "group-entity": {
+          DEFAULT: "hsl(var(--group-entity))",
+          foreground: "hsl(var(--group-entity-foreground))",
+        },
         "group-general": {
           DEFAULT: "hsl(var(--group-general))",
           foreground: "hsl(var(--group-general-foreground))",

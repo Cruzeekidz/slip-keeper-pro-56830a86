@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X, Send, UserCheck, Store, AlertTriangle } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,8 @@ interface Expense {
   project_tag: string | null;
   confidence_score: number | null;
   needs_review: boolean | null;
+  transaction_direction: string | null;
+  payee_group: string | null;
 }
 
 export function ExpenseListReal() {
@@ -52,7 +54,7 @@ export function ExpenseListReal() {
   const [filterReceiver, setFilterReceiver] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "name-asc" | "name-desc">("date-desc");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
   const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -71,10 +73,8 @@ export function ExpenseListReal() {
       setExpenses(data || []);
     } catch (error) {
       console.error('Error fetching expenses:', error);
-      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถโหลดข้อมูลได้", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    } finally { setLoading(false); }
   };
 
   const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
@@ -82,13 +82,13 @@ export function ExpenseListReal() {
 
   const filterExpenses = () => {
     let filtered = expenses;
-
     if (searchTerm) {
       filtered = filtered.filter(e =>
         e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.project_tag?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.merchant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.receiver?.toLowerCase().includes(searchTerm.toLowerCase())
+        e.receiver?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.payee_group?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
     if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
@@ -102,11 +102,8 @@ export function ExpenseListReal() {
     const sorted = [...filtered].sort((a, b) => {
       if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
-      if (sortBy === "name-asc") return (a.description || "").localeCompare(b.description || "", 'th');
-      if (sortBy === "name-desc") return (b.description || "").localeCompare(a.description || "", 'th');
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-
     setFilteredExpenses(sorted);
   };
 
@@ -118,9 +115,7 @@ export function ExpenseListReal() {
       if (error) throw error;
       toast({ title: "ลบสำเร็จ" });
       fetchExpenses();
-    } catch (error) {
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+    } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
   };
 
   const viewReceipt = (i: number) => { setViewingReceipt(i); setGalleryOpen(true); };
@@ -132,24 +127,26 @@ export function ExpenseListReal() {
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
       a.href = url; a.download = `receipt-${Date.now()}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    } catch (error) {
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+    } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
   };
 
   const needsReviewCount = useMemo(() => expenses.filter(e => e.needs_review).length, [expenses]);
 
-  // Summary stats
   const summaryStats = useMemo(() => {
     const nonTransfer = filteredExpenses.filter(e => e.transaction_type !== 'TRANSFER');
-    const total = nonTransfer.reduce((sum, e) => sum + e.amount, 0);
+    const expenseItems = nonTransfer.filter(e => e.transaction_direction !== 'INCOME');
+    const incomeItems = nonTransfer.filter(e => e.transaction_direction === 'INCOME');
+    const totalExpense = expenseItems.reduce((sum, e) => sum + e.amount, 0);
+    const totalIncome = incomeItems.reduce((sum, e) => sum + e.amount, 0);
     const transferTotal = filteredExpenses.filter(e => e.transaction_type === 'TRANSFER').reduce((sum, e) => sum + e.amount, 0);
-    return { total, transferTotal, count: filteredExpenses.length };
+    return { totalExpense, totalIncome, transferTotal, count: filteredExpenses.length };
   }, [filteredExpenses]);
 
   if (loading) {
     return <Card className="p-6 bg-gradient-card shadow-elevated"><div className="text-center"><p className="text-muted-foreground">กำลังโหลดข้อมูล...</p></div></Card>;
   }
+
+  const isIncome = (e: Expense) => e.transaction_direction === 'INCOME';
 
   return (
     <Card className="p-6 bg-gradient-card shadow-elevated">
@@ -168,10 +165,14 @@ export function ExpenseListReal() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+      <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
         <div className="text-center">
-          <div className="text-sm text-muted-foreground">ค่าใช้จ่ายจริง</div>
-          <div className="font-bold text-expense">฿{summaryStats.total.toLocaleString()}</div>
+          <div className="text-sm text-muted-foreground">รายจ่ายจริง</div>
+          <div className="font-bold text-expense">฿{summaryStats.totalExpense.toLocaleString()}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-muted-foreground">รายรับ</div>
+          <div className="font-bold text-success">฿{summaryStats.totalIncome.toLocaleString()}</div>
         </div>
         <div className="text-center">
           <div className="text-sm text-muted-foreground">โอนเงิน</div>
@@ -189,7 +190,6 @@ export function ExpenseListReal() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
         </div>
-
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger><SelectValue placeholder="ประเภท" /></SelectTrigger>
           <SelectContent className="bg-background">
@@ -197,7 +197,6 @@ export function ExpenseListReal() {
             {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
-
         {filterType === 'BUSINESS' && (
           <Select value={filterGroup} onValueChange={setFilterGroup}>
             <SelectTrigger><SelectValue placeholder="กลุ่ม" /></SelectTrigger>
@@ -207,7 +206,6 @@ export function ExpenseListReal() {
             </SelectContent>
           </Select>
         )}
-
         <Select value={filterReview} onValueChange={setFilterReview}>
           <SelectTrigger><SelectValue placeholder="สถานะ" /></SelectTrigger>
           <SelectContent className="bg-background">
@@ -220,7 +218,6 @@ export function ExpenseListReal() {
             </SelectItem>
           </SelectContent>
         </Select>
-
         <Select value={filterReceiver} onValueChange={setFilterReceiver}>
           <SelectTrigger><SelectValue placeholder="ผู้รับ" /></SelectTrigger>
           <SelectContent className="bg-background">
@@ -230,7 +227,7 @@ export function ExpenseListReal() {
         </Select>
       </div>
 
-      {/* Clear Filters & Sort */}
+      {/* Sort & Date Filter */}
       <div className="flex flex-wrap gap-4 mb-6">
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
@@ -240,7 +237,6 @@ export function ExpenseListReal() {
             <SelectItem value="upload-desc">อัพโหลดล่าสุด</SelectItem>
           </SelectContent>
         </Select>
-
         <Popover>
           <PopoverTrigger asChild>
             <Button variant="outline" className={cn("justify-start text-left font-normal", !dateFrom && !dateTo && "text-muted-foreground")}>
@@ -257,7 +253,6 @@ export function ExpenseListReal() {
             </div>
           </PopoverContent>
         </Popover>
-
         {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
             setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setDateFrom(undefined); setDateTo(undefined);
@@ -279,8 +274,11 @@ export function ExpenseListReal() {
                     <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
                   </div>
                   <div className="shrink-0 md:w-32">
-                    <span className={cn("font-bold text-base md:text-lg", expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' : 'text-expense')}>
-                      {expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
+                    <span className={cn("font-bold text-base md:text-lg",
+                      expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
+                      isIncome(expense) ? 'text-success' : 'text-expense'
+                    )}>
+                      {expense.transaction_type === 'TRANSFER' ? '↔' : isIncome(expense) ? '+' : '-'}฿{expense.amount.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -288,6 +286,11 @@ export function ExpenseListReal() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <span className="font-medium text-foreground text-sm md:text-base">{expense.description || "ค่าใช้จ่าย"}</span>
+                    {isIncome(expense) && (
+                      <Badge variant="outline" className="text-xs bg-success/10 text-success border-success/30">
+                        <ArrowDownLeft className="h-3 w-3 mr-1" />รายรับ
+                      </Badge>
+                    )}
                     <Badge variant="outline" className={cn("text-xs", getTypeBadgeClass(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup))}>
                       {formatTypeLabel(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup, expense.project_tag)}
                     </Badge>
@@ -306,6 +309,11 @@ export function ExpenseListReal() {
                       {expense.receiver && <div className="flex items-center gap-1"><UserCheck className="h-3 w-3" />ถึง: {expense.receiver}</div>}
                       {!expense.sender && !expense.receiver && expense.merchant && (
                         <div className="flex items-center gap-1"><Store className="h-3 w-3" />ผู้รับเงิน: {expense.merchant}</div>
+                      )}
+                      {expense.payee_group && (
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                          กลุ่ม: {expense.payee_group}
+                        </span>
                       )}
                     </div>
                   )}
@@ -335,13 +343,14 @@ export function ExpenseListReal() {
                 <TableHead>ประเภท</TableHead>
                 <TableHead>ประเภทย่อย</TableHead>
                 <TableHead>แท็ก</TableHead>
+                <TableHead>กลุ่มผู้รับ</TableHead>
                 <TableHead className="text-right">จำนวนเงิน</TableHead>
                 <TableHead>สถานะ</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredExpenses.map((expense, index) => (
+              {filteredExpenses.map((expense) => (
                 <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
                   <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
                   <TableCell className="font-medium">{expense.description || expense.merchant || "-"}</TableCell>
@@ -353,11 +362,16 @@ export function ExpenseListReal() {
                   </TableCell>
                   <TableCell className="text-sm">{expense.subcategory || "-"}</TableCell>
                   <TableCell className="text-sm">{expense.project_tag || "-"}</TableCell>
-                  <TableCell className={cn("text-right font-semibold", expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' : 'text-expense')}>
-                    ฿{expense.amount.toLocaleString()}
+                  <TableCell className="text-sm text-muted-foreground">{expense.payee_group || "-"}</TableCell>
+                  <TableCell className={cn("text-right font-semibold",
+                    expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
+                    isIncome(expense) ? 'text-success' : 'text-expense'
+                  )}>
+                    {isIncome(expense) ? '+' : expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
                   </TableCell>
                   <TableCell>
                     {expense.needs_review && <AlertTriangle className="h-4 w-4 text-warning" />}
+                    {isIncome(expense) && <ArrowDownLeft className="h-4 w-4 text-success" />}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">

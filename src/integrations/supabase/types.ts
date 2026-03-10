@@ -30,12 +30,14 @@ export type Database = {
           merchant: string | null
           needs_review: boolean | null
           original_expense_id: string
+          payee_group: string | null
           project: string | null
           project_tag: string | null
           receipt_url: string | null
           receiver: string | null
           sender: string | null
           subcategory: string | null
+          transaction_direction: string
           transaction_id: string | null
           transaction_type: string | null
           user_id: string | null
@@ -55,12 +57,14 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           original_expense_id: string
+          payee_group?: string | null
           project?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
+          transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null
           user_id?: string | null
@@ -80,12 +84,14 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           original_expense_id?: string
+          payee_group?: string | null
           project?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
+          transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null
           user_id?: string | null
@@ -106,12 +112,14 @@ export type Database = {
           merchant: string | null
           needs_review: boolean | null
           non_duplicate_pairs: string[] | null
+          payee_group: string | null
           project: string | null
           project_tag: string | null
           receipt_url: string | null
           receiver: string | null
           sender: string | null
           subcategory: string | null
+          transaction_direction: string
           transaction_id: string | null
           transaction_type: string | null
           updated_at: string
@@ -130,12 +138,14 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
+          payee_group?: string | null
           project?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
+          transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null
           updated_at?: string
@@ -154,12 +164,14 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
+          payee_group?: string | null
           project?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
+          transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null
           updated_at?: string
@@ -249,6 +261,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      payee_groups: {
+        Row: {
+          created_at: string
+          group_name: string
+          id: string
+          payee_pattern: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_name: string
+          id?: string
+          payee_pattern: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_name?: string
+          id?: string
+          payee_pattern?: string
+          user_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
