@@ -568,6 +568,10 @@ const MasterData = () => {
             {renderItemList(projects, 'project', 'รายการโปรเจคทั้งหมด')}
           </TabsContent>
 
+          <TabsContent value="events" className="mt-6">
+            {renderItemList(events, 'event_name', 'รายการอีเวนท์ทั้งหมด')}
+          </TabsContent>
+
           <TabsContent value="receivers" className="mt-6">
             {renderTransactionPartyList(receivers, 'receiver', 'รายการผู้รับทั้งหมด')}
           </TabsContent>
