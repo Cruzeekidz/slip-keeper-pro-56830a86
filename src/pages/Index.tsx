@@ -183,6 +183,10 @@ const Index = () => {
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการกลุ่มผู้รับเงิน
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    LINE Webhook
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={async () => {
                     toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
                     const { data, error } = await supabase.functions.invoke('migrate-categories');
