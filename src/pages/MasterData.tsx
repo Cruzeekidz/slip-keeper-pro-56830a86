@@ -91,6 +91,9 @@ const MasterData = () => {
         if (exp.project) {
           projectMap.set(exp.project, (projectMap.get(exp.project) || 0) + 1);
         }
+        if (exp.event_name) {
+          eventMap.set(exp.event_name, (eventMap.get(exp.event_name) || 0) + 1);
+        }
         
         // Count receivers
         if (exp.receiver) {
