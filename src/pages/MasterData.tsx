@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Edit2, Trash2, Check, X, Send, UserCheck, Store, Search, Filter } from "lucide-react";
+import { ArrowLeft, Edit2, Trash2, Check, X, Send, UserCheck, Store, Search, Filter, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,7 @@ const MasterData = () => {
   const [categories, setCategories] = useState<MasterItem[]>([]);
   const [subcategories, setSubcategories] = useState<MasterItem[]>([]);
   const [projects, setProjects] = useState<MasterItem[]>([]);
+  const [events, setEvents] = useState<MasterItem[]>([]);
   const [receivers, setReceivers] = useState<TransactionParty[]>([]);
   const [merchants, setMerchants] = useState<TransactionParty[]>([]);
   const [senders, setSenders] = useState<TransactionParty[]>([]);
@@ -62,7 +63,7 @@ const MasterData = () => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('category, subcategory, project, receiver, merchant, sender')
+        .select('category, subcategory, project, event_name, receiver, merchant, sender')
         .eq('user_id', user.id);
 
       if (error) throw error;
@@ -71,6 +72,7 @@ const MasterData = () => {
       const categoryMap = new Map<string, number>();
       const subcategoryMap = new Map<string, number>();
       const projectMap = new Map<string, number>();
+      const eventMap = new Map<string, number>();
       const receiverMap = new Map<string, { count: number; missingCount: number }>();
       const merchantMap = new Map<string, { count: number; missingCount: number }>();
       const senderMap = new Map<string, { count: number; missingCount: number }>();
@@ -88,6 +90,9 @@ const MasterData = () => {
         }
         if (exp.project) {
           projectMap.set(exp.project, (projectMap.get(exp.project) || 0) + 1);
+        }
+        if (exp.event_name) {
+          eventMap.set(exp.event_name, (eventMap.get(exp.event_name) || 0) + 1);
         }
         
         // Count receivers
@@ -129,6 +134,12 @@ const MasterData = () => {
 
       setProjects(
         Array.from(projectMap.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+      );
+
+      setEvents(
+        Array.from(eventMap.entries())
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => a.name.localeCompare(b.name, 'th'))
       );
@@ -523,10 +534,14 @@ const MasterData = () => {
 
       <main className="max-w-7xl mx-auto p-6">
         <Tabs defaultValue="category" className="w-full">
-          <TabsList className="grid w-full grid-cols-6">
+          <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="category">ประเภท</TabsTrigger>
             <TabsTrigger value="subcategory">ประเภทย่อย</TabsTrigger>
             <TabsTrigger value="project">โปรเจค</TabsTrigger>
+            <TabsTrigger value="events">
+              <Calendar className="h-4 w-4 mr-2" />
+              อีเวนท์
+            </TabsTrigger>
             <TabsTrigger value="receivers">
               <UserCheck className="h-4 w-4 mr-2" />
               ผู้รับ
@@ -551,6 +566,10 @@ const MasterData = () => {
           
           <TabsContent value="project" className="mt-6">
             {renderItemList(projects, 'project', 'รายการโปรเจคทั้งหมด')}
+          </TabsContent>
+
+          <TabsContent value="events" className="mt-6">
+            {renderItemList(events, 'event_name', 'รายการอีเวนท์ทั้งหมด')}
           </TabsContent>
 
           <TabsContent value="receivers" className="mt-6">
