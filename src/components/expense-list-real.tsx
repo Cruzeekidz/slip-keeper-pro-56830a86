@@ -66,11 +66,49 @@ export function ExpenseListReal() {
   useEffect(() => { fetchExpenses(); }, []);
   useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
+  // Realtime subscription for new expenses (e.g. from LINE webhook)
+  useEffect(() => {
+    const channel = supabase
+      .channel('expenses-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'expenses' },
+        () => {
+          fetchExpenses();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
   const fetchExpenses = async () => {
     try {
-      const { data, error } = await supabase.from('expenses').select('*');
-      if (error) throw error;
-      setExpenses(data || []);
+      // Fetch all expenses - use range to bypass 1000 row default limit
+      let allExpenses: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('expenses')
+          .select('*')
+          .range(from, from + pageSize - 1)
+          .order('expense_date', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) {
+          allExpenses = [...allExpenses, ...data];
+          from += pageSize;
+          hasMore = data.length === pageSize;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setExpenses(allExpenses);
     } catch (error) {
       console.error('Error fetching expenses:', error);
       toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
