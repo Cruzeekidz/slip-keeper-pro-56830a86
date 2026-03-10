@@ -137,6 +137,12 @@ const MasterData = () => {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => a.name.localeCompare(b.name, 'th'))
       );
+
+      setEvents(
+        Array.from(eventMap.entries())
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'th'))
+      );
       
       setReceivers([
         { name: '(ไม่ระบุ)', count: 0, missingCount: missingReceiverCount },
