@@ -58,6 +58,24 @@ All colors MUST be HSL.
     --shadow-card: 0 4px 6px -1px hsl(220 13% 45% / 0.1);
     --shadow-elevated: 0 10px 25px -3px hsl(220 13% 45% / 0.1);
 
+    /* Transaction type colors */
+    --type-transfer: 220 10% 55%;
+    --type-transfer-foreground: 0 0% 100%;
+    --type-business: 210 80% 50%;
+    --type-business-foreground: 0 0% 100%;
+    --type-personal: 30 90% 55%;
+    --type-personal-foreground: 0 0% 100%;
+
+    /* Business group colors */
+    --group-event: 220 75% 55%;
+    --group-event-foreground: 0 0% 100%;
+    --group-program: 265 60% 55%;
+    --group-program-foreground: 0 0% 100%;
+    --group-venue: 160 60% 42%;
+    --group-venue-foreground: 0 0% 100%;
+    --group-general: 185 65% 42%;
+    --group-general-foreground: 0 0% 100%;
+
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --radius: 0.5rem;
@@ -129,6 +147,24 @@ All colors MUST be HSL.
     
     --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3);
     --shadow-elevated: 0 10px 25px -3px hsl(0 0% 0% / 0.3);
+
+    /* Transaction type colors (dark) */
+    --type-transfer: 220 10% 60%;
+    --type-transfer-foreground: 220 15% 8%;
+    --type-business: 210 80% 60%;
+    --type-business-foreground: 220 15% 8%;
+    --type-personal: 30 90% 60%;
+    --type-personal-foreground: 220 15% 8%;
+
+    --group-event: 220 75% 65%;
+    --group-event-foreground: 220 15% 8%;
+    --group-program: 265 60% 65%;
+    --group-program-foreground: 220 15% 8%;
+    --group-venue: 160 60% 52%;
+    --group-venue-foreground: 220 15% 8%;
+    --group-general: 185 65% 52%;
+    --group-general-foreground: 220 15% 8%;
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;

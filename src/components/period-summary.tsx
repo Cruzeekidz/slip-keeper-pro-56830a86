@@ -8,6 +8,7 @@ import { Calendar } from "lucide-react";
 interface PeriodData {
   period: string;
   totalAmount: number;
+  transferAmount: number;
   count: number;
 }
 
@@ -27,35 +28,32 @@ export function PeriodSummary() {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('expense_date, amount')
+        .select('expense_date, amount, transaction_type')
         .order('expense_date', { ascending: false });
 
       if (error) throw error;
 
-      const periodMap = new Map<string, { totalAmount: number; count: number }>();
+      const periodMap = new Map<string, { totalAmount: number; transferAmount: number; count: number }>();
 
       expenses?.forEach(expense => {
         const date = new Date(expense.expense_date);
-        let periodKey: string;
+        const periodKey = periodType === "month"
+          ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+          : String(date.getFullYear());
 
-        if (periodType === "month") {
-          periodKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const current = periodMap.get(periodKey) || { totalAmount: 0, transferAmount: 0, count: 0 };
+        if (expense.transaction_type === 'TRANSFER') {
+          current.transferAmount += expense.amount;
         } else {
-          periodKey = String(date.getFullYear());
+          current.totalAmount += expense.amount;
         }
-
-        const current = periodMap.get(periodKey) || { totalAmount: 0, count: 0 };
-        periodMap.set(periodKey, {
-          totalAmount: current.totalAmount + expense.amount,
-          count: current.count + 1
-        });
+        current.count += 1;
+        periodMap.set(periodKey, current);
       });
 
-      const summaries: PeriodData[] = Array.from(periodMap.entries()).map(([period, data]) => ({
-        period,
-        totalAmount: data.totalAmount,
-        count: data.count
-      })).sort((a, b) => b.period.localeCompare(a.period));
+      const summaries = Array.from(periodMap.entries())
+        .map(([period, data]) => ({ period, ...data }))
+        .sort((a, b) => b.period.localeCompare(a.period));
 
       setPeriodData(summaries);
     } catch (error) {
@@ -68,20 +66,13 @@ export function PeriodSummary() {
   const formatPeriod = (period: string) => {
     if (periodType === "month") {
       const [year, month] = period.split('-');
-      const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", 
-                          "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+      const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
       return `${monthNames[parseInt(month) - 1]} ${parseInt(year) + 543}`;
     }
     return `ปี ${parseInt(period) + 543}`;
   };
 
-  if (loading) {
-    return (
-      <Card className="p-6">
-        <p className="text-muted-foreground">กำลังโหลด...</p>
-      </Card>
-    );
-  }
+  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">
@@ -90,10 +81,8 @@ export function PeriodSummary() {
           <Calendar className="h-5 w-5 text-primary" />
           <h2 className="text-xl font-bold text-foreground">สรุปยอดตามช่วงเวลา</h2>
         </div>
-        <Select value={periodType} onValueChange={(value) => setPeriodType(value as PeriodType)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue />
-          </SelectTrigger>
+        <Select value={periodType} onValueChange={(v) => setPeriodType(v as PeriodType)}>
+          <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="month">รายเดือน</SelectItem>
             <SelectItem value="year">รายปี</SelectItem>
@@ -105,8 +94,9 @@ export function PeriodSummary() {
           <TableHeader>
             <TableRow>
               <TableHead>ช่วงเวลา</TableHead>
-              <TableHead className="text-right">จำนวนรายการ</TableHead>
-              <TableHead className="text-right">ยอดรวม</TableHead>
+              <TableHead className="text-right">จำนวน</TableHead>
+              <TableHead className="text-right">ค่าใช้จ่ายจริง</TableHead>
+              <TableHead className="text-right text-type-transfer">โอนเงิน</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -114,9 +104,8 @@ export function PeriodSummary() {
               <TableRow key={item.period}>
                 <TableCell className="font-medium">{formatPeriod(item.period)}</TableCell>
                 <TableCell className="text-right">{item.count}</TableCell>
-                <TableCell className="text-right font-semibold text-expense">
-                  ฿{item.totalAmount.toLocaleString()}
-                </TableCell>
+                <TableCell className="text-right font-semibold text-expense">฿{item.totalAmount.toLocaleString()}</TableCell>
+                <TableCell className="text-right text-type-transfer">฿{item.transferAmount.toLocaleString()}</TableCell>
               </TableRow>
             ))}
           </TableBody>

@@ -12,73 +12,67 @@ interface CategoryData {
   value: number;
 }
 
-interface YearData {
-  year: number;
-  categories: CategoryData[];
-}
+const TYPE_COLORS: Record<string, string> = {
+  'TRANSFER': 'hsl(220 10% 55%)',
+  'BUSINESS/EVENT': 'hsl(220 75% 55%)',
+  'BUSINESS/PROGRAM': 'hsl(265 60% 55%)',
+  'BUSINESS/VENUE': 'hsl(160 60% 42%)',
+  'BUSINESS/GENERAL': 'hsl(185 65% 42%)',
+  'PERSONAL': 'hsl(30 90% 55%)',
+};
 
 const COLORS = [
-  'hsl(195 85% 45%)',   // primary
-  'hsl(142 76% 45%)',   // success
-  'hsl(38 92% 50%)',    // warning
-  'hsl(0 84% 60%)',     // expense
-  'hsl(195 25% 92%)',   // secondary
-  'hsl(195 85% 55%)',   // primary-light
-  'hsl(142 76% 55%)',   // success-light
-  'hsl(38 92% 60%)',    // warning-light
+  'hsl(220 75% 55%)',
+  'hsl(265 60% 55%)',
+  'hsl(160 60% 42%)',
+  'hsl(185 65% 42%)',
+  'hsl(30 90% 55%)',
+  'hsl(220 10% 55%)',
+  'hsl(142 76% 45%)',
+  'hsl(38 92% 50%)',
 ];
 
 export function CategoryChart() {
-  const [yearData, setYearData] = useState<YearData[]>([]);
+  const [chartData, setChartData] = useState<CategoryData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState<string>("compare");
+  const [viewMode, setViewMode] = useState<"type" | "group">("type");
   const [isExpanded, setIsExpanded] = useState(false);
-  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    fetchCategoryData();
-  }, []);
+    fetchData();
+  }, [viewMode]);
 
-  const fetchCategoryData = async () => {
+  const fetchData = async () => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('category, amount, expense_date');
+        .select('transaction_type, category_group, amount');
 
       if (error) throw error;
 
-      // Group by year and category (excluding transfers)
-      const yearMap = new Map<number, Map<string, number>>();
-      
-      const isTransferCategory = (category: string) => {
-        return category === 'การโอนเงินระหว่างบัญชี' || category === 'การโอนข้ามบัญชี';
-      };
-      
-      expenses?.forEach(expense => {
-        if (isTransferCategory(expense.category)) return; // Skip transfers
+      const map = new Map<string, number>();
+
+      expenses?.forEach(exp => {
+        if (exp.transaction_type === 'TRANSFER') return; // Exclude from P&L chart
         
-        const year = new Date(expense.expense_date).getFullYear();
-        const category = expense.category;
-        
-        if (!yearMap.has(year)) {
-          yearMap.set(year, new Map<string, number>());
+        let key: string;
+        if (viewMode === "type") {
+          key = exp.transaction_type || 'ไม่ระบุ';
+        } else {
+          if (exp.transaction_type === 'BUSINESS' && exp.category_group) {
+            key = `${exp.transaction_type}/${exp.category_group}`;
+          } else {
+            key = exp.transaction_type || 'ไม่ระบุ';
+          }
         }
-        
-        const categoryMap = yearMap.get(year)!;
-        const current = categoryMap.get(category) || 0;
-        categoryMap.set(category, current + expense.amount);
+        map.set(key, (map.get(key) || 0) + exp.amount);
       });
 
-      const data: YearData[] = Array.from(yearMap.entries())
-        .map(([year, categoryMap]) => ({
-          year,
-          categories: Array.from(categoryMap.entries())
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-        }))
-        .sort((a, b) => b.year - a.year);
+      const data = Array.from(map.entries())
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
 
-      setYearData(data);
+      setChartData(data);
     } catch (error) {
       console.error('Error fetching category data:', error);
     } finally {
@@ -87,119 +81,58 @@ export function CategoryChart() {
   };
 
   if (loading) {
-    return (
-      <Card className="p-6">
-        <p className="text-muted-foreground">กำลังโหลด...</p>
-      </Card>
-    );
+    return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
   }
 
-  const currentYearData = yearData.find(y => y.year === currentYear);
-  const lastYearData = yearData.find(y => y.year === currentYear - 1);
+  const getColor = (name: string, index: number) => TYPE_COLORS[name] || COLORS[index % COLORS.length];
 
-  const getChartConfig = (categories: CategoryData[]) => {
-    return categories.reduce((acc, item, index) => {
-      acc[item.name] = {
-        label: item.name,
-        color: COLORS[index % COLORS.length],
-      };
-      return acc;
-    }, {} as Record<string, { label: string; color: string }>);
-  };
-
-  const renderPieChart = (data: CategoryData[] | undefined, title: string) => {
-    if (!data || data.length === 0) {
-      return (
-        <div className="text-center text-muted-foreground p-4">
-          ไม่มีข้อมูล
-        </div>
-      );
-    }
-
-    const chartConfig = getChartConfig(data);
-
-    return (
-      <div>
-        <h3 className="text-lg font-semibold mb-3 text-center">{title}</h3>
-        <ChartContainer config={chartConfig} className="h-[350px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={data}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                outerRadius={100}
-                fill="#8884d8"
-                dataKey="value"
-              >
-                {data.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <ChartTooltip 
-                content={
-                  <ChartTooltipContent 
-                    formatter={(value) => `฿${Number(value).toLocaleString()}`}
-                  />
-                } 
-              />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
-    );
-  };
+  const chartConfig = chartData.reduce((acc, item, index) => {
+    acc[item.name] = { label: item.name, color: getColor(item.name, index) };
+    return acc;
+  }, {} as Record<string, { label: string; color: string }>);
 
   return (
     <Card className={`p-6 bg-gradient-card shadow-card transition-all duration-300 ${isExpanded ? 'fixed inset-4 z-50 overflow-auto' : ''}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <PieChartIcon className="h-5 w-5 text-primary" />
-          <h2 className="text-xl font-bold text-foreground">การกระจายค่าใช้จ่ายตามหมวดหมู่</h2>
+          <h2 className="text-xl font-bold text-foreground">การกระจายค่าใช้จ่าย (ไม่รวม TRANSFER)</h2>
         </div>
         <div className="flex items-center gap-2">
-          <Select value={selectedYear} onValueChange={setSelectedYear}>
+          <Select value={viewMode} onValueChange={(v) => setViewMode(v as "type" | "group")}>
             <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="compare">เปรียบเทียบ 2 ปี</SelectItem>
-              {yearData.map(({ year }) => (
-                <SelectItem key={year} value={year.toString()}>
-                  ปี {year + 543}
-                </SelectItem>
-              ))}
+              <SelectItem value="type">ตามประเภทหลัก</SelectItem>
+              <SelectItem value="group">ตามกลุ่มธุรกิจ</SelectItem>
             </SelectContent>
           </Select>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="shrink-0"
-          >
+          <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
             {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
           </Button>
         </div>
       </div>
 
-      <div className={`transition-all duration-300 ${isExpanded ? 'h-[calc(100vh-200px)]' : ''}`}>
-        {selectedYear === "compare" ? (
-          <div className={`grid gap-6 ${isExpanded ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
-            {renderPieChart(currentYearData?.categories, `ปี ${currentYear + 543}`)}
-            {renderPieChart(lastYearData?.categories, `ปี ${currentYear - 1 + 543}`)}
-          </div>
-        ) : (
-          <div className="max-w-2xl mx-auto">
-            {renderPieChart(
-              yearData.find(y => y.year === parseInt(selectedYear))?.categories,
-              `ปี ${parseInt(selectedYear) + 543}`
-            )}
-          </div>
-        )}
-      </div>
+      {chartData.length === 0 ? (
+        <div className="text-center text-muted-foreground p-4">ไม่มีข้อมูล</div>
+      ) : (
+        <ChartContainer config={chartConfig} className="h-[350px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={chartData} cx="50%" cy="50%" labelLine={false}
+                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                outerRadius={100} dataKey="value">
+                {chartData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={getColor(entry.name, index)} />
+                ))}
+              </Pie>
+              <ChartTooltip content={<ChartTooltipContent formatter={(value) => `฿${Number(value).toLocaleString()}`} />} />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      )}
     </Card>
   );
 }

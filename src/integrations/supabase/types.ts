@@ -19,6 +19,8 @@ export type Database = {
           amount: number
           can_restore: boolean | null
           category: string
+          category_group: string | null
+          confidence_score: number | null
           deleted_at: string
           deleted_reason: string | null
           description: string | null
@@ -26,19 +28,24 @@ export type Database = {
           expense_time: string | null
           id: string
           merchant: string | null
+          needs_review: boolean | null
           original_expense_id: string
           project: string | null
+          project_tag: string | null
           receipt_url: string | null
           receiver: string | null
           sender: string | null
           subcategory: string | null
           transaction_id: string | null
+          transaction_type: string | null
           user_id: string | null
         }
         Insert: {
           amount: number
           can_restore?: boolean | null
           category: string
+          category_group?: string | null
+          confidence_score?: number | null
           deleted_at?: string
           deleted_reason?: string | null
           description?: string | null
@@ -46,19 +53,24 @@ export type Database = {
           expense_time?: string | null
           id?: string
           merchant?: string | null
+          needs_review?: boolean | null
           original_expense_id: string
           project?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
           transaction_id?: string | null
+          transaction_type?: string | null
           user_id?: string | null
         }
         Update: {
           amount?: number
           can_restore?: boolean | null
           category?: string
+          category_group?: string | null
+          confidence_score?: number | null
           deleted_at?: string
           deleted_reason?: string | null
           description?: string | null
@@ -66,13 +78,16 @@ export type Database = {
           expense_time?: string | null
           id?: string
           merchant?: string | null
+          needs_review?: boolean | null
           original_expense_id?: string
           project?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
           transaction_id?: string | null
+          transaction_type?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -81,57 +96,72 @@ export type Database = {
         Row: {
           amount: number
           category: string
+          category_group: string | null
+          confidence_score: number | null
           created_at: string
           description: string | null
           expense_date: string
           expense_time: string | null
           id: string
           merchant: string | null
+          needs_review: boolean | null
           non_duplicate_pairs: string[] | null
           project: string | null
+          project_tag: string | null
           receipt_url: string | null
           receiver: string | null
           sender: string | null
           subcategory: string | null
           transaction_id: string | null
+          transaction_type: string | null
           updated_at: string
           user_id: string | null
         }
         Insert: {
           amount: number
           category: string
+          category_group?: string | null
+          confidence_score?: number | null
           created_at?: string
           description?: string | null
           expense_date: string
           expense_time?: string | null
           id?: string
           merchant?: string | null
+          needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
           project?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
           transaction_id?: string | null
+          transaction_type?: string | null
           updated_at?: string
           user_id?: string | null
         }
         Update: {
           amount?: number
           category?: string
+          category_group?: string | null
+          confidence_score?: number | null
           created_at?: string
           description?: string | null
           expense_date?: string
           expense_time?: string | null
           id?: string
           merchant?: string | null
+          needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
           project?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
           subcategory?: string | null
           transaction_id?: string | null
+          transaction_type?: string | null
           updated_at?: string
           user_id?: string | null
         }
