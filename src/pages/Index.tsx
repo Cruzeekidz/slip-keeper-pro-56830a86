@@ -179,6 +179,16 @@ const Index = () => {
                     <BarChart3 className="h-4 w-4 mr-2" />
                     รายงานธุรกรรม
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={async () => {
+                    toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
+                    const { data, error } = await supabase.functions.invoke('migrate-categories');
+                    if (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); return; }
+                    toast({ title: "จัดหมวดหมู่สำเร็จ", description: `อัพเดท ${data?.migrated || 0} จาก ${data?.total || 0} รายการ` });
+                    window.location.reload();
+                  }}>
+                    <Database className="h-4 w-4 mr-2" />
+                    จัดหมวดหมู่ใหม่ (Migrate)
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button 
