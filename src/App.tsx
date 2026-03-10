@@ -14,6 +14,7 @@ import MasterData from "./pages/MasterData";
 import TransactionReport from "./pages/TransactionReport";
 import PayeeGroupManagement from "./pages/PayeeGroupManagement";
 import LineWebhookSettings from "./pages/LineWebhookSettings";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/bulk-upload" element={<BulkUpload />} />
             <Route path="/data-migration" element={<DataMigration />} />
             <Route path="/duplicate-checker" element={<DuplicateChecker />} />

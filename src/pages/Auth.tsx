@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,28 +22,17 @@ export default function Auth() {
 
     try {
       if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        toast({
-          title: "เข้าสู่ระบบสำเร็จ",
-          description: "ยินดีต้อนรับกลับ",
-        });
+        toast({ title: "เข้าสู่ระบบสำเร็จ", description: "ยินดีต้อนรับกลับ" });
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-          },
+          options: { emailRedirectTo: `${window.location.origin}/` },
         });
         if (error) throw error;
-        toast({
-          title: "สมัครสมาชิกสำเร็จ",
-          description: "ยินดีต้อนรับสู่ระบบ",
-        });
+        toast({ title: "สมัครสมาชิกสำเร็จ", description: "ยินดีต้อนรับสู่ระบบ" });
       }
       navigate("/");
     } catch (error: any) {
@@ -56,6 +46,68 @@ export default function Auth() {
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      toast({
+        title: "ส่งอีเมลสำเร็จ",
+        description: "กรุณาตรวจสอบอีเมลของคุณเพื่อรีเซ็ตรหัสผ่าน",
+      });
+      setIsForgotPassword(false);
+    } catch (error: any) {
+      toast({
+        title: "เกิดข้อผิดพลาด",
+        description: error.message || "ไม่สามารถส่งอีเมลได้",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (isForgotPassword) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-6 bg-gradient-card shadow-elevated">
+          <div className="text-center mb-6">
+            <h1 className="text-2xl font-bold text-foreground">ลืมรหัสผ่าน</h1>
+            <p className="text-muted-foreground mt-2">กรอกอีเมลเพื่อรับลิงก์รีเซ็ตรหัสผ่าน</p>
+          </div>
+
+          <form onSubmit={handleForgotPassword} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">อีเมล</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="example@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <Button type="submit" className="w-full bg-gradient-primary" disabled={loading}>
+              {loading ? "กำลังส่ง..." : "ส่งลิงก์รีเซ็ตรหัสผ่าน"}
+            </Button>
+          </form>
+
+          <div className="mt-4 text-center">
+            <Button variant="ghost" onClick={() => setIsForgotPassword(false)} className="text-sm text-muted-foreground">
+              กลับไปหน้าเข้าสู่ระบบ
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
       <Card className="w-full max-w-md p-6 bg-gradient-card shadow-elevated">
@@ -63,9 +115,7 @@ export default function Auth() {
           <h1 className="text-2xl font-bold text-foreground">
             {isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
           </h1>
-          <p className="text-muted-foreground mt-2">
-            ระบบจัดการค่าใช้จ่าย
-          </p>
+          <p className="text-muted-foreground mt-2">ระบบจัดการค่าใช้จ่าย</p>
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
@@ -93,21 +143,26 @@ export default function Auth() {
             />
           </div>
 
-          <Button
-            type="submit"
-            className="w-full bg-gradient-primary"
-            disabled={loading}
-          >
+          {isLogin && (
+            <div className="text-right">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => { setIsForgotPassword(true); }}
+                className="text-sm text-primary p-0 h-auto"
+              >
+                ลืมรหัสผ่าน?
+              </Button>
+            </div>
+          )}
+
+          <Button type="submit" className="w-full bg-gradient-primary" disabled={loading}>
             {loading ? "กำลังดำเนินการ..." : isLogin ? "เข้าสู่ระบบ" : "สมัครสมาชิก"}
           </Button>
         </form>
 
         <div className="mt-4 text-center">
-          <Button
-            variant="ghost"
-            onClick={() => setIsLogin(!isLogin)}
-            className="text-sm text-muted-foreground"
-          >
+          <Button variant="ghost" onClick={() => setIsLogin(!isLogin)} className="text-sm text-muted-foreground">
             {isLogin ? "ยังไม่มีบัญชี? สมัครสมาชิก" : "มีบัญชีแล้ว? เข้าสู่ระบบ"}
           </Button>
         </div>
