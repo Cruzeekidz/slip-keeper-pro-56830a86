@@ -12,24 +12,49 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [isRecovery, setIsRecovery] = useState(false);
+  const [checking, setChecking] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Listen for PASSWORD_RECOVERY event
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+    // Listen for auth state changes - PASSWORD_RECOVERY event fires when user clicks reset link
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsRecovery(true);
+        setChecking(false);
+      } else if (event === "SIGNED_IN" && session) {
+        // When redirected from reset link, sometimes it fires SIGNED_IN instead
+        // Check if the URL has recovery-related params
+        const hash = window.location.hash;
+        const search = window.location.search;
+        if (hash.includes("type=recovery") || search.includes("type=recovery")) {
+          setIsRecovery(true);
+          setChecking(false);
+        } else {
+          // User is already signed in via recovery link - show the form
+          setIsRecovery(true);
+          setChecking(false);
+        }
       }
     });
 
-    // Check if we have a recovery token in the URL hash
-    const hash = window.location.hash;
-    if (hash && hash.includes("type=recovery")) {
-      setIsRecovery(true);
-    }
+    // Also check current session - if user landed here via recovery redirect, they'll have a session
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        // User has a valid session (from clicking the recovery link)
+        setIsRecovery(true);
+      }
+      setChecking(false);
+    };
 
-    return () => subscription.unsubscribe();
+    // Give a moment for the auth state change to fire, then check session
+    const timer = setTimeout(checkSession, 1500);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -74,12 +99,23 @@ export default function ResetPassword() {
     }
   };
 
-  if (!isRecovery) {
+  if (checking) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
         <Card className="w-full max-w-md p-6 bg-gradient-card shadow-elevated text-center">
           <h1 className="text-xl font-bold text-foreground mb-4">กำลังตรวจสอบลิงก์...</h1>
-          <p className="text-muted-foreground mb-4">หากไม่มีอะไรเกิดขึ้น ลิงก์อาจหมดอายุ</p>
+          <p className="text-muted-foreground">กรุณารอสักครู่</p>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isRecovery) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted flex items-center justify-center p-4">
+        <Card className="w-full max-w-md p-6 bg-gradient-card shadow-elevated text-center">
+          <h1 className="text-xl font-bold text-foreground mb-4">ลิงก์หมดอายุหรือไม่ถูกต้อง</h1>
+          <p className="text-muted-foreground mb-4">กรุณาขอลิงก์รีเซ็ตรหัสผ่านใหม่อีกครั้ง</p>
           <Button variant="outline" onClick={() => navigate("/auth")}>
             กลับไปหน้าเข้าสู่ระบบ
           </Button>
