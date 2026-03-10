@@ -118,7 +118,12 @@ export function ExpenseListReal() {
     } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
   };
 
-  const viewReceipt = (i: number) => { setViewingReceipt(i); setGalleryOpen(true); };
+  const viewReceipt = (expenseId: string) => {
+    const receiptsOnly = filteredExpenses.filter(e => e.receipt_url);
+    const idx = receiptsOnly.findIndex(e => e.id === expenseId);
+    setViewingReceipt(idx >= 0 ? idx : 0);
+    setGalleryOpen(true);
+  };
 
   const downloadReceipt = async (receiptUrl: string) => {
     try {
@@ -322,7 +327,7 @@ export function ExpenseListReal() {
                 <div className="flex items-center gap-1 shrink-0">
                   {expense.receipt_url && (
                     <>
-                      <Button variant="ghost" size="sm" onClick={() => viewReceipt(index)} className="h-8 w-8 p-0" title="ดูสลิป"><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => viewReceipt(expense.id)} className="h-8 w-8 p-0" title="ดูสลิป"><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => downloadReceipt(expense.receipt_url!)} className="h-8 w-8 p-0" title="ดาวน์โหลด"><Download className="h-4 w-4" /></Button>
                     </>
                   )}
