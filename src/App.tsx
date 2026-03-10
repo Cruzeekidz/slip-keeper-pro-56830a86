@@ -13,6 +13,7 @@ import DeletedHistory from "./pages/DeletedHistory";
 import MasterData from "./pages/MasterData";
 import TransactionReport from "./pages/TransactionReport";
 import PayeeGroupManagement from "./pages/PayeeGroupManagement";
+import LineWebhookSettings from "./pages/LineWebhookSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
             <Route path="/master-data" element={<MasterData />} />
             <Route path="/transaction-report" element={<TransactionReport />} />
             <Route path="/payee-groups" element={<PayeeGroupManagement />} />
+            <Route path="/line-webhook" element={<LineWebhookSettings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

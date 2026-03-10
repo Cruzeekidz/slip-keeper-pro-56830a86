@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3 } from "lucide-react";
+import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { StatsReal } from "@/components/stats-real";
@@ -182,6 +182,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/payee-groups')}>
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการกลุ่มผู้รับเงิน
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
+                    <MessageSquare className="h-4 w-4 mr-2" />
+                    LINE Webhook
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={async () => {
                     toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
