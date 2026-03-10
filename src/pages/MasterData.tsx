@@ -63,7 +63,7 @@ const MasterData = () => {
     try {
       const { data: expenses, error } = await supabase
         .from('expenses')
-        .select('category, subcategory, project, receiver, merchant, sender')
+        .select('category, subcategory, project, event_name, receiver, merchant, sender')
         .eq('user_id', user.id);
 
       if (error) throw error;
