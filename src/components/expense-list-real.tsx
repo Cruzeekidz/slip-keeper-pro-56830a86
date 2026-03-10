@@ -327,7 +327,7 @@ export function ExpenseListReal() {
                 <div className="flex items-center gap-1 shrink-0">
                   {expense.receipt_url && (
                     <>
-                      <Button variant="ghost" size="sm" onClick={() => viewReceipt(index)} className="h-8 w-8 p-0" title="ดูสลิป"><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => viewReceipt(expense.id)} className="h-8 w-8 p-0" title="ดูสลิป"><Eye className="h-4 w-4" /></Button>
                       <Button variant="ghost" size="sm" onClick={() => downloadReceipt(expense.receipt_url!)} className="h-8 w-8 p-0" title="ดาวน์โหลด"><Download className="h-4 w-4" /></Button>
                     </>
                   )}
