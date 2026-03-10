@@ -376,7 +376,7 @@ export function ExpenseListReal() {
 
       {galleryOpen && (
         <ReceiptGallery
-          expenses={filteredExpenses.filter(e => e.receipt_url).map(e => ({ id: e.id, receipt_url: e.receipt_url!, description: e.description, expense_date: e.expense_date, amount: e.amount }))}
+          receipts={filteredExpenses.filter(e => e.receipt_url).map(e => ({ id: e.id, receipt_url: e.receipt_url!, description: e.description, expense_date: e.expense_date, amount: e.amount }))}
           initialIndex={viewingReceipt}
           open={galleryOpen}
           onOpenChange={setGalleryOpen}
