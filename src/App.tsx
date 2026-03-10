@@ -13,6 +13,7 @@ import DeletedHistory from "./pages/DeletedHistory";
 import MasterData from "./pages/MasterData";
 import TransactionReport from "./pages/TransactionReport";
 import PayeeGroupManagement from "./pages/PayeeGroupManagement";
+import LineWebhookSettings from "./pages/LineWebhookSettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
