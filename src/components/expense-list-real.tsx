@@ -4,10 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X, Send, UserCheck, Store } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, ArrowUp, ArrowDown, X, Send, UserCheck, Store, AlertTriangle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-
+import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -15,6 +15,11 @@ import { th } from "date-fns/locale";
 import { ExpenseEditDialog } from "./expense-edit-dialog";
 import { ReceiptGallery } from "./receipt-gallery";
 import { cn } from "@/lib/utils";
+import {
+  TransactionType, CategoryGroup,
+  TRANSACTION_TYPES, CATEGORY_GROUPS,
+  getTypeBadgeClass, formatTypeLabel,
+} from "@/lib/category-constants";
 
 interface Expense {
   id: string;
@@ -29,17 +34,22 @@ interface Expense {
   sender: string | null;
   receiver: string | null;
   created_at: string;
+  transaction_type: string | null;
+  category_group: string | null;
+  project_tag: string | null;
+  confidence_score: number | null;
+  needs_review: boolean | null;
 }
 
 export function ExpenseListReal() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterProject, setFilterProject] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+  const [filterGroup, setFilterGroup] = useState("all");
+  const [filterReview, setFilterReview] = useState("all");
   const [filterSender, setFilterSender] = useState("all");
   const [filterReceiver, setFilterReceiver] = useState("all");
-  const [filterMerchant, setFilterMerchant] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "name-asc" | "name-desc">("date-desc");
@@ -51,372 +61,94 @@ export function ExpenseListReal() {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const { toast } = useToast();
 
-  useEffect(() => {
-    fetchExpenses();
-  }, []);
-
-  useEffect(() => {
-    filterExpenses();
-  }, [expenses, searchTerm, filterCategory, filterProject, filterSender, filterReceiver, filterMerchant, dateFrom, dateTo, sortBy]);
+  useEffect(() => { fetchExpenses(); }, []);
+  useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
   const fetchExpenses = async () => {
     try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*');
-
+      const { data, error } = await supabase.from('expenses').select('*');
       if (error) throw error;
       setExpenses(data || []);
     } catch (error) {
       console.error('Error fetching expenses:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถโหลดข้อมูลได้",
-        variant: "destructive",
-      });
+      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถโหลดข้อมูลได้", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  // Get unique categories and projects from expenses
-  const uniqueCategories = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.category).filter(c => c && c.trim() !== ''))).sort();
-  }, [expenses]);
-
-  const uniqueProjects = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.project).filter(p => p && p.trim() !== ''))).sort();
-  }, [expenses]);
-
-  const uniqueSubcategories = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.subcategory).filter(s => s && s.trim() !== ''))).sort();
-  }, [expenses]);
-
-  const uniqueSenders = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.sender).filter(s => s && s.trim() !== ''))).sort();
-  }, [expenses]);
-
-  const uniqueReceivers = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.receiver).filter(r => r && r.trim() !== ''))).sort();
-  }, [expenses]);
-
-  const uniqueMerchants = useMemo(() => {
-    return Array.from(new Set(expenses.map(e => e.merchant).filter(m => m && m.trim() !== ''))).sort();
-  }, [expenses]);
+  const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
+  const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
 
   const filterExpenses = () => {
     let filtered = expenses;
 
     if (searchTerm) {
-      filtered = filtered.filter(expense =>
-        expense.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        expense.project?.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter(e =>
+        e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.project_tag?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.merchant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        e.receiver?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
+    if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
+    if (filterGroup !== "all") filtered = filtered.filter(e => e.category_group === filterGroup);
+    if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
+    if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
+    if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+    if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
+    if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
 
-    if (filterCategory !== "all") {
-      filtered = filtered.filter(expense => expense.category === filterCategory);
-    }
-
-    if (filterProject !== "all") {
-      filtered = filtered.filter(expense => expense.project === filterProject);
-    }
-
-    if (filterSender !== "all") {
-      filtered = filtered.filter(expense => expense.sender === filterSender);
-    }
-
-    if (filterReceiver !== "all") {
-      filtered = filtered.filter(expense => expense.receiver === filterReceiver);
-    }
-
-    if (filterMerchant !== "all") {
-      filtered = filtered.filter(expense => expense.merchant === filterMerchant);
-    }
-
-    // Filter by date range
-    if (dateFrom) {
-      filtered = filtered.filter(expense => 
-        new Date(expense.expense_date) >= dateFrom
-      );
-    }
-
-    if (dateTo) {
-      filtered = filtered.filter(expense => 
-        new Date(expense.expense_date) <= dateTo
-      );
-    }
-
-    // Sort expenses
     const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === "date-desc") {
-        return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
-      } else if (sortBy === "date-asc") {
-        return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
-      } else if (sortBy === "name-asc") {
-        const nameA = (a.description || a.merchant || "").toLowerCase();
-        const nameB = (b.description || b.merchant || "").toLowerCase();
-        return nameA.localeCompare(nameB, 'th');
-      } else if (sortBy === "name-desc") {
-        const nameA = (a.description || a.merchant || "").toLowerCase();
-        const nameB = (b.description || b.merchant || "").toLowerCase();
-        return nameB.localeCompare(nameA, 'th');
-      } else { // upload-desc
-        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      }
+      if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
+      if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      if (sortBy === "name-asc") return (a.description || "").localeCompare(b.description || "", 'th');
+      if (sortBy === "name-desc") return (b.description || "").localeCompare(a.description || "", 'th');
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
     setFilteredExpenses(sorted);
   };
 
-  const updateExpense = async (id: string, field: 'category' | 'project' | 'subcategory', value: string) => {
-    try {
-      const updateValue = value === 'none' ? null : value;
-      
-      // Optimistically update local state
-      setExpenses(prev => prev.map(exp => 
-        exp.id === id ? { ...exp, [field]: updateValue } : exp
-      ));
-
-      const { error } = await supabase
-        .from('expenses')
-        .update({ [field]: updateValue })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "อัพเดทสำเร็จ",
-        description: "แก้ไขรายการเรียบร้อยแล้ว",
-      });
-    } catch (error) {
-      console.error('Error updating expense:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถอัพเดทรายการได้",
-        variant: "destructive",
-      });
-      // Revert on error
-      fetchExpenses();
-    }
-  };
-
   const deleteExpense = async (id: string, receiptUrl?: string | null) => {
     if (!confirm("คุณต้องการลบรายการนี้ใช่หรือไม่?")) return;
-
     try {
-      // Delete receipt from storage if exists
-      if (receiptUrl) {
-        const { error: storageError } = await supabase.storage
-          .from('receipts')
-          .remove([receiptUrl]);
-        
-        if (storageError) console.error('Error deleting receipt:', storageError);
-      }
-
-      // Delete expense record
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', id);
-
+      if (receiptUrl) await supabase.storage.from('receipts').remove([receiptUrl]);
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
       if (error) throw error;
-
-      toast({
-        title: "ลบสำเร็จ",
-        description: "ลบรายการและสลิปเรียบร้อยแล้ว",
-      });
-
+      toast({ title: "ลบสำเร็จ" });
       fetchExpenses();
     } catch (error) {
-      console.error('Error deleting expense:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถลบรายการได้",
-        variant: "destructive",
-      });
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
     }
   };
 
-  const deleteReceipt = async (id: string, receiptUrl: string) => {
-    if (!confirm("คุณต้องการลบสลิปนี้ใช่หรือไม่? (รายการข้อมูลจะยังคงอยู่)")) return;
-
-    try {
-      // Delete receipt from storage
-      const { error: storageError } = await supabase.storage
-        .from('receipts')
-        .remove([receiptUrl]);
-      
-      if (storageError) throw storageError;
-
-      // Update expense to remove receipt_url
-      const { error } = await supabase
-        .from('expenses')
-        .update({ receipt_url: null })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "ลบสลิปสำเร็จ",
-        description: "ลบสลิปเรียบร้อยแล้ว",
-      });
-
-      fetchExpenses();
-    } catch (error) {
-      console.error('Error deleting receipt:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถลบสลิปได้",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const deleteAllReceipts = async () => {
-    if (!confirm("คุณต้องการลบสลิปทั้งหมดใช่หรือไม่? (รายการข้อมูลจะยังคงอยู่)")) return;
-
-    try {
-      const receiptsToDelete = expenses
-        .filter(e => e.receipt_url)
-        .map(e => e.receipt_url!);
-
-      if (receiptsToDelete.length === 0) {
-        toast({
-          title: "ไม่มีสลิป",
-          description: "ไม่พบสลิปที่ต้องลบ",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Delete all receipts from storage
-      const { error: storageError } = await supabase.storage
-        .from('receipts')
-        .remove(receiptsToDelete);
-      
-      if (storageError) throw storageError;
-
-      // Update all expenses to remove receipt_url
-      const { error } = await supabase
-        .from('expenses')
-        .update({ receipt_url: null })
-        .in('receipt_url', receiptsToDelete);
-
-      if (error) throw error;
-
-      toast({
-        title: "ลบสลิปสำเร็จ",
-        description: `ลบสลิป ${receiptsToDelete.length} ไฟล์เรียบร้อยแล้ว`,
-      });
-
-      fetchExpenses();
-    } catch (error) {
-      console.error('Error deleting all receipts:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถลบสลิปได้",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const downloadAllReceipts = async () => {
-    try {
-      const receiptsToDownload = expenses.filter(e => e.receipt_url);
-
-      if (receiptsToDownload.length === 0) {
-        toast({
-          title: "ไม่มีสลิป",
-          description: "ไม่พบสลิปที่ต้องดาวน์โหลด",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "กำลังดาวน์โหลด",
-        description: `กำลังดาวน์โหลดสลิป ${receiptsToDownload.length} ไฟล์...`,
-      });
-
-      // Download each receipt
-      for (const expense of receiptsToDownload) {
-        const { data, error } = await supabase.storage
-          .from('receipts')
-          .download(expense.receipt_url!);
-
-        if (error) {
-          console.error('Error downloading receipt:', error);
-          continue;
-        }
-
-        const url = URL.createObjectURL(data);
-        const a = document.createElement('a');
-        a.href = url;
-        const fileName = expense.receipt_url!.split('/').pop() || `receipt-${expense.id}`;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-
-        // Add delay to avoid overwhelming the browser
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-
-      toast({
-        title: "ดาวน์โหลดสำเร็จ",
-        description: `ดาวน์โหลดสลิป ${receiptsToDownload.length} ไฟล์เรียบร้อยแล้ว`,
-      });
-    } catch (error) {
-      console.error('Error downloading all receipts:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถดาวน์โหลดสลิปได้",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const viewReceipt = (expenseIndex: number) => {
-    setViewingReceipt(expenseIndex);
-    setGalleryOpen(true);
-  };
+  const viewReceipt = (i: number) => { setViewingReceipt(i); setGalleryOpen(true); };
 
   const downloadReceipt = async (receiptUrl: string) => {
     try {
-      const { data, error } = await supabase.storage
-        .from('receipts')
-        .download(receiptUrl);
-
+      const { data, error } = await supabase.storage.from('receipts').download(receiptUrl);
       if (error) throw error;
-
       const url = URL.createObjectURL(data);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = `receipt-${Date.now()}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      a.href = url; a.download = `receipt-${Date.now()}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Error downloading receipt:', error);
-      toast({
-        title: "เกิดข้อผิดพลาด",
-        description: "ไม่สามารถดาวน์โหลดใบเสร็จได้",
-        variant: "destructive",
-      });
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
     }
   };
 
+  const needsReviewCount = useMemo(() => expenses.filter(e => e.needs_review).length, [expenses]);
+
+  // Summary stats
+  const summaryStats = useMemo(() => {
+    const nonTransfer = filteredExpenses.filter(e => e.transaction_type !== 'TRANSFER');
+    const total = nonTransfer.reduce((sum, e) => sum + e.amount, 0);
+    const transferTotal = filteredExpenses.filter(e => e.transaction_type === 'TRANSFER').reduce((sum, e) => sum + e.amount, 0);
+    return { total, transferTotal, count: filteredExpenses.length };
+  }, [filteredExpenses]);
+
   if (loading) {
-    return (
-      <Card className="p-6 bg-gradient-card shadow-elevated">
-        <div className="text-center">
-          <p className="text-muted-foreground">กำลังโหลดข้อมูล...</p>
-        </div>
-      </Card>
-    );
+    return <Card className="p-6 bg-gradient-card shadow-elevated"><div className="text-center"><p className="text-muted-foreground">กำลังโหลดข้อมูล...</p></div></Card>;
   }
 
   return (
@@ -424,750 +156,213 @@ export function ExpenseListReal() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-semibold text-foreground">รายการเคลื่อนไหว</h2>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={downloadAllReceipts}
-            title="ดาวน์โหลดสลิปทั้งหมด"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            ดาวน์โหลดสลิป
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={deleteAllReceipts}
-            title="ลบสลิปทั้งหมด"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            ลบสลิปทั้งหมด
-          </Button>
           <div className="flex border rounded-lg overflow-hidden">
-            <Button
-              variant={viewMode === "card" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("card")}
-              className="rounded-none"
-            >
-              <LayoutGrid className="h-4 w-4 mr-2" />
-              การ์ด
+            <Button variant={viewMode === "card" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("card")} className="rounded-none">
+              <LayoutGrid className="h-4 w-4 mr-2" />การ์ด
             </Button>
-            <Button
-              variant={viewMode === "table" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-              className="rounded-none"
-            >
-              <Table2 className="h-4 w-4 mr-2" />
-              ตาราง
+            <Button variant={viewMode === "table" ? "default" : "ghost"} size="sm" onClick={() => setViewMode("table")} className="rounded-none">
+              <Table2 className="h-4 w-4 mr-2" />ตาราง
             </Button>
           </div>
         </div>
       </div>
 
-      {/* Search and Filter Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      {/* Summary */}
+      <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+        <div className="text-center">
+          <div className="text-sm text-muted-foreground">ค่าใช้จ่ายจริง</div>
+          <div className="font-bold text-expense">฿{summaryStats.total.toLocaleString()}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-muted-foreground">โอนเงิน</div>
+          <div className="font-bold text-type-transfer">฿{summaryStats.transferTotal.toLocaleString()}</div>
+        </div>
+        <div className="text-center">
+          <div className="text-sm text-muted-foreground">จำนวน</div>
+          <div className="font-bold">{summaryStats.count} รายการ</div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="ค้นหารายการ..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
+          <Input placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
         </div>
-        
-        <Select value={filterCategory} onValueChange={setFilterCategory}>
-          <SelectTrigger>
-            <SelectValue placeholder="ประเภท" />
-          </SelectTrigger>
+
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger><SelectValue placeholder="ประเภท" /></SelectTrigger>
           <SelectContent className="bg-background">
             <SelectItem value="all">ทุกประเภท</SelectItem>
-            {uniqueCategories.map((category) => (
-              <SelectItem key={category} value={category}>
-                {category}
-              </SelectItem>
-            ))}
+            {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
           </SelectContent>
         </Select>
 
-        <Select value={filterProject} onValueChange={setFilterProject}>
-          <SelectTrigger>
-            <SelectValue placeholder="โปรเจ็ค" />
-          </SelectTrigger>
-          <SelectContent className="bg-background">
-            <SelectItem value="all">ทุกโปรเจ็ค</SelectItem>
-            {uniqueProjects.map((project) => (
-              <SelectItem key={project} value={project!}>
-                {project}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {filterType === 'BUSINESS' && (
+          <Select value={filterGroup} onValueChange={setFilterGroup}>
+            <SelectTrigger><SelectValue placeholder="กลุ่ม" /></SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="all">ทุกกลุ่ม</SelectItem>
+              {CATEGORY_GROUPS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        )}
 
-        <Select value={filterSender} onValueChange={setFilterSender}>
-          <SelectTrigger>
-            <SelectValue placeholder="ผู้โอน" />
-          </SelectTrigger>
+        <Select value={filterReview} onValueChange={setFilterReview}>
+          <SelectTrigger><SelectValue placeholder="สถานะ" /></SelectTrigger>
           <SelectContent className="bg-background">
-            <SelectItem value="all">ทุกผู้โอน</SelectItem>
-            {uniqueSenders.map((sender) => (
-              <SelectItem key={sender} value={sender!}>
-                <div className="flex items-center gap-2">
-                  <Send className="h-3 w-3" />
-                  <span>{sender}</span>
-                </div>
-              </SelectItem>
-            ))}
+            <SelectItem value="all">ทั้งหมด</SelectItem>
+            <SelectItem value="review">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-3 w-3 text-warning" />
+                ต้องตรวจสอบ ({needsReviewCount})
+              </div>
+            </SelectItem>
           </SelectContent>
         </Select>
 
         <Select value={filterReceiver} onValueChange={setFilterReceiver}>
-          <SelectTrigger>
-            <SelectValue placeholder="ผู้รับ" />
-          </SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="ผู้รับ" /></SelectTrigger>
           <SelectContent className="bg-background">
             <SelectItem value="all">ทุกผู้รับ</SelectItem>
-            {uniqueReceivers.map((receiver) => (
-              <SelectItem key={receiver} value={receiver!}>
-                <div className="flex items-center gap-2">
-                  <UserCheck className="h-3 w-3" />
-                  <span>{receiver}</span>
-                </div>
-              </SelectItem>
-            ))}
+            {uniqueReceivers.map(r => <SelectItem key={r!} value={r!}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
-
-        <Select value={filterMerchant} onValueChange={setFilterMerchant}>
-          <SelectTrigger>
-            <SelectValue placeholder="ร้านค้า" />
-          </SelectTrigger>
-          <SelectContent className="bg-background">
-            <SelectItem value="all">ทุกร้านค้า</SelectItem>
-            {uniqueMerchants.map((merchant) => (
-              <SelectItem key={merchant} value={merchant!}>
-                <div className="flex items-center gap-2">
-                  <Store className="h-3 w-3" />
-                  <span>{merchant}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Clear Filters Button */}
-        {(filterCategory !== "all" || filterProject !== "all" || filterSender !== "all" || 
-          filterReceiver !== "all" || filterMerchant !== "all" || dateFrom || dateTo || searchTerm) && (
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearchTerm("");
-              setFilterCategory("all");
-              setFilterProject("all");
-              setFilterSender("all");
-              setFilterReceiver("all");
-              setFilterMerchant("all");
-              setDateFrom(undefined);
-              setDateTo(undefined);
-            }}
-            className="col-span-full"
-          >
-            <X className="h-4 w-4 mr-2" />
-            ล้างฟิลเตอร์ทั้งหมด
-          </Button>
-        )}
       </div>
 
-      {/* Sort and Date Controls */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-        <Select value={sortBy} onValueChange={(value: any) => setSortBy(value)}>
-          <SelectTrigger>
-            <SelectValue placeholder="เรียงลำดับ" />
-          </SelectTrigger>
+      {/* Clear Filters & Sort */}
+      <div className="flex flex-wrap gap-4 mb-6">
+        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
           <SelectContent className="bg-background">
-            <SelectItem value="date-desc">
-              <div className="flex items-center gap-2">
-                <ArrowDown className="h-3 w-3" />
-                <span>วันที่ (ใหม่-เก่า)</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="date-asc">
-              <div className="flex items-center gap-2">
-                <ArrowUp className="h-3 w-3" />
-                <span>วันที่ (เก่า-ใหม่)</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="upload-desc">
-              <div className="flex items-center gap-2">
-                <ArrowDown className="h-3 w-3" />
-                <span>อัพโหลดล่าสุด</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="name-asc">
-              <div className="flex items-center gap-2">
-                <ArrowUp className="h-3 w-3" />
-                <span>ชื่อรายการ (ก-ฮ)</span>
-              </div>
-            </SelectItem>
-            <SelectItem value="name-desc">
-              <div className="flex items-center gap-2">
-                <ArrowDown className="h-3 w-3" />
-                <span>ชื่อรายการ (ฮ-ก)</span>
-              </div>
-            </SelectItem>
+            <SelectItem value="date-desc">วันที่ (ใหม่-เก่า)</SelectItem>
+            <SelectItem value="date-asc">วันที่ (เก่า-ใหม่)</SelectItem>
+            <SelectItem value="upload-desc">อัพโหลดล่าสุด</SelectItem>
           </SelectContent>
         </Select>
 
-        {/* Date Range Filter */}
         <Popover>
           <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              className={cn(
-                "justify-start text-left font-normal",
-                !dateFrom && !dateTo && "text-muted-foreground"
-              )}
-            >
+            <Button variant="outline" className={cn("justify-start text-left font-normal", !dateFrom && !dateTo && "text-muted-foreground")}>
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateFrom || dateTo ? (
-                <span className="truncate">
-                  {dateFrom ? format(dateFrom, "d MMM", { locale: th }) : "..."} - {dateTo ? format(dateTo, "d MMM", { locale: th }) : "..."}
-                </span>
-              ) : (
-                <span>ช่วงวันที่</span>
-              )}
+              {dateFrom || dateTo ? `${dateFrom ? format(dateFrom, "d MMM", { locale: th }) : "..."} - ${dateTo ? format(dateTo, "d MMM", { locale: th }) : "..."}` : "ช่วงวันที่"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[320px] p-3 bg-background" align="start">
             <div className="space-y-3">
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">จาก</div>
-                <Input
-                  type="date"
-                  value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""}
-                  onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value) : undefined)}
-                />
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground mb-1">ถึง</div>
-                <Input
-                  type="date"
-                  value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""}
-                  onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value) : undefined)}
-                />
-              </div>
-              {(dateFrom || dateTo) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    setDateFrom(undefined);
-                    setDateTo(undefined);
-                  }}
-                  className="w-full"
-                >
-                  <X className="h-4 w-4 mr-2" />
-                  ล้างวันที่
-                </Button>
-              )}
+              <div><div className="text-xs text-muted-foreground mb-1">จาก</div>
+                <Input type="date" value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""} onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value) : undefined)} /></div>
+              <div><div className="text-xs text-muted-foreground mb-1">ถึง</div>
+                <Input type="date" value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""} onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value) : undefined)} /></div>
             </div>
           </PopoverContent>
         </Popover>
+
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || dateFrom || dateTo || searchTerm) && (
+          <Button variant="outline" onClick={() => {
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setDateFrom(undefined); setDateTo(undefined);
+          }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
+        )}
       </div>
 
       {/* Expense List */}
       {filteredExpenses.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">ไม่พบรายการ</p>
-        </div>
+        <div className="text-center py-8"><p className="text-muted-foreground">ไม่พบรายการ</p></div>
       ) : viewMode === "card" ? (
         <div className="space-y-3">
           {filteredExpenses.map((expense, index) => (
-            <Card key={expense.id} className="hover:shadow-md transition-shadow">
-              {/* บรรทัดแรก: วันที่ + ยอดเงิน + รายการและรายละเอียด */}
+            <Card key={expense.id} className={cn("hover:shadow-md transition-shadow", expense.needs_review && "ring-1 ring-warning/50")}>
               <div className="p-3 md:p-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-4 border-b">
-                {/* Mobile: วันที่และยอดเงินในบรรทัดเดียวกัน, Desktop: แยกกัน */}
                 <div className="flex items-center justify-between md:contents">
-                  {/* วันที่ */}
-                  <div className="shrink-0 flex items-center gap-1.5 md:gap-2 md:w-24">
-                    <CalendarIcon className="h-3.5 w-3.5 md:h-4 md:w-4 text-muted-foreground" />
-                    <span className="text-xs md:text-sm">
-                      {format(new Date(expense.expense_date), "d MMM yy", { locale: th })}
-                    </span>
+                  <div className="shrink-0 flex items-center gap-1.5 md:w-24">
+                    <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
                   </div>
-
-                  {/* ยอดเงิน */}
                   <div className="shrink-0 md:w-32">
-                    <span className="font-bold text-base md:text-lg text-red-600">
-                      -฿{expense.amount.toLocaleString()}
+                    <span className={cn("font-bold text-base md:text-lg", expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' : 'text-expense')}>
+                      {expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
                     </span>
                   </div>
                 </div>
 
-                {/* รายการและรายละเอียด */}
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-foreground text-sm md:text-base mb-1">
-                    {expense.description || "ค่าใช้จ่าย"}
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="font-medium text-foreground text-sm md:text-base">{expense.description || "ค่าใช้จ่าย"}</span>
+                    <Badge variant="outline" className={cn("text-xs", getTypeBadgeClass(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup))}>
+                      {formatTypeLabel(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup, expense.project_tag)}
+                    </Badge>
+                    {expense.subcategory && (
+                      <Badge variant="secondary" className="text-xs">{expense.subcategory}</Badge>
+                    )}
+                    {expense.needs_review && (
+                      <Badge variant="outline" className="text-xs bg-warning/10 text-warning border-warning/30">
+                        <AlertTriangle className="h-3 w-3 mr-1" />ตรวจสอบ
+                      </Badge>
+                    )}
                   </div>
                   {(expense.sender || expense.receiver || expense.merchant) && (
-                    <div className="flex flex-wrap gap-x-3 md:gap-x-4 gap-y-1 text-xs md:text-sm text-muted-foreground">
-                      {expense.sender && (
-                        <div className="flex items-center gap-1">
-                          <Send className="h-3 w-3" />
-                          <span>จาก: {expense.sender}</span>
-                        </div>
-                      )}
-                      {expense.receiver && (
-                        <div className="flex items-center gap-1">
-                          <UserCheck className="h-3 w-3" />
-                          <span>ถึง: {expense.receiver}</span>
-                        </div>
-                      )}
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      {expense.sender && <div className="flex items-center gap-1"><Send className="h-3 w-3" />จาก: {expense.sender}</div>}
+                      {expense.receiver && <div className="flex items-center gap-1"><UserCheck className="h-3 w-3" />ถึง: {expense.receiver}</div>}
                       {!expense.sender && !expense.receiver && expense.merchant && (
-                        <div className="flex items-center gap-1">
-                          <Store className="h-3 w-3" />
-                          <span>ผู้รับเงิน: {expense.merchant}</span>
-                        </div>
+                        <div className="flex items-center gap-1"><Store className="h-3 w-3" />ผู้รับเงิน: {expense.merchant}</div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* ปุ่มจัดการ - ซ่อนบน mobile ใน row แรก */}
-                <div className="hidden md:flex items-center gap-1 shrink-0">
+                <div className="flex items-center gap-1 shrink-0">
                   {expense.receipt_url && (
                     <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => viewReceipt(index)}
-                        className="h-8 w-8 p-0"
-                        title="ดูใบเสร็จ"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => downloadReceipt(expense.receipt_url!)}
-                        className="h-8 w-8 p-0"
-                        title="ดาวน์โหลดใบเสร็จ"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => viewReceipt(index)} className="h-8 w-8 p-0" title="ดูสลิป"><Eye className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => downloadReceipt(expense.receipt_url!)} className="h-8 w-8 p-0" title="ดาวน์โหลด"><Download className="h-4 w-4" /></Button>
                     </>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setEditingExpense(expense);
-                      setEditDialogOpen(true);
-                    }}
-                    className="h-8 w-8 p-0"
-                    title="แก้ไข"
-                  >
-                    <Edit3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => deleteExpense(expense.id, expense.receipt_url)}
-                    className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                    title="ลบรายการและสลิป"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* บรรทัดที่สอง: ช่องใส่ประเภทต่างๆ */}
-              <div className="p-3 md:p-4">
-                {/* Desktop: แสดงเป็น row */}
-                <div className="hidden md:flex items-center gap-3">
-                  {/* ประเภท */}
-                  <div className="w-40 shrink-0">
-                    <Input
-                      defaultValue={expense.category || ""}
-                      list={`categories-list-${expense.id}`}
-                      placeholder="ประเภท"
-                      className="h-9 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'category', value);
-                      }}
-                    />
-                    <datalist id={`categories-list-${expense.id}`}>
-                      <option value="personal" />
-                      <option value="company" />
-                      {uniqueCategories
-                        .filter(cat => cat !== 'personal' && cat !== 'company')
-                        .map((category) => (
-                          <option key={category} value={category} />
-                        ))}
-                    </datalist>
-                  </div>
-
-                  {/* ประเภทย่อย */}
-                  <div className="w-40 shrink-0">
-                    <Input
-                      defaultValue={expense.subcategory || ""}
-                      list={`subcategories-list-${expense.id}`}
-                      placeholder="ประเภทย่อย"
-                      className="h-9 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
-                      }}
-                    />
-                    <datalist id={`subcategories-list-${expense.id}`}>
-                      {uniqueSubcategories.map((subcategory) => (
-                        <option key={subcategory} value={subcategory as string} />
-                      ))}
-                    </datalist>
-                  </div>
-
-                  {/* โปรเจค */}
-                  <div className="w-40 shrink-0">
-                    <Input
-                      defaultValue={expense.project || ""}
-                      list={`projects-list-${expense.id}`}
-                      placeholder="โปรเจค"
-                      className="h-9 text-sm"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'project', value === '' ? 'none' : value);
-                      }}
-                    />
-                    <datalist id={`projects-list-${expense.id}`}>
-                      <option value="booth" />
-                      <option value="online" />
-                      <option value="event" />
-                      {uniqueProjects
-                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                        .map((project) => (
-                          <option key={project} value={project as string} />
-                        ))}
-                    </datalist>
-                  </div>
-                </div>
-
-                {/* Mobile: แสดงเป็น grid 2 columns + ปุ่มจัดการ */}
-                <div className="md:hidden space-y-2">
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* ประเภท */}
-                    <div>
-                      <Input
-                        defaultValue={expense.category || ""}
-                        list={`categories-list-mobile-${expense.id}`}
-                        placeholder="ประเภท"
-                        className="h-9 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.currentTarget as HTMLInputElement).blur();
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const value = e.currentTarget.value.trim();
-                          updateExpense(expense.id, 'category', value);
-                        }}
-                      />
-                      <datalist id={`categories-list-mobile-${expense.id}`}>
-                        <option value="personal" />
-                        <option value="company" />
-                        {uniqueCategories
-                          .filter(cat => cat !== 'personal' && cat !== 'company')
-                          .map((category) => (
-                            <option key={category} value={category} />
-                          ))}
-                      </datalist>
-                    </div>
-
-                    {/* ประเภทย่อย */}
-                    <div>
-                      <Input
-                        defaultValue={expense.subcategory || ""}
-                        list={`subcategories-list-mobile-${expense.id}`}
-                        placeholder="ประเภทย่อย"
-                        className="h-9 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.currentTarget as HTMLInputElement).blur();
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const value = e.currentTarget.value.trim();
-                          updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
-                        }}
-                      />
-                      <datalist id={`subcategories-list-mobile-${expense.id}`}>
-                        {uniqueSubcategories.map((subcategory) => (
-                          <option key={subcategory} value={subcategory as string} />
-                        ))}
-                      </datalist>
-                    </div>
-
-                    {/* โปรเจค */}
-                    <div className="col-span-2">
-                      <Input
-                        defaultValue={expense.project || ""}
-                        list={`projects-list-mobile-${expense.id}`}
-                        placeholder="โปรเจค"
-                        className="h-9 text-sm"
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            (e.currentTarget as HTMLInputElement).blur();
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const value = e.currentTarget.value.trim();
-                          updateExpense(expense.id, 'project', value === '' ? 'none' : value);
-                        }}
-                      />
-                      <datalist id={`projects-list-mobile-${expense.id}`}>
-                        <option value="booth" />
-                        <option value="online" />
-                        <option value="event" />
-                        {uniqueProjects
-                          .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                          .map((project) => (
-                            <option key={project} value={project as string} />
-                          ))}
-                      </datalist>
-                    </div>
-                  </div>
-
-                  {/* ปุ่มจัดการสำหรับ Mobile */}
-                  <div className="flex items-center justify-end gap-1 pt-2 border-t">
-                    {expense.receipt_url && (
-                      <>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => viewReceipt(index)}
-                          className="h-9 px-3"
-                        >
-                          <Eye className="h-4 w-4 mr-1.5" />
-                          <span className="text-xs">ดู</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadReceipt(expense.receipt_url!)}
-                          className="h-9 px-3"
-                        >
-                          <Download className="h-4 w-4 mr-1.5" />
-                          <span className="text-xs">ดาวน์โหลด</span>
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingExpense(expense);
-                        setEditDialogOpen(true);
-                      }}
-                      className="h-9 px-3"
-                    >
-                      <Edit3 className="h-4 w-4 mr-1.5" />
-                      <span className="text-xs">แก้ไข</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteExpense(expense.id, expense.receipt_url)}
-                      className="h-9 px-3 text-red-600 hover:text-red-700"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1.5" />
-                      <span className="text-xs">ลบ</span>
-                    </Button>
-                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-8 w-8 p-0" title="แก้ไข"><Edit3 className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-8 w-8 p-0 text-destructive" title="ลบ"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
             </Card>
           ))}
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden">
+        <div className="overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[110px]">วันที่</TableHead>
+                <TableHead>วันที่</TableHead>
                 <TableHead>รายละเอียด</TableHead>
-                <TableHead className="w-[140px]">ผู้รับเงิน</TableHead>
-                <TableHead className="w-[120px]">ประเภท</TableHead>
-                <TableHead className="w-[120px]">ประเภทย่อย</TableHead>
-                <TableHead className="w-[150px]">โปรเจ็ค</TableHead>
-                <TableHead className="text-right w-[120px]">จำนวนเงิน</TableHead>
-                <TableHead className="w-[100px]">ใบเสร็จ</TableHead>
-                <TableHead className="text-right w-[120px]">จัดการ</TableHead>
+                <TableHead>ประเภท</TableHead>
+                <TableHead>ประเภทย่อย</TableHead>
+                <TableHead>แท็ก</TableHead>
+                <TableHead className="text-right">จำนวนเงิน</TableHead>
+                <TableHead>สถานะ</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filteredExpenses.map((expense, index) => (
-                <TableRow key={expense.id}>
-                  <TableCell className="whitespace-nowrap text-sm">
-                    {format(new Date(expense.expense_date), 'dd/MM/yyyy')}
+                <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
+                  <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
+                  <TableCell className="font-medium">{expense.description || expense.merchant || "-"}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={cn("text-xs", getTypeBadgeClass(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup))}>
+                      {expense.transaction_type || '-'}
+                      {expense.category_group ? `/${expense.category_group}` : ''}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="font-medium">
-                    {expense.description || "ค่าใช้จ่าย"}
-                  </TableCell>
-                  <TableCell className="text-sm">
-                    {expense.merchant || "-"}
+                  <TableCell className="text-sm">{expense.subcategory || "-"}</TableCell>
+                  <TableCell className="text-sm">{expense.project_tag || "-"}</TableCell>
+                  <TableCell className={cn("text-right font-semibold", expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' : 'text-expense')}>
+                    ฿{expense.amount.toLocaleString()}
                   </TableCell>
                   <TableCell>
-                    <Input
-                      defaultValue={expense.category || ""}
-                      list={`categories-list-table-${expense.id}`}
-                      placeholder="ประเภท"
-                      className="h-8 w-[120px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'category', value);
-                      }}
-                    />
-                    <datalist id={`categories-list-table-${expense.id}`}>
-                      <option value="personal" />
-                      <option value="company" />
-                      {uniqueCategories
-                        .filter(cat => cat !== 'personal' && cat !== 'company')
-                        .map((category) => (
-                          <option key={category} value={category} />
-                        ))}
-                    </datalist>
+                    {expense.needs_review && <AlertTriangle className="h-4 w-4 text-warning" />}
                   </TableCell>
                   <TableCell>
-                    <Input
-                      defaultValue={expense.subcategory || ""}
-                      list={`subcategories-list-table-${expense.id}`}
-                      placeholder="ประเภทย่อย"
-                      className="h-8 w-[120px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'subcategory', value === '' ? 'none' : value);
-                      }}
-                    />
-                    <datalist id={`subcategories-list-table-${expense.id}`}>
-                      {uniqueSubcategories.map((subcategory) => (
-                        <option key={subcategory} value={subcategory as string} />
-                      ))}
-                    </datalist>
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      defaultValue={expense.project || ""}
-                      list={`projects-list-table-${expense.id}`}
-                      placeholder="โปรเจค"
-                      className="h-8 w-[150px]"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          (e.currentTarget as HTMLInputElement).blur();
-                        }
-                      }}
-                      onBlur={(e) => {
-                        const value = e.currentTarget.value.trim();
-                        updateExpense(expense.id, 'project', value === '' ? 'none' : value);
-                      }}
-                    />
-                    <datalist id={`projects-list-table-${expense.id}`}>
-                      <option value="booth" />
-                      <option value="online" />
-                      <option value="event" />
-                      {uniqueProjects
-                        .filter(proj => proj !== 'booth' && proj !== 'online' && proj !== 'event')
-                        .map((project) => (
-                          <option key={project} value={project as string} />
-                        ))}
-                    </datalist>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold text-red-600">
-                    -฿{expense.amount.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    {expense.receipt_url ? (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => viewReceipt(index)}
-                          className="h-8 w-8 p-0"
-                          title="ดูใบเสร็จ"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => downloadReceipt(expense.receipt_url!)}
-                          className="h-8 w-8 p-0"
-                          title="ดาวน์โหลดใบเสร็จ"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => deleteReceipt(expense.id, expense.receipt_url!)}
-                          className="h-8 w-8 p-0 hover:text-orange-600"
-                          title="ลบเฉพาะสลิป"
-                        >
-                          <Receipt className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-sm">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditingExpense(expense);
-                          setEditDialogOpen(true);
-                        }}
-                        className="h-8 w-8 p-0"
-                        title="แก้ไขรายการ"
-                      >
-                        <Edit3 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteExpense(expense.id, expense.receipt_url)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        title="ลบรายการและสลิป"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-8 w-8 p-0"><Edit3 className="h-3 w-3" /></Button>
+                      <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-8 w-8 p-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -1177,19 +372,16 @@ export function ExpenseListReal() {
         </div>
       )}
 
-      <ExpenseEditDialog
-        expense={editingExpense}
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onSuccess={fetchExpenses}
-      />
+      <ExpenseEditDialog expense={editingExpense} open={editDialogOpen} onOpenChange={setEditDialogOpen} onSuccess={fetchExpenses} />
 
-      <ReceiptGallery
-        receipts={filteredExpenses}
-        initialIndex={viewingReceipt >= 0 ? viewingReceipt : 0}
-        open={galleryOpen}
-        onOpenChange={setGalleryOpen}
-      />
+      {galleryOpen && (
+        <ReceiptGallery
+          expenses={filteredExpenses.filter(e => e.receipt_url).map(e => ({ id: e.id, receipt_url: e.receipt_url!, description: e.description, expense_date: e.expense_date, amount: e.amount }))}
+          initialIndex={viewingReceipt}
+          open={galleryOpen}
+          onOpenChange={setGalleryOpen}
+        />
+      )}
     </Card>
   );
 }
