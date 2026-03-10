@@ -5,3 +5,6 @@ verify_jwt = true
 
 [functions.migrate-categories]
 verify_jwt = false
+
+[functions.line-webhook]
+verify_jwt = false
