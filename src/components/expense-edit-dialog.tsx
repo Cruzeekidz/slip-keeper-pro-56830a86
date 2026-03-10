@@ -126,6 +126,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     }
   }, [formData.merchant, formData.receiver, payeeGroups]);
 
+  const direction = formData.transaction_direction || 'EXPENSE';
   const defaultSubcats = getSubcategoriesForType(
     formData.transaction_type as TransactionType || null,
     formData.category_group as CategoryGroup || null,
