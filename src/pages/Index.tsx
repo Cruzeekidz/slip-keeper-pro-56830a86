@@ -228,6 +228,9 @@ const Index = () => {
 
         {/* Storage Stats */}
         <StorageStats />
+        
+        {/* Bulk Delete Old Receipts */}
+        <BulkDeleteReceipts />
 
         {/* Category Chart */}
         <CategoryChart />
