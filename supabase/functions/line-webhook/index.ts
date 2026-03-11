@@ -251,26 +251,49 @@ serve(async (req) => {
           promptText += `\n\n## Memo/Caption ที่ส่งมาพร้อมสลิป:\n"${memo}"\n\nให้ใช้ข้อมูลจาก memo นี้เป็นหลักในการจัดหมวดหมู่และดึง staff_name, days_worked, event_name`;
         }
 
-        // Build AI request - use signed URL for both PDF and images
+        // Build AI request
+        let aiMessages;
         if (isPDF) {
           promptText += `\n\n(เอกสารนี้เป็นไฟล์ PDF จากธนาคาร กรุณาอ่านและวิเคราะห์เนื้อหาเช่นเดียวกับสลิปรูปภาพ)`;
-        }
-
-        // Use signed URL for all file types (avoids stack overflow with large base64)
-        const { data: signedData, error: signError } = await supabase.storage
-          .from('receipts')
-          .createSignedUrl(storagePath, 300);
-        if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
-
-        const aiMessages = [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: signedData.signedUrl } }
-            ]
+          
+          // Convert PDF to base64 using chunked approach (avoids stack overflow)
+          const chunkSize = 8192;
+          let binary = "";
+          for (let i = 0; i < contentBytes.length; i += chunkSize) {
+            const chunk = contentBytes.subarray(i, Math.min(i + chunkSize, contentBytes.length));
+            for (let j = 0; j < chunk.length; j++) {
+              binary += String.fromCharCode(chunk[j]);
+            }
           }
-        ];
+          const base64Content = btoa(binary);
+          const dataUri = `data:application/pdf;base64,${base64Content}`;
+          
+          aiMessages = [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: dataUri } }
+              ]
+            }
+          ];
+        } else {
+          // For images, use signed URL
+          const { data: signedData, error: signError } = await supabase.storage
+            .from('receipts')
+            .createSignedUrl(storagePath, 300);
+          if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
+          
+          aiMessages = [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: signedData.signedUrl } }
+              ]
+            }
+          ];
+        }
 
         const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
