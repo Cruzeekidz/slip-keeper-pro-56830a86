@@ -167,7 +167,7 @@ export function BulkDeleteReceipts() {
       <Card className="p-6">
         <div className="flex items-center gap-2 text-muted-foreground">
           <FileImage className="h-5 w-5" />
-          <p>ไม่มีสลิปที่เก่ากว่า 3 ปี</p>
+          <p>ไม่มีสลิปที่เก่ากว่า 5 ปี</p>
         </div>
       </Card>
     );
