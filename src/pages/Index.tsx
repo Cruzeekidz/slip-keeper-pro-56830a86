@@ -140,6 +140,15 @@ const Index = () => {
 
             {/* Buttons Section - Dropdown for tools */}
             <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => navigate('/dashboard')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <LayoutDashboard className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">สรุปภาพรวม</span>
+                <span className="sm:hidden">สรุป</span>
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
