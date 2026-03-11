@@ -236,6 +236,39 @@ export type Database = {
         }
         Relationships: []
       }
+      forward_recipients: {
+        Row: {
+          created_at: string
+          display_name: string
+          forward_image: boolean
+          forward_summary: boolean
+          id: string
+          is_active: boolean
+          line_user_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          forward_image?: boolean
+          forward_summary?: boolean
+          id?: string
+          is_active?: boolean
+          line_user_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          forward_image?: boolean
+          forward_summary?: boolean
+          id?: string
+          is_active?: boolean
+          line_user_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       import_history: {
         Row: {
           error_count: number
