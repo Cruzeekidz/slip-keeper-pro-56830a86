@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
-import { StatsReal } from "@/components/stats-real";
-import { ProjectSummary } from "@/components/project-summary";
-import { PeriodSummary } from "@/components/period-summary";
-import { CategoryChart } from "@/components/category-chart";
+import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { EventAnalysis } from "@/components/event-analysis";
-import { StorageStats } from "@/components/storage-stats";
-import { BulkDeleteReceipts } from "@/components/bulk-delete-receipts";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -145,6 +140,15 @@ const Index = () => {
 
             {/* Buttons Section - Dropdown for tools */}
             <div className="flex flex-wrap gap-2">
+              <Button 
+                onClick={() => navigate('/dashboard')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <LayoutDashboard className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">สรุปภาพรวม</span>
+                <span className="sm:hidden">สรุป</span>
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -223,29 +227,9 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Stats Overview */}
-        <StatsReal />
-
-        {/* Storage Stats */}
-        <StorageStats />
-        
-        {/* Bulk Delete Old Receipts */}
-        <BulkDeleteReceipts />
-
-        {/* Category Chart */}
-        <CategoryChart />
-
-        {/* Event Analysis */}
+      <main className="max-w-7xl mx-auto p-6 space-y-6">
+        <MonthlyQuickStats />
         <EventAnalysis />
-
-        {/* Summary Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProjectSummary />
-          <PeriodSummary />
-        </div>
-
-        {/* Recent Transactions */}
         <ExpenseListReal />
       </main>
     </div>
