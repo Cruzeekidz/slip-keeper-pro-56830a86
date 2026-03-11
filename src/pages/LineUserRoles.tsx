@@ -113,12 +113,12 @@ const LineUserRoles = () => {
 
         {/* Instructions */}
         <Card className="p-4 bg-muted/50 border-dashed">
-          <h3 className="font-medium text-foreground mb-2">📋 วิธีใช้งาน</h3>
+          <h3 className="font-medium text-foreground mb-2">📋 Role ในระบบ</h3>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li><strong>Admin</strong> = ส่งสลิปแล้วระบบวิเคราะห์และบันทึกให้</li>
-            <li><strong>Member</strong> = ทักมาแล้วระบบจำไว้ ใช้เป็นผู้รับ forward ได้</li>
-            <li>ให้คนที่ต้องการเพิ่ม ทักข้อความมาที่ LINE Bot 1 ครั้ง แล้วจะปรากฏที่นี่</li>
-            <li>เปลี่ยน role ของ LINE ตัวเอง (2 บัญชี) เป็น Admin</li>
+            <li><strong>Admin</strong> = ส่งสลิป → ระบบวิเคราะห์และบันทึกค่าใช้จ่ายให้</li>
+            <li><strong>นักบัญชี</strong> = รับ forward สลิปอัตโนมัติ</li>
+            <li><strong>คู่ค้า</strong> = ส่งบิลเรียกเก็บ / รับสลิปยืนยันการจ่าย (อนาคต)</li>
+            <li>ให้คนที่ต้องการเพิ่ม ทักข้อความมาที่ LINE Bot 1 ครั้ง</li>
           </ul>
         </Card>
 
