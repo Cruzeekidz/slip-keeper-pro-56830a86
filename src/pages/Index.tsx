@@ -1,15 +1,10 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, FileText, Calendar, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
-import { StatsReal } from "@/components/stats-real";
-import { ProjectSummary } from "@/components/project-summary";
-import { PeriodSummary } from "@/components/period-summary";
-import { CategoryChart } from "@/components/category-chart";
+import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { EventAnalysis } from "@/components/event-analysis";
-import { StorageStats } from "@/components/storage-stats";
-import { BulkDeleteReceipts } from "@/components/bulk-delete-receipts";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
