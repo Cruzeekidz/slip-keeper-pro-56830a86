@@ -183,8 +183,12 @@ serve(async (req) => {
         continue;
       }
 
-      // --- Handle IMAGE messages ---
-      if (event.message.type !== "image") continue;
+      // --- Handle IMAGE and FILE (PDF) messages ---
+      const isImage = event.message.type === "image";
+      const isFile = event.message.type === "file";
+      const isPDF = isFile && (event.message.fileName?.toLowerCase().endsWith('.pdf') || event.message.contentType === 'application/pdf');
+
+      if (!isImage && !isPDF) continue;
 
       const messageId = event.message.id;
       const replyToken = event.replyToken;
@@ -208,27 +212,29 @@ serve(async (req) => {
           await supabase.from('line_pending_memos').delete().eq('line_user_id', userId);
         }
 
-        // 2. Download image from LINE
-        const imageResponse = await fetch(
+        // 2. Download content from LINE
+        const contentResponse = await fetch(
           `https://api-data.line.me/v2/bot/message/${messageId}/content`,
           { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
         );
 
-        if (!imageResponse.ok) {
-          throw new Error(`Failed to download image: ${imageResponse.status}`);
+        if (!contentResponse.ok) {
+          throw new Error(`Failed to download content: ${contentResponse.status}`);
         }
 
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const imageBytes = new Uint8Array(imageBuffer);
+        const contentBuffer = await contentResponse.arrayBuffer();
+        const contentBytes = new Uint8Array(contentBuffer);
 
-        // 3. Upload to Storage
+        // 3. Upload to Storage (with appropriate extension and content type)
         const timestamp = Date.now();
-        const storagePath = `line/${userId}/${timestamp}_${messageId}.jpg`;
+        const fileExt = isPDF ? 'pdf' : 'jpg';
+        const contentType = isPDF ? 'application/pdf' : 'image/jpeg';
+        const storagePath = `line/${userId}/${timestamp}_${messageId}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('receipts')
-          .upload(storagePath, imageBytes, {
-            contentType: 'image/jpeg',
+          .upload(storagePath, contentBytes, {
+            contentType,
             upsert: false,
           });
 
@@ -236,22 +242,46 @@ serve(async (req) => {
           throw new Error(`Upload failed: ${uploadError.message}`);
         }
 
-        // 4. Get signed URL for AI analysis
-        const { data: signedData, error: signError } = await supabase.storage
-          .from('receipts')
-          .createSignedUrl(storagePath, 300);
-
-        if (signError || !signedData?.signedUrl) {
-          throw new Error("Failed to create signed URL");
-        }
-
-        // 5. Call AI with memo context
+        // 4. Prepare content for AI analysis
         const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
         if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
         let promptText = ANALYSIS_PROMPT;
         if (memo) {
           promptText += `\n\n## Memo/Caption ที่ส่งมาพร้อมสลิป:\n"${memo}"\n\nให้ใช้ข้อมูลจาก memo นี้เป็นหลักในการจัดหมวดหมู่และดึง staff_name, days_worked, event_name`;
+        }
+
+        // Build AI request - for PDF use base64, for image use signed URL
+        let aiMessages;
+        if (isPDF) {
+          // Convert PDF to base64 data URI for Gemini
+          const base64Content = btoa(String.fromCharCode(...contentBytes));
+          const dataUri = `data:application/pdf;base64,${base64Content}`;
+          promptText += `\n\n(เอกสารนี้เป็นไฟล์ PDF จากธนาคาร กรุณาอ่านและวิเคราะห์เนื้อหาเช่นเดียวกับสลิปรูปภาพ)`;
+          aiMessages = [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: dataUri } }
+              ]
+            }
+          ];
+        } else {
+          // For images, use signed URL
+          const { data: signedData, error: signError } = await supabase.storage
+            .from('receipts')
+            .createSignedUrl(storagePath, 300);
+          if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
+          aiMessages = [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: promptText },
+                { type: "image_url", image_url: { url: signedData.signedUrl } }
+              ]
+            }
+          ];
         }
 
         const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -262,15 +292,7 @@ serve(async (req) => {
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: promptText },
-                  { type: "image_url", image_url: { url: signedData.signedUrl } }
-                ]
-              }
-            ],
+            messages: aiMessages,
             tools: [TOOL_SCHEMA],
             tool_choice: { type: "function", function: { name: "extract_receipt_data" } }
           }),
