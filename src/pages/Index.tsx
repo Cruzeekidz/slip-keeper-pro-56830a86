@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -188,6 +188,10 @@ const Index = () => {
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการกลุ่มผู้รับเงิน
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/event-management')}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    จัดการอีเวนท์
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     LINE Webhook
@@ -229,7 +233,7 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
-        <EventAnalysis />
+        <EventAnalysis recentOnly />
         <ExpenseListReal />
       </main>
     </div>

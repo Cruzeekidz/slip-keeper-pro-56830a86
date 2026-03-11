@@ -15,6 +15,7 @@ import MasterData from "./pages/MasterData";
 import TransactionReport from "./pages/TransactionReport";
 import PayeeGroupManagement from "./pages/PayeeGroupManagement";
 import LineWebhookSettings from "./pages/LineWebhookSettings";
+import EventManagement from "./pages/EventManagement";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
@@ -40,6 +41,7 @@ const App = () => (
             <Route path="/transaction-report" element={<TransactionReport />} />
             <Route path="/payee-groups" element={<PayeeGroupManagement />} />
             <Route path="/line-webhook" element={<LineWebhookSettings />} />
+            <Route path="/event-management" element={<EventManagement />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
