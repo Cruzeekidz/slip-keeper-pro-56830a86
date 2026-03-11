@@ -397,6 +397,33 @@ export type Database = {
         }
         Relationships: []
       }
+      line_user_roles: {
+        Row: {
+          created_at: string
+          display_name: string | null
+          id: string
+          line_user_id: string
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          line_user_id: string
+          role?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          line_user_id?: string
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       payee_groups: {
         Row: {
           created_at: string
