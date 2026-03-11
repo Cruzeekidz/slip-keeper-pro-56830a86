@@ -410,7 +410,10 @@ serve(async (req) => {
 
         console.log("Insert success:", JSON.stringify(insertData));
 
-        // 7. Reply to user with rich info
+        // 7. Forward to recipients
+        await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
+
+        // 8. Reply to user with rich info
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
         const cat = extractedData?.transaction_type || 'ไม่ระบุ';
         const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
