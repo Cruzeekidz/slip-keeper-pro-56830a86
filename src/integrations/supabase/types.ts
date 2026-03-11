@@ -110,6 +110,39 @@ export type Database = {
         }
         Relationships: []
       }
+      event_registry: {
+        Row: {
+          aliases: string[]
+          created_at: string
+          event_date: string | null
+          event_name: string
+          id: string
+          is_active: boolean
+          project_tag: string
+          user_id: string
+        }
+        Insert: {
+          aliases?: string[]
+          created_at?: string
+          event_date?: string | null
+          event_name: string
+          id?: string
+          is_active?: boolean
+          project_tag: string
+          user_id: string
+        }
+        Update: {
+          aliases?: string[]
+          created_at?: string
+          event_date?: string | null
+          event_name?: string
+          id?: string
+          is_active?: boolean
+          project_tag?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       expenses: {
         Row: {
           amount: number
