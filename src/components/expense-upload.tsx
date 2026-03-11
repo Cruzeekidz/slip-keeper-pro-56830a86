@@ -113,21 +113,22 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   const analyzeReceipt = async (file: File) => {
     setIsAnalyzing(true);
     try {
+      const isPDF = file.type === 'application/pdf';
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
         reader.onloadend = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const imageBase64 = await base64Promise;
+      const fileBase64 = await base64Promise;
       const { data, error } = await supabase.functions.invoke('analyze-receipt', {
-        body: { fileBase64: imageBase64, isPDF: false }
+        body: { fileBase64, isPDF }
       });
-      if (error) { toast({ title: "ไม่สามารถวิเคราะห์สลิปได้", variant: "destructive" }); setStep(2); return; }
+      if (error) { toast({ title: "ไม่สามารถวิเคราะห์เอกสารได้", variant: "destructive" }); setStep(2); return; }
       if (data?.success && data?.data) {
         setExtractedData(data.data);
         setStep(2);
-        toast({ title: "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบข้อมูล" });
+        toast({ title: isPDF ? "วิเคราะห์ PDF สำเร็จ" : "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบข้อมูล" });
       } else { throw new Error("No data"); }
     } catch (error) {
       console.error('Error analyzing receipt:', error);
