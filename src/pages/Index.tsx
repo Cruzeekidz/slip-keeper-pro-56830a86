@@ -9,6 +9,7 @@ import { PeriodSummary } from "@/components/period-summary";
 import { CategoryChart } from "@/components/category-chart";
 import { EventAnalysis } from "@/components/event-analysis";
 import { StorageStats } from "@/components/storage-stats";
+import { BulkDeleteReceipts } from "@/components/bulk-delete-receipts";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
