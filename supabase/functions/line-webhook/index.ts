@@ -181,7 +181,51 @@ serve(async (req) => {
       const userId = event.source?.userId;
       if (!userId) continue;
 
-      // --- Handle TEXT messages: store as pending memo ---
+      // --- Check user role ---
+      const { data: roleData } = await supabase
+        .from('line_user_roles')
+        .select('role, display_name')
+        .eq('line_user_id', userId)
+        .maybeSingle();
+
+      const userRole = roleData?.role || null;
+
+      // If user has no role, register them and reply with greeting
+      if (!userRole) {
+        // Get LINE display name via profile API
+        let lineDisplayName: string | null = null;
+        try {
+          const profileRes = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
+            headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+          });
+          if (profileRes.ok) {
+            const profile = await profileRes.json();
+            lineDisplayName = profile.displayName || null;
+          }
+        } catch (e) {
+          console.error("Failed to get LINE profile:", e);
+        }
+
+        // Save to line_user_roles as 'member'
+        await supabase.from('line_user_roles').upsert({
+          line_user_id: userId,
+          display_name: lineDisplayName,
+          role: 'member',
+        }, { onConflict: 'line_user_id' });
+
+        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+          `สวัสดีค่ะ ระบบจดจำบัญชีของคุณแล้ว${lineDisplayName ? ` (${lineDisplayName})` : ''} 😊`);
+        continue;
+      }
+
+      // Non-admin users: acknowledge but don't process
+      if (userRole !== 'admin') {
+        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+          `ขอบคุณค่ะ ข้อความของคุณได้รับแล้ว 😊`);
+        continue;
+      }
+
+      // --- ADMIN ONLY: Handle TEXT messages as pending memo ---
       if (event.message.type === "text") {
         const text = event.message.text?.trim();
         if (!text) continue;
