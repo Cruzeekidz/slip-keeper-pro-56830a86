@@ -218,29 +218,9 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-8">
-        {/* Stats Overview */}
-        <StatsReal />
-
-        {/* Storage Stats */}
-        <StorageStats />
-        
-        {/* Bulk Delete Old Receipts */}
-        <BulkDeleteReceipts />
-
-        {/* Category Chart */}
-        <CategoryChart />
-
-        {/* Event Analysis */}
+      <main className="max-w-7xl mx-auto p-6 space-y-6">
+        <MonthlyQuickStats />
         <EventAnalysis />
-
-        {/* Summary Tables */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <ProjectSummary />
-          <PeriodSummary />
-        </div>
-
-        {/* Recent Transactions */}
         <ExpenseListReal />
       </main>
     </div>
