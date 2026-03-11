@@ -23,9 +23,10 @@ interface LineUserRole {
   created_at: string;
 }
 
-const ROLE_CONFIG: Record<string, { label: string; color: string; icon: typeof Shield }> = {
-  admin: { label: "Admin", color: "bg-amber-500/10 text-amber-700 border-amber-200", icon: Crown },
-  member: { label: "Member", color: "bg-muted text-muted-foreground border-border", icon: Users },
+const ROLE_CONFIG: Record<string, { label: string; description: string; icon: typeof Shield }> = {
+  admin: { label: "Admin", description: "ส่งสลิป → วิเคราะห์+บันทึก", icon: Crown },
+  accountant: { label: "นักบัญชี", description: "รับ forward สลิป", icon: UserCheck },
+  member: { label: "คู่ค้า", description: "ส่งบิล/รับสลิปยืนยัน (อนาคต)", icon: Users },
 };
 
 const LineUserRoles = () => {
@@ -70,6 +71,7 @@ const LineUserRoles = () => {
   if (loading || !user) return null;
 
   const adminCount = roles.filter(r => r.role === 'admin').length;
+  const accountantCount = roles.filter(r => r.role === 'accountant').length;
   const memberCount = roles.filter(r => r.role === 'member').length;
 
   return (
@@ -91,27 +93,32 @@ const LineUserRoles = () => {
 
       <main className="max-w-4xl mx-auto p-6 space-y-4">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card className="p-4 text-center">
             <Crown className="h-5 w-5 mx-auto mb-1 text-amber-500" />
             <p className="text-2xl font-bold text-foreground">{adminCount}</p>
-            <p className="text-xs text-muted-foreground">Admin (บันทึกสลิปได้)</p>
+            <p className="text-xs text-muted-foreground">Admin</p>
+          </Card>
+          <Card className="p-4 text-center">
+            <UserCheck className="h-5 w-5 mx-auto mb-1 text-primary" />
+            <p className="text-2xl font-bold text-foreground">{accountantCount}</p>
+            <p className="text-xs text-muted-foreground">นักบัญชี</p>
           </Card>
           <Card className="p-4 text-center">
             <Users className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
             <p className="text-2xl font-bold text-foreground">{memberCount}</p>
-            <p className="text-xs text-muted-foreground">Member (รับ forward)</p>
+            <p className="text-xs text-muted-foreground">คู่ค้า</p>
           </Card>
         </div>
 
         {/* Instructions */}
         <Card className="p-4 bg-muted/50 border-dashed">
-          <h3 className="font-medium text-foreground mb-2">📋 วิธีใช้งาน</h3>
+          <h3 className="font-medium text-foreground mb-2">📋 Role ในระบบ</h3>
           <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
-            <li><strong>Admin</strong> = ส่งสลิปแล้วระบบวิเคราะห์และบันทึกให้</li>
-            <li><strong>Member</strong> = ทักมาแล้วระบบจำไว้ ใช้เป็นผู้รับ forward ได้</li>
-            <li>ให้คนที่ต้องการเพิ่ม ทักข้อความมาที่ LINE Bot 1 ครั้ง แล้วจะปรากฏที่นี่</li>
-            <li>เปลี่ยน role ของ LINE ตัวเอง (2 บัญชี) เป็น Admin</li>
+            <li><strong>Admin</strong> = ส่งสลิป → ระบบวิเคราะห์และบันทึกค่าใช้จ่ายให้</li>
+            <li><strong>นักบัญชี</strong> = รับ forward สลิปอัตโนมัติ</li>
+            <li><strong>คู่ค้า</strong> = ส่งบิลเรียกเก็บ / รับสลิปยืนยันการจ่าย (อนาคต)</li>
+            <li>ให้คนที่ต้องการเพิ่ม ทักข้อความมาที่ LINE Bot 1 ครั้ง</li>
           </ul>
         </Card>
 
@@ -151,8 +158,11 @@ const LineUserRoles = () => {
                         <SelectItem value="admin">
                           <span className="flex items-center gap-1"><Crown className="h-3 w-3" /> Admin</span>
                         </SelectItem>
+                        <SelectItem value="accountant">
+                          <span className="flex items-center gap-1"><UserCheck className="h-3 w-3" /> นักบัญชี</span>
+                        </SelectItem>
                         <SelectItem value="member">
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Member</span>
+                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> คู่ค้า</span>
                         </SelectItem>
                       </SelectContent>
                     </Select>
