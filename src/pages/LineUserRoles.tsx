@@ -23,9 +23,10 @@ interface LineUserRole {
   created_at: string;
 }
 
-const ROLE_CONFIG: Record<string, { label: string; color: string; icon: typeof Shield }> = {
-  admin: { label: "Admin", color: "bg-amber-500/10 text-amber-700 border-amber-200", icon: Crown },
-  member: { label: "Member", color: "bg-muted text-muted-foreground border-border", icon: Users },
+const ROLE_CONFIG: Record<string, { label: string; description: string; icon: typeof Shield }> = {
+  admin: { label: "Admin", description: "ส่งสลิป → วิเคราะห์+บันทึก", icon: Crown },
+  accountant: { label: "นักบัญชี", description: "รับ forward สลิป", icon: UserCheck },
+  member: { label: "คู่ค้า", description: "ส่งบิล/รับสลิปยืนยัน (อนาคต)", icon: Users },
 };
 
 const LineUserRoles = () => {
