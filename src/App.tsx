@@ -41,6 +41,7 @@ const App = () => (
             <Route path="/transaction-report" element={<TransactionReport />} />
             <Route path="/payee-groups" element={<PayeeGroupManagement />} />
             <Route path="/line-webhook" element={<LineWebhookSettings />} />
+            <Route path="/event-management" element={<EventManagement />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

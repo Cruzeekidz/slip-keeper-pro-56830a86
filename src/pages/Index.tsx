@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
