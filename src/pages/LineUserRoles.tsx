@@ -71,6 +71,7 @@ const LineUserRoles = () => {
   if (loading || !user) return null;
 
   const adminCount = roles.filter(r => r.role === 'admin').length;
+  const accountantCount = roles.filter(r => r.role === 'accountant').length;
   const memberCount = roles.filter(r => r.role === 'member').length;
 
   return (
@@ -92,16 +93,21 @@ const LineUserRoles = () => {
 
       <main className="max-w-4xl mx-auto p-6 space-y-4">
         {/* Stats */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Card className="p-4 text-center">
             <Crown className="h-5 w-5 mx-auto mb-1 text-amber-500" />
             <p className="text-2xl font-bold text-foreground">{adminCount}</p>
-            <p className="text-xs text-muted-foreground">Admin (บันทึกสลิปได้)</p>
+            <p className="text-xs text-muted-foreground">Admin</p>
+          </Card>
+          <Card className="p-4 text-center">
+            <UserCheck className="h-5 w-5 mx-auto mb-1 text-primary" />
+            <p className="text-2xl font-bold text-foreground">{accountantCount}</p>
+            <p className="text-xs text-muted-foreground">นักบัญชี</p>
           </Card>
           <Card className="p-4 text-center">
             <Users className="h-5 w-5 mx-auto mb-1 text-muted-foreground" />
             <p className="text-2xl font-bold text-foreground">{memberCount}</p>
-            <p className="text-xs text-muted-foreground">Member (รับ forward)</p>
+            <p className="text-xs text-muted-foreground">คู่ค้า</p>
           </Card>
         </div>
 
