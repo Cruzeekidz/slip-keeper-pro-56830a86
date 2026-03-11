@@ -188,6 +188,10 @@ const Index = () => {
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการกลุ่มผู้รับเงิน
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/event-management')}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    จัดการอีเวนท์
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     LINE Webhook
