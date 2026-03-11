@@ -32,20 +32,35 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 ## 🔍 การวิเคราะห์ Memo/Caption (สำคัญมาก!)
 ถ้ามี memo ให้ใช้เป็นแหล่งข้อมูลหลักในการจัดหมวดหมู่
 
-### รูปแบบ Memo ที่พบบ่อย:
-1. **จ่ายค่าแรงสตาฟ**: "[ชื่อ] [X] วัน [ชื่ออีเวนท์]"
-   เช่น "จ๋า 2 วัน Terminal21" → BUSINESS > EVENT > EVT-Terminal21 > Staff
-   → staff_name: จ๋า, days_worked: 2, event_name: Terminal21
+### 📌 รูปแบบ Memo มาตรฐาน:
 
-2. **สตาฟ + ตำแหน่ง**: "[ชื่อ] [ตำแหน่ง] [ชื่ออีเวนท์]"
-   เช่น "โบว์ MC Rockstar3" → BUSINESS > EVENT > EVT-Rockstar3 > Staff
-   → staff_name: โบว์, event_name: Rockstar3
+#### A. EVENT patterns (ทั้งหมดเป็น BUSINESS > EVENT):
+1. **Staff**: "[ชื่อ] [X] วัน [อีเวนท์]" หรือ "staff [อีเวนท์]"
+   เช่น "จ๋า 2 วัน Terminal21" → Staff, staff_name: จ๋า, days_worked: 2
+2. **Staff + ตำแหน่ง**: "[ชื่อ] [ตำแหน่ง] [อีเวนท์]"
+   เช่น "โบว์ MC Rockstar3" → Staff, staff_name: โบว์
+3. **Prizes**: "medals/เหรียญ/trophy/ถ้วย/รางวัล [อีเวนท์]"
+   เช่น "medals Terminal21", "ถ้วย KMT41" → Prizes
+4. **Printing**: "poster/ป้าย/เสื้อ/banner/สติกเกอร์ [อีเวนท์]"
+   เช่น "Poster Rockstar3" → Printing
+5. **Venue**: "venue/เช่าที่/ค่าสถานที่ [อีเวนท์]"
+   เช่น "venue Terminal21" → Venue
+6. **Transport**: "transport/ขนส่ง/โลจิสติกส์/ค่ารถ [อีเวนท์]"
+   เช่น "ขนส่ง Terminal21" → Transport
+7. **Marketing**: "ads/โฆษณา/marketing/boost [อีเวนท์]"
+   เช่น "ads Terminal21" → Marketing
+8. **Refund**: "refund/คืนเงิน/คืนค่าสมัคร [อีเวนท์]"
+   เช่น "refund Terminal21" → Refund
 
-3. **ของ/บริการสำหรับอีเวนท์**: "[สินค้า] [ชื่ออีเวนท์]"
-   เช่น "Poster Rockstar3" → BUSINESS > EVENT > EVT-Rockstar3 > Printing
-   → event_name: Rockstar3
+#### B. ENTITY patterns:
+9. "[subcategory] BCC" → ENTITY_BCC (เช่น staff BCC, expense BCC)
+10. "[subcategory] คู่ขนาง" → ENTITY_KUKANANG (เช่น venue คู่ขนาน)
 
-4. **Entity**: "คู่ขนาน" → ENTITY_KUKANANG, "BCC" → ENTITY_BCC
+#### C. ชื่ออีเวนท์ที่รู้จัก:
+- Terminal21 / T21 → EVT-T21, event_name: Terminal21
+- KMT + เลข → EVT-KMT41
+- Rockstar + เลข → EVT-Rockstar3
+- TNV2 / Tooniverse2 → EVT-TNV2, event_name: Tooniverse2
 
 ## กฎพิเศษ:
 - "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
