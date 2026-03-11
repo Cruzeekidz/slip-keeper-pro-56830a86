@@ -251,38 +251,26 @@ serve(async (req) => {
           promptText += `\n\n## Memo/Caption ที่ส่งมาพร้อมสลิป:\n"${memo}"\n\nให้ใช้ข้อมูลจาก memo นี้เป็นหลักในการจัดหมวดหมู่และดึง staff_name, days_worked, event_name`;
         }
 
-        // Build AI request - for PDF use base64, for image use signed URL
-        let aiMessages;
+        // Build AI request - use signed URL for both PDF and images
         if (isPDF) {
-          // Convert PDF to base64 data URI for Gemini
-          const base64Content = btoa(String.fromCharCode(...contentBytes));
-          const dataUri = `data:application/pdf;base64,${base64Content}`;
           promptText += `\n\n(เอกสารนี้เป็นไฟล์ PDF จากธนาคาร กรุณาอ่านและวิเคราะห์เนื้อหาเช่นเดียวกับสลิปรูปภาพ)`;
-          aiMessages = [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: promptText },
-                { type: "image_url", image_url: { url: dataUri } }
-              ]
-            }
-          ];
-        } else {
-          // For images, use signed URL
-          const { data: signedData, error: signError } = await supabase.storage
-            .from('receipts')
-            .createSignedUrl(storagePath, 300);
-          if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
-          aiMessages = [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: promptText },
-                { type: "image_url", image_url: { url: signedData.signedUrl } }
-              ]
-            }
-          ];
         }
+
+        // Use signed URL for all file types (avoids stack overflow with large base64)
+        const { data: signedData, error: signError } = await supabase.storage
+          .from('receipts')
+          .createSignedUrl(storagePath, 300);
+        if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
+
+        const aiMessages = [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              { type: "image_url", image_url: { url: signedData.signedUrl } }
+            ]
+          }
+        ];
 
         const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
