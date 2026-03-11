@@ -234,11 +234,11 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       {step === 1 ? (
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>อัพโหลดสลิปเงินโอน</Label>
+            <Label>อัพโหลดสลิปเงินโอน / PDF จากธนาคาร</Label>
             <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}
               onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
               <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์สลิป..." : "ลากไฟล์มาวางหรือคลิกเพื่อเลือก"}</p>
+              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์เอกสาร..." : "ลากไฟล์มาวาง (รูปภาพ/PDF) หรือคลิกเพื่อเลือก"}</p>
               <div className="relative inline-block">
                 <Button type="button" variant="outline" size="sm" disabled={isAnalyzing}>
                   {isAnalyzing ? "กำลังวิเคราะห์..." : "เลือกไฟล์"}
