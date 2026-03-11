@@ -101,8 +101,11 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setFiles(prev => [...prev, ...newFiles]);
-      if (newFiles.length > 0 && newFiles[0].type.startsWith('image/')) {
-        await analyzeReceipt(newFiles[0]);
+      if (newFiles.length > 0) {
+        const file = newFiles[0];
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+          await analyzeReceipt(file);
+        }
       }
     }
   };
