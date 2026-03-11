@@ -179,7 +179,7 @@ export function BulkDeleteReceipts() {
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-foreground flex items-center gap-2">
             <Trash2 className="h-5 w-5" />
-            ลบสลิปเก่า (เกิน 3 ปี)
+            ลบสลิปเก่า (เกิน 5 ปี)
           </h3>
           <Button variant="outline" size="sm" onClick={selectAll}>
             {selected.size === months.length ? "ยกเลิกทั้งหมด" : "เลือกทั้งหมด"}
