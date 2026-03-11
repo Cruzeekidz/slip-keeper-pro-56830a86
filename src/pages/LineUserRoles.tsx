@@ -158,8 +158,11 @@ const LineUserRoles = () => {
                         <SelectItem value="admin">
                           <span className="flex items-center gap-1"><Crown className="h-3 w-3" /> Admin</span>
                         </SelectItem>
+                        <SelectItem value="accountant">
+                          <span className="flex items-center gap-1"><UserCheck className="h-3 w-3" /> นักบัญชี</span>
+                        </SelectItem>
                         <SelectItem value="member">
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> Member</span>
+                          <span className="flex items-center gap-1"><Users className="h-3 w-3" /> คู่ค้า</span>
                         </SelectItem>
                       </SelectContent>
                     </Select>
