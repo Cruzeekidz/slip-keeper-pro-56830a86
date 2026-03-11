@@ -196,6 +196,10 @@ const Index = () => {
                     <Send className="h-4 w-4 mr-2" />
                     Forward สลิป
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
+                    <Shield className="h-4 w-4 mr-2" />
+                    LINE User Roles
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     LINE Webhook

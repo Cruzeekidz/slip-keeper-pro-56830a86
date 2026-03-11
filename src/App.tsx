@@ -45,6 +45,7 @@ const App = () => (
             <Route path="/line-webhook" element={<LineWebhookSettings />} />
             <Route path="/event-management" element={<EventManagement />} />
             <Route path="/forward-management" element={<ForwardManagement />} />
+            <Route path="/line-user-roles" element={<LineUserRoles />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
