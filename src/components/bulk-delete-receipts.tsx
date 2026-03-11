@@ -42,10 +42,10 @@ export function BulkDeleteReceipts() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get expenses with receipts older than 3 years
-      const threeYearsAgo = new Date();
-      threeYearsAgo.setFullYear(threeYearsAgo.getFullYear() - 3);
-      const cutoffDate = threeYearsAgo.toISOString().split('T')[0];
+      // Get expenses with receipts older than 5 years
+      const fiveYearsAgo = new Date();
+      fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+      const cutoffDate = fiveYearsAgo.toISOString().split('T')[0];
 
       const { data: expenses, error } = await supabase
         .from('expenses')
