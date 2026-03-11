@@ -192,6 +192,10 @@ const Index = () => {
                     <Calendar className="h-4 w-4 mr-2" />
                     จัดการอีเวนท์
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Forward สลิป
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                     <MessageSquare className="h-4 w-4 mr-2" />
                     LINE Webhook
