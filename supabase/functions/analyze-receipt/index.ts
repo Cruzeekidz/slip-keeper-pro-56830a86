@@ -129,7 +129,7 @@ serve(async (req) => {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    let imageUrl = fileBase64;
+    let contentUrl = fileBase64;
     try {
       if (storagePath) {
         const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -138,7 +138,7 @@ serve(async (req) => {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
         const { data: signed, error: signErr } = await supabase.storage.from('receipts').createSignedUrl(storagePath, 300);
         if (signErr || !signed?.signedUrl) throw new Error("Failed to sign URL");
-        imageUrl = signed.signedUrl;
+        contentUrl = signed.signedUrl;
       }
     } catch (e) {
       console.warn('Falling back to base64:', e);
@@ -148,6 +148,9 @@ serve(async (req) => {
     let promptText = ANALYSIS_PROMPT;
     if (memo) {
       promptText += `\n\n## Memo/Caption ที่ส่งมาพร้อมสลิป:\n"${memo}"\n\nให้ใช้ข้อมูลจาก memo นี้เป็นหลักในการจัดหมวดหมู่และดึงข้อมูล staff_name, days_worked, event_name`;
+    }
+    if (isPDF) {
+      promptText += `\n\n(เอกสารนี้เป็นไฟล์ PDF จากธนาคาร กรุณาอ่านและวิเคราะห์เนื้อหาเช่นเดียวกับสลิปรูปภาพ)`;
     }
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -163,7 +166,7 @@ serve(async (req) => {
             role: "user",
             content: [
               { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: imageUrl } }
+              { type: "image_url", image_url: { url: contentUrl } }
             ]
           }
         ],

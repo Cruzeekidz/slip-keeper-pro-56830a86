@@ -101,8 +101,11 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
       setFiles(prev => [...prev, ...newFiles]);
-      if (newFiles.length > 0 && newFiles[0].type.startsWith('image/')) {
-        await analyzeReceipt(newFiles[0]);
+      if (newFiles.length > 0) {
+        const file = newFiles[0];
+        if (file.type.startsWith('image/') || file.type === 'application/pdf') {
+          await analyzeReceipt(file);
+        }
       }
     }
   };
@@ -110,21 +113,22 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   const analyzeReceipt = async (file: File) => {
     setIsAnalyzing(true);
     try {
+      const isPDF = file.type === 'application/pdf';
       const reader = new FileReader();
       const base64Promise = new Promise<string>((resolve, reject) => {
         reader.onloadend = () => resolve(reader.result as string);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      const imageBase64 = await base64Promise;
+      const fileBase64 = await base64Promise;
       const { data, error } = await supabase.functions.invoke('analyze-receipt', {
-        body: { fileBase64: imageBase64, isPDF: false }
+        body: { fileBase64, isPDF }
       });
-      if (error) { toast({ title: "ไม่สามารถวิเคราะห์สลิปได้", variant: "destructive" }); setStep(2); return; }
+      if (error) { toast({ title: "ไม่สามารถวิเคราะห์เอกสารได้", variant: "destructive" }); setStep(2); return; }
       if (data?.success && data?.data) {
         setExtractedData(data.data);
         setStep(2);
-        toast({ title: "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบข้อมูล" });
+        toast({ title: isPDF ? "วิเคราะห์ PDF สำเร็จ" : "วิเคราะห์สลิปสำเร็จ", description: "กรุณาตรวจสอบข้อมูล" });
       } else { throw new Error("No data"); }
     } catch (error) {
       console.error('Error analyzing receipt:', error);
@@ -230,11 +234,11 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       {step === 1 ? (
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>อัพโหลดสลิปเงินโอน</Label>
+            <Label>อัพโหลดสลิปเงินโอน / PDF จากธนาคาร</Label>
             <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragActive ? "border-primary bg-primary/5" : "border-border"}`}
               onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
               <Upload className="h-8 w-8 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์สลิป..." : "ลากไฟล์มาวางหรือคลิกเพื่อเลือก"}</p>
+              <p className="text-muted-foreground mb-2">{isAnalyzing ? "กำลังวิเคราะห์เอกสาร..." : "ลากไฟล์มาวาง (รูปภาพ/PDF) หรือคลิกเพื่อเลือก"}</p>
               <div className="relative inline-block">
                 <Button type="button" variant="outline" size="sm" disabled={isAnalyzing}>
                   {isAnalyzing ? "กำลังวิเคราะห์..." : "เลือกไฟล์"}
