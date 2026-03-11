@@ -36,30 +36,46 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 ## 🔍 การวิเคราะห์ Memo/Caption (สำคัญมาก!)
 ถ้ามี memo/caption ส่งมาพร้อมสลิป ให้ใช้ memo เป็นแหล่งข้อมูลหลักในการจัดหมวดหมู่ เพราะมักมีข้อมูลที่แม่นยำกว่าสลิป
 
-### รูปแบบ Memo ที่พบบ่อย:
+### 📌 รูปแบบ Memo มาตรฐาน:
 
-1. **จ่ายค่าแรงสตาฟ**: "[ชื่อ] [X] วัน [ชื่ออีเวนท์]"
-   ตัวอย่าง: "จ๋า 2 วัน Terminal21", "บอล 3 วัน Rockstar3"
-   → transaction_type: BUSINESS, category_group: EVENT
-   → project_tag: "EVT-[ชื่ออีเวนท์]", subcategory: "Staff"
-   → staff_name: ชื่อที่กล่าวถึง, days_worked: จำนวนวัน, event_name: ชื่ออีเวนท์
+#### A. EVENT patterns (ทั้งหมดเป็น BUSINESS > EVENT):
+1. **Staff**: "[ชื่อ] [X] วัน [อีเวนท์]" หรือ "staff [อีเวนท์]"
+   เช่น "จ๋า 2 วัน Terminal21" → Staff, staff_name: จ๋า, days_worked: 2
+   เช่น "staff Terminal21" → Staff
 
-2. **สตาฟ + ตำแหน่ง**: "[ชื่อ] [ตำแหน่ง] [ชื่ออีเวนท์]"
-   ตัวอย่าง: "โบว์ MC Rockstar3", "เอ็ม Sound KMT41"
-   → transaction_type: BUSINESS, category_group: EVENT
-   → project_tag: "EVT-[ชื่ออีเวนท์]", subcategory: "Staff"
-   → staff_name: ชื่อ, event_name: ชื่ออีเวนท์
+2. **Staff + ตำแหน่ง**: "[ชื่อ] [ตำแหน่ง] [อีเวนท์]"
+   เช่น "โบว์ MC Rockstar3" → Staff, staff_name: โบว์
 
-3. **ของ/บริการสำหรับอีเวนท์**: "[สินค้า/บริการ] [ชื่ออีเวนท์]"
-   ตัวอย่าง: "Poster Rockstar3", "เสื้อ KMT41", "ป้าย Terminal21"
-   → transaction_type: BUSINESS, category_group: EVENT
-   → project_tag: "EVT-[ชื่ออีเวนท์]", subcategory: "Printing" (สำหรับ poster/ป้าย/เสื้อ) หรือ subcategory ที่เหมาะสม
-   → event_name: ชื่ออีเวนท์
+3. **Prizes/รางวัล**: "medals/เหรียญ/trophy/ถ้วย/รางวัล [อีเวนท์]"
+   เช่น "medals Terminal21", "ถ้วย KMT41", "เหรียญรางวัล T21" → Prizes
 
-4. **Entity indicator**: memo มี "คู่ขนาน" หรือ "พระราม 2"
-   → transaction_type: BUSINESS, category_group: ENTITY_KUKANANG
-   memo มี "BCC"
-   → transaction_type: BUSINESS, category_group: ENTITY_BCC
+4. **Printing/สิ่งพิมพ์**: "poster/ป้าย/เสื้อ/banner/สติกเกอร์ [อีเวนท์]"
+   เช่น "Poster Rockstar3", "เสื้อ KMT41" → Printing
+
+5. **Venue/สถานที่**: "venue/เช่าที่/ค่าสถานที่ [อีเวนท์]"
+   เช่น "venue Terminal21", "เช่าที่ KMT41" → Venue
+
+6. **Transport/ขนส่ง**: "transport/ขนส่ง/โลจิสติกส์/ค่ารถ [อีเวนท์]"
+   เช่น "ขนส่ง Terminal21", "transport KMT41" → Transport
+
+7. **Marketing/การตลาด**: "ads/โฆษณา/marketing/boost [อีเวนท์]"
+   เช่น "ads Terminal21", "boost KMT41" → Marketing
+
+8. **Refund/คืนเงิน**: "refund/คืนเงิน/คืนค่าสมัคร [อีเวนท์]"
+   เช่น "refund Terminal21", "คืนค่าสมัคร KMT41" → Refund, transaction_direction: EXPENSE
+
+#### B. ENTITY patterns:
+9. **Entity + subcategory**: "[subcategory] [entity]"
+   เช่น "staff BCC" → ENTITY_BCC > Staff
+   เช่น "venue คู่ขนาน" → ENTITY_KUKANANG > Venue
+   เช่น "expense BCC" → ENTITY_BCC > Other
+
+#### C. ชื่ออีเวนท์ที่รู้จัก (รวมชื่อย่อ):
+- Terminal21 / T21 → project_tag: "EVT-T21", event_name: "Terminal21"
+- KMT + เลข (เช่น KMT41, KMT42) → project_tag: "EVT-KMT41"
+- Rockstar + เลข (เช่น Rockstar3, Rockstar4) → project_tag: "EVT-Rockstar3"
+- TNV2 / Tooniverse2 → project_tag: "EVT-TNV2", event_name: "Tooniverse2"
+- ชื่ออื่นๆ ที่ไม่รู้จัก → ใช้ชื่อเต็มเป็น project_tag เช่น "EVT-ชื่อ"
 
 ## กฎการจัดหมวดพิเศษ:
 - ถ้ามี "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
