@@ -410,7 +410,10 @@ serve(async (req) => {
 
         console.log("Insert success:", JSON.stringify(insertData));
 
-        // 7. Reply to user with rich info
+        // 7. Forward to recipients
+        await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
+
+        // 8. Reply to user with rich info
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
         const cat = extractedData?.transaction_type || 'ไม่ระบุ';
         const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
@@ -466,5 +469,95 @@ async function replyToUser(token: string, replyToken: string, message: string) {
     }
   } catch (e) {
     console.error("Reply error:", e);
+  }
+}
+
+async function pushMessage(token: string, to: string, messages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}>) {
+  try {
+    const res = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ to, messages }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Push message failed:", errText);
+    }
+  } catch (e) {
+    console.error("Push error:", e);
+  }
+}
+
+async function forwardToRecipients(
+  supabase: ReturnType<typeof createClient>,
+  lineToken: string,
+  ownerUserId: string | undefined,
+  storagePath: string,
+  extractedData: Record<string, unknown> | null,
+  memo: string | null,
+  isImage: boolean
+) {
+  if (!ownerUserId) return;
+
+  try {
+    // Get active forward recipients for this user
+    const { data: recipients, error } = await supabase
+      .from('forward_recipients')
+      .select('*')
+      .eq('user_id', ownerUserId)
+      .eq('is_active', true);
+
+    if (error || !recipients || recipients.length === 0) return;
+
+    // Create signed URL for image forwarding
+    let imageUrl: string | null = null;
+    if (isImage) {
+      const { data: signedData } = await supabase.storage
+        .from('receipts')
+        .createSignedUrl(storagePath, 3600); // 1 hour
+      imageUrl = signedData?.signedUrl || null;
+    }
+
+    // Build summary text
+    const amount = extractedData?.amount ? `${Number(extractedData.amount).toLocaleString()} บาท` : 'ไม่ทราบ';
+    const cat = extractedData?.transaction_type || '-';
+    const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
+    const sub = extractedData?.subcategory ? ` > ${extractedData.subcategory}` : '';
+    const tag = extractedData?.project_tag ? `\n🏷️ ${extractedData.project_tag}` : '';
+    const desc = extractedData?.description ? `\n📝 ${extractedData.description}` : '';
+    const memoInfo = memo ? `\n💬 Memo: ${memo}` : '';
+    const date = extractedData?.date || new Date().toISOString().split('T')[0];
+
+    const summaryText = `📋 สลิปใหม่\n💰 ${amount}\n📅 ${date}\n📂 ${cat}${group}${sub}${tag}${desc}${memoInfo}`;
+
+    for (const recipient of recipients) {
+      const messages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}> = [];
+
+      // Forward image if enabled and available
+      if (recipient.forward_image && imageUrl && isImage) {
+        messages.push({
+          type: "image",
+          originalContentUrl: imageUrl,
+          previewImageUrl: imageUrl,
+        });
+      }
+
+      // Forward summary if enabled
+      if (recipient.forward_summary) {
+        messages.push({ type: "text", text: summaryText });
+      }
+
+      if (messages.length > 0) {
+        await pushMessage(lineToken, recipient.line_user_id, messages);
+      }
+    }
+
+    console.log(`Forwarded to ${recipients.length} recipient(s)`);
+  } catch (e) {
+    console.error("Forward error:", e);
+    // Don't throw - forwarding failure shouldn't break the main flow
   }
 }
