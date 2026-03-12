@@ -37,7 +37,7 @@ const LineWebhookSettings = () => {
   };
 
   if (loading || roleLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">กำลังโหลด...</p></div>;
-  if (!user || !isAdmin) return null;
+  if (!user || !isSuperAdmin) return null;
 
   return (
     <div className="min-h-screen bg-background p-4">
