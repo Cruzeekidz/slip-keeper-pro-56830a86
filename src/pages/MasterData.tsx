@@ -289,6 +289,7 @@ const MasterData = () => {
         'category': 'category',
         'subcategory': 'subcategory',
         'project': 'project',
+        'event_name': 'event_name',
         'receiver': 'receiver',
         'merchant': 'merchant',
         'sender': 'sender'
