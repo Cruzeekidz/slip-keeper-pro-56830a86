@@ -2,17 +2,17 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Copy, CheckCircle, MessageSquare, Link2, Unlink, RefreshCw, KeyRound } from "lucide-react";
+import { ArrowLeft, Copy, CheckCircle, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 const LineWebhookSettings = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
+  const { isAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
   const [mapping, setMapping] = useState<{ line_user_id: string; display_name: string | null } | null>(null);
