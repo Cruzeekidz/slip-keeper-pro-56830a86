@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Edit2, Trash2, Check, X, Send, UserCheck, Store, Search, Filter, Calendar } from "lucide-react";
+import { Combobox } from "@/components/ui/combobox";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -376,15 +377,12 @@ const MasterData = () => {
                 >
                   {editingItem?.type === type && editingItem?.oldName === item.name ? (
                     <div className="flex items-center gap-2 flex-1">
-                      <Input
+                      <Combobox
+                        options={items.filter(i => i.name !== '(ไม่ระบุ)' && i.name !== editingItem.oldName).map(i => i.name)}
                         value={editingItem.newName}
-                        onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })}
+                        onValueChange={(v) => setEditingItem({ ...editingItem, newName: v })}
+                        placeholder="พิมพ์ชื่อใหม่หรือเลือกรวมกับชื่อที่มี..."
                         className="flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRename();
-                          if (e.key === 'Escape') setEditingItem(null);
-                        }}
                       />
                       <Button size="sm" onClick={handleRename} variant="ghost">
                         <Check className="h-4 w-4 text-green-600" />
@@ -450,15 +448,12 @@ const MasterData = () => {
               >
                 {editingItem?.type === type && editingItem?.oldName === item.name ? (
                   <div className="flex items-center gap-2 flex-1">
-                    <Input
+                    <Combobox
+                      options={items.filter(i => i.name !== editingItem.oldName).map(i => i.name)}
                       value={editingItem.newName}
-                      onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })}
+                      onValueChange={(v) => setEditingItem({ ...editingItem, newName: v })}
+                      placeholder="พิมพ์ชื่อใหม่หรือเลือกรวมกับชื่อที่มี..."
                       className="flex-1"
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleRename();
-                        if (e.key === 'Escape') setEditingItem(null);
-                      }}
                     />
                     <Button size="sm" onClick={handleRename} variant="ghost">
                       <Check className="h-4 w-4 text-green-600" />
