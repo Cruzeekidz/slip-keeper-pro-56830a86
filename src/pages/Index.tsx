@@ -202,10 +202,14 @@ const Index = () => {
                     <Send className="h-4 w-4 mr-2" />
                     Forward สลิป
                   </DropdownMenuItem>
-                  {isAdmin && (
+                  {isSuperAdmin && (
                     <>
                       <DropdownMenuItem className="text-muted-foreground text-xs pointer-events-none mt-2 border-t pt-2">
-                        ⚙️ การตั้งค่าระบบ (Admin)
+                        🔧 ผู้ดูแลระบบ (Super Admin)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/system-admin')}>
+                        <ServerCog className="h-4 w-4 mr-2" />
+                        จัดการผู้ดูแลระบบ
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
                         <Shield className="h-4 w-4 mr-2" />

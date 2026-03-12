@@ -23,11 +23,11 @@ const LineWebhookSettings = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!roleLoading && !isAdmin) {
-      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับ Admin เท่านั้น", variant: "destructive" });
+    if (!roleLoading && !isSuperAdmin) {
+      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับผู้ดูแลระบบเท่านั้น", variant: "destructive" });
       navigate('/');
     }
-  }, [isAdmin, roleLoading, navigate, toast]);
+  }, [isSuperAdmin, roleLoading, navigate, toast]);
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);

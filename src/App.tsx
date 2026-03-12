@@ -49,6 +49,7 @@ const App = () => (
             <Route path="/forward-management" element={<ForwardManagement />} />
             <Route path="/line-user-roles" element={<LineUserRoles />} />
             <Route path="/link-line" element={<LinkLine />} />
+            <Route path="/system-admin" element={<SystemAdmin />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
