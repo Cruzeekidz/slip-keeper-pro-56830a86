@@ -20,6 +20,7 @@ import {
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
   const { user, loading, signOut } = useAuth();
+  const { isAdmin } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
 
