@@ -15,25 +15,19 @@ const LineWebhookSettings = () => {
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
-  const [mapping, setMapping] = useState<{ line_user_id: string; display_name: string | null } | null>(null);
-  const [linkCode, setLinkCode] = useState<string | null>(null);
-  const [linkCodeExpiry, setLinkCodeExpiry] = useState<Date | null>(null);
-  const [generatingCode, setGeneratingCode] = useState(false);
-
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const webhookUrl = `https://${projectId}.supabase.co/functions/v1/line-webhook`;
 
   useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
+    if (!loading && !user) navigate("/auth");
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) {
-      loadMapping();
+    if (!roleLoading && !isAdmin) {
+      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับ Admin เท่านั้น", variant: "destructive" });
+      navigate('/');
     }
-  }, [user]);
+  }, [isAdmin, roleLoading, navigate]);
 
   const loadMapping = async () => {
     if (!user) return;
