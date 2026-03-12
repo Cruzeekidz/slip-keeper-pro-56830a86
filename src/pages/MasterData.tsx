@@ -377,15 +377,12 @@ const MasterData = () => {
                 >
                   {editingItem?.type === type && editingItem?.oldName === item.name ? (
                     <div className="flex items-center gap-2 flex-1">
-                      <Input
+                      <Combobox
+                        options={items.filter(i => i.name !== '(ไม่ระบุ)' && i.name !== editingItem.oldName).map(i => i.name)}
                         value={editingItem.newName}
-                        onChange={(e) => setEditingItem({ ...editingItem, newName: e.target.value })}
+                        onValueChange={(v) => setEditingItem({ ...editingItem, newName: v })}
+                        placeholder="พิมพ์ชื่อใหม่หรือเลือกรวมกับชื่อที่มี..."
                         className="flex-1"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleRename();
-                          if (e.key === 'Escape') setEditingItem(null);
-                        }}
                       />
                       <Button size="sm" onClick={handleRename} variant="ghost">
                         <Check className="h-4 w-4 text-green-600" />
