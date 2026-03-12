@@ -162,6 +162,10 @@ const Index = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="bg-popover border-border">
+                  <DropdownMenuItem onClick={() => navigate('/link-line')}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    ผูกบัญชี LINE
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/bulk-upload')}>
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
@@ -198,24 +202,31 @@ const Index = () => {
                     <Send className="h-4 w-4 mr-2" />
                     Forward สลิป
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
-                    <Shield className="h-4 w-4 mr-2" />
-                    LINE User Roles
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    LINE Webhook
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={async () => {
-                    toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
-                    const { data, error } = await supabase.functions.invoke('migrate-categories');
-                    if (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); return; }
-                    toast({ title: "จัดหมวดหมู่สำเร็จ", description: `อัพเดท ${data?.migrated || 0} จาก ${data?.total || 0} รายการ` });
-                    window.location.reload();
-                  }}>
-                    <Database className="h-4 w-4 mr-2" />
-                    จัดหมวดหมู่ใหม่ (Migrate)
-                  </DropdownMenuItem>
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuItem className="text-muted-foreground text-xs pointer-events-none mt-2 border-t pt-2">
+                        ⚙️ การตั้งค่าระบบ (Admin)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
+                        <Shield className="h-4 w-4 mr-2" />
+                        LINE User Roles
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        LINE Webhook
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={async () => {
+                        toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
+                        const { data, error } = await supabase.functions.invoke('migrate-categories');
+                        if (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); return; }
+                        toast({ title: "จัดหมวดหมู่สำเร็จ", description: `อัพเดท ${data?.migrated || 0} จาก ${data?.total || 0} รายการ` });
+                        window.location.reload();
+                      }}>
+                        <Database className="h-4 w-4 mr-2" />
+                        จัดหมวดหมู่ใหม่ (Migrate)
+                      </DropdownMenuItem>
+                    </>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button 
