@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Shield, UserCheck, Users, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +32,7 @@ const ROLE_CONFIG: Record<string, { label: string; description: string; icon: ty
 
 const LineUserRoles = () => {
   const { user, loading } = useAuth();
+  const { isSuperAdmin, loading: roleLoading } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [roles, setRoles] = useState<LineUserRole[]>([]);
@@ -41,8 +43,15 @@ const LineUserRoles = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) fetchRoles();
-  }, [user]);
+    if (!roleLoading && !isSuperAdmin) {
+      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับผู้ดูแลระบบเท่านั้น", variant: "destructive" });
+      navigate('/');
+    }
+  }, [isSuperAdmin, roleLoading, navigate, toast]);
+
+  useEffect(() => {
+    if (user && isSuperAdmin) fetchRoles();
+  }, [user, isSuperAdmin]);
 
   const fetchRoles = async () => {
     setFetching(true);

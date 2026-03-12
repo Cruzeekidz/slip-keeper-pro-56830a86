@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 const LineWebhookSettings = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isSuperAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
@@ -23,11 +23,11 @@ const LineWebhookSettings = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!roleLoading && !isAdmin) {
-      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับ Admin เท่านั้น", variant: "destructive" });
+    if (!roleLoading && !isSuperAdmin) {
+      toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับผู้ดูแลระบบเท่านั้น", variant: "destructive" });
       navigate('/');
     }
-  }, [isAdmin, roleLoading, navigate, toast]);
+  }, [isSuperAdmin, roleLoading, navigate, toast]);
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -37,7 +37,7 @@ const LineWebhookSettings = () => {
   };
 
   if (loading || roleLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">กำลังโหลด...</p></div>;
-  if (!user || !isAdmin) return null;
+  if (!user || !isSuperAdmin) return null;
 
   return (
     <div className="min-h-screen bg-background p-4">

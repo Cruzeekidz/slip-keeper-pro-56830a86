@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2 } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -20,7 +20,7 @@ import {
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
   const { user, loading, signOut } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin, isSuperAdmin } = useUserRole();
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -202,10 +202,14 @@ const Index = () => {
                     <Send className="h-4 w-4 mr-2" />
                     Forward สลิป
                   </DropdownMenuItem>
-                  {isAdmin && (
+                  {isSuperAdmin && (
                     <>
                       <DropdownMenuItem className="text-muted-foreground text-xs pointer-events-none mt-2 border-t pt-2">
-                        ⚙️ การตั้งค่าระบบ (Admin)
+                        🔧 ผู้ดูแลระบบ (Super Admin)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/system-admin')}>
+                        <ServerCog className="h-4 w-4 mr-2" />
+                        จัดการผู้ดูแลระบบ
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
                         <Shield className="h-4 w-4 mr-2" />
