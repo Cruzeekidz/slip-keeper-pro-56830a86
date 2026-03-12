@@ -225,12 +225,72 @@ serve(async (req) => {
         continue;
       }
 
-      // --- ADMIN ONLY: Handle TEXT messages as pending memo ---
+      // --- Handle TEXT messages ---
       if (event.message.type === "text") {
         const text = event.message.text?.trim();
         if (!text) continue;
 
-        // Store memo for this user (delete old ones first, keep only latest)
+        // --- Handle linking code: ผูก:XXXXXX ---
+        const linkMatch = text.match(/^ผูก[:\s]?\s*(\d{6})$/);
+        if (linkMatch) {
+          const code = linkMatch[1];
+          const { data: linkCode, error: linkErr } = await supabase
+            .from('link_codes')
+            .select('id, user_id, expires_at, used')
+            .eq('code', code)
+            .eq('used', false)
+            .maybeSingle();
+
+          if (linkErr || !linkCode) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ รหัสผูกบัญชี "${code}" ไม่ถูกต้องหรือหมดอายุแล้ว\nกรุณาสร้างรหัสใหม่จากหน้าเว็บ`);
+            continue;
+          }
+
+          if (new Date(linkCode.expires_at) < new Date()) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `⏰ รหัสผูกบัญชี "${code}" หมดอายุแล้ว\nกรุณาสร้างรหัสใหม่จากหน้าเว็บ`);
+            continue;
+          }
+
+          let lineDisplayName: string | null = roleData?.display_name || null;
+          if (!lineDisplayName) {
+            try {
+              const profileRes = await fetch(`https://api.line.me/v2/bot/profile/${userId}`, {
+                headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+              });
+              if (profileRes.ok) {
+                const profile = await profileRes.json();
+                lineDisplayName = profile.displayName || null;
+              }
+            } catch (_e) { /* ignore */ }
+          }
+
+          await supabase.from('line_user_mappings').delete().eq('supabase_user_id', linkCode.user_id);
+
+          const { error: mapErr } = await supabase.from('line_user_mappings').insert({
+            line_user_id: userId,
+            supabase_user_id: linkCode.user_id,
+            display_name: lineDisplayName,
+          });
+
+          if (mapErr) {
+            console.error("Link mapping error:", mapErr);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ เกิดข้อผิดพลาดในการผูกบัญชี กรุณาลองใหม่`);
+            continue;
+          }
+
+          await supabase.from('link_codes').update({ used: true }).eq('id', linkCode.id);
+
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            `✅ ผูกบัญชีสำเร็จ!${lineDisplayName ? ` (${lineDisplayName})` : ''}\n🔗 LINE ของคุณเชื่อมต่อกับระบบ Cruzee Finance แล้ว\n📸 สามารถส่งสลิปเพื่อบันทึกค่าใช้จ่ายได้เลยครับ`);
+          continue;
+        }
+
+        // --- ADMIN ONLY: Handle TEXT messages as pending memo ---
+        if (userRole !== 'admin') continue;
+
         await supabase.from('line_pending_memos').delete().eq('line_user_id', userId);
         await supabase.from('line_pending_memos').insert({
           line_user_id: userId,
