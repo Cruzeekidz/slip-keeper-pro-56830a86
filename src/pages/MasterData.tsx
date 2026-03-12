@@ -247,6 +247,7 @@ const MasterData = () => {
         type === 'category' ? 'category' : 
         type === 'subcategory' ? 'subcategory' : 
         type === 'project' ? 'project' :
+        type === 'event_name' ? 'event_name' :
         type === 'receiver' ? 'receiver' :
         type === 'merchant' ? 'merchant' :
         type === 'sender' ? 'sender' : '';
@@ -288,6 +289,7 @@ const MasterData = () => {
         'category': 'category',
         'subcategory': 'subcategory',
         'project': 'project',
+        'event_name': 'event_name',
         'receiver': 'receiver',
         'merchant': 'merchant',
         'sender': 'sender'
