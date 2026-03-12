@@ -359,7 +359,12 @@ const PayeeGroupManagement = () => {
           <div className="space-y-4">
             <div>
               <Label>ผู้รับเงิน (Payee Pattern)</Label>
-              <Input value={editDialog.payee} onChange={e => setEditDialog({ ...editDialog, payee: e.target.value })} placeholder="เช่น ลีสซิ่งกสิกรไทย" />
+              <Combobox
+                options={ungroupedPayees.map(p => p.payee)}
+                value={editDialog.payee}
+                onValueChange={v => setEditDialog({ ...editDialog, payee: v })}
+                placeholder="เช่น ลีสซิ่งกสิกรไทย"
+              />
             </div>
             <div>
               <Label>ชื่อกลุ่ม</Label>
