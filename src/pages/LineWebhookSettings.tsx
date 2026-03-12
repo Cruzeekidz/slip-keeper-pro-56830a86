@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 const LineWebhookSettings = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
-  const { isAdmin, loading: roleLoading } = useUserRole();
+  const { isSuperAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
 
