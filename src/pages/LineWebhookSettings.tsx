@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Copy, CheckCircle, MessageSquare } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -15,6 +14,7 @@ const LineWebhookSettings = () => {
   const { isAdmin, loading: roleLoading } = useUserRole();
   const { toast } = useToast();
   const [copied, setCopied] = useState(false);
+
   const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
   const webhookUrl = `https://${projectId}.supabase.co/functions/v1/line-webhook`;
 
@@ -27,17 +27,7 @@ const LineWebhookSettings = () => {
       toast({ title: "ไม่มีสิทธิ์เข้าถึง", description: "หน้านี้สำหรับ Admin เท่านั้น", variant: "destructive" });
       navigate('/');
     }
-  }, [isAdmin, roleLoading, navigate]);
-
-  const loadMapping = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('line_user_mappings')
-      .select('line_user_id, display_name')
-      .eq('supabase_user_id', user.id)
-      .maybeSingle();
-    if (data) setMapping(data);
-  };
+  }, [isAdmin, roleLoading, navigate, toast]);
 
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
@@ -46,49 +36,8 @@ const LineWebhookSettings = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const generateLinkCode = async () => {
-    if (!user) return;
-    setGeneratingCode(true);
-    try {
-      // Generate random 6-digit code
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-
-      // Delete old unused codes for this user
-      await supabase.from('link_codes').delete().eq('user_id', user.id);
-
-      const { error } = await supabase.from('link_codes').insert({
-        user_id: user.id,
-        code,
-        expires_at: expiresAt.toISOString(),
-      });
-
-      if (error) throw error;
-
-      setLinkCode(code);
-      setLinkCodeExpiry(expiresAt);
-      toast({ title: "สร้างรหัสสำเร็จ", description: "รหัสมีอายุ 10 นาที" });
-    } catch (err) {
-      toast({ title: "เกิดข้อผิดพลาด", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-    } finally {
-      setGeneratingCode(false);
-    }
-  };
-
-  const removeMapping = async () => {
-    if (!user) return;
-    await supabase
-      .from('line_user_mappings')
-      .delete()
-      .eq('supabase_user_id', user.id);
-    setMapping(null);
-    toast({ title: "ยกเลิกการเชื่อมต่อแล้ว" });
-  };
-
-  const isCodeExpired = linkCodeExpiry ? new Date() > linkCodeExpiry : true;
-
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">กำลังโหลด...</p></div>;
-  if (!user) return null;
+  if (loading || roleLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><p className="text-muted-foreground">กำลังโหลด...</p></div>;
+  if (!user || !isAdmin) return null;
 
   return (
     <div className="min-h-screen bg-background p-4">
@@ -100,16 +49,16 @@ const LineWebhookSettings = () => {
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
               <MessageSquare className="h-6 w-6 text-green-500" />
-              LINE Webhook
+              LINE Webhook (Admin)
             </h1>
-            <p className="text-sm text-muted-foreground">รับสลิปจาก LINE อัตโนมัติ</p>
+            <p className="text-sm text-muted-foreground">ตั้งค่าเชื่อมต่อ LINE Official Account</p>
           </div>
         </div>
 
         {/* Webhook URL */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">1. ตั้งค่า Webhook URL</CardTitle>
+            <CardTitle className="text-lg">Webhook URL</CardTitle>
             <CardDescription>คัดลอก URL นี้ไปวางใน LINE Developers Console → Messaging API → Webhook URL</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -132,102 +81,15 @@ const LineWebhookSettings = () => {
           </CardContent>
         </Card>
 
-        {/* LINE Account Linking */}
+        {/* System Info */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <KeyRound className="h-5 w-5" />
-              2. ผูกบัญชี LINE
-            </CardTitle>
-            <CardDescription>
-              ผูก LINE ของคุณกับระบบ เพื่อให้สลิปที่ส่งผ่าน LINE บันทึกเข้าบัญชีของคุณอัตโนมัติ
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {mapping ? (
-              <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                <div className="flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-green-500" />
-                  <div>
-                    <p className="text-sm font-medium">เชื่อมต่อแล้ว</p>
-                    <p className="text-xs text-muted-foreground font-mono">{mapping.line_user_id}</p>
-                    {mapping.display_name && (
-                      <p className="text-xs text-muted-foreground">{mapping.display_name}</p>
-                    )}
-                  </div>
-                  <Badge variant="secondary" className="ml-2">Active</Badge>
-                </div>
-                <Button variant="ghost" size="sm" onClick={removeMapping}>
-                  <Unlink className="h-4 w-4 mr-1" />
-                  ยกเลิก
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {/* Generate link code */}
-                {linkCode && !isCodeExpired ? (
-                  <div className="text-center space-y-3 p-4 border border-dashed border-primary/40 rounded-lg bg-primary/5">
-                    <p className="text-sm font-medium">รหัสผูกบัญชีของคุณ</p>
-                    <div className="text-4xl font-bold font-mono tracking-[0.3em] text-primary">
-                      {linkCode}
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      ⏰ รหัสหมดอายุเวลา {linkCodeExpiry?.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                    <Button variant="outline" size="sm" onClick={generateLinkCode} disabled={generatingCode}>
-                      <RefreshCw className="h-3 w-3 mr-1" />
-                      สร้างรหัสใหม่
-                    </Button>
-                  </div>
-                ) : (
-                  <Button onClick={generateLinkCode} disabled={generatingCode} className="w-full">
-                    <KeyRound className="h-4 w-4 mr-2" />
-                    {generatingCode ? "กำลังสร้างรหัส..." : "สร้างรหัสผูกบัญชี"}
-                  </Button>
-                )}
-
-                <div className="text-xs text-muted-foreground space-y-1 p-3 bg-muted/50 rounded-lg">
-                  <p className="font-medium text-foreground">📌 ขั้นตอนผูกบัญชี:</p>
-                  <ol className="list-decimal ml-4 space-y-0.5">
-                    <li>แอดเพื่อน LINE OA: <strong>Cruzee Finance</strong></li>
-                    <li>กดปุ่ม "สร้างรหัสผูกบัญชี" ด้านบน</li>
-                    <li>ส่งข้อความไปที่ LINE Bot ว่า <code className="bg-muted px-1 py-0.5 rounded text-primary font-mono">ผูก:XXXXXX</code> (แทน XXXXXX ด้วยรหัส 6 หลัก)</li>
-                    <li>ระบบจะผูกบัญชีให้อัตโนมัติ ✅</li>
-                  </ol>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* How it works */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">วิธีใช้งาน</CardTitle>
+            <CardTitle className="text-lg">ระบบผูกบัญชี</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3 text-sm text-muted-foreground">
-              <div className="flex gap-3">
-                <span className="text-2xl">📸</span>
-                <div>
-                  <p className="font-medium text-foreground">ส่งรูปสลิป</p>
-                  <p>ถ่ายรูปหรือส่งรูปสลิปการโอนเงินไปที่ LINE Bot</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <span className="text-2xl">🤖</span>
-                <div>
-                  <p className="font-medium text-foreground">AI วิเคราะห์อัตโนมัติ</p>
-                  <p>ระบบจะอ่านจำนวนเงิน วันที่ ผู้รับ และจัดหมวดหมู่ให้</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <span className="text-2xl">✅</span>
-                <div>
-                  <p className="font-medium text-foreground">บันทึกอัตโนมัติ</p>
-                  <p>รายการจะปรากฏในระบบทันที พร้อมแจ้งผลกลับทาง LINE</p>
-                </div>
-              </div>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <p>ผู้ใช้ทั่วไปสามารถผูกบัญชี LINE ได้จากหน้า <strong>"ผูกบัญชี LINE"</strong> ในเมนูเครื่องมือ</p>
+              <p>ระบบใช้รหัส 6 หลัก โดยผู้ใช้จะสร้างรหัสจากเว็บ แล้วส่ง <code className="bg-muted px-1 py-0.5 rounded font-mono">ผูก:XXXXXX</code> ไปที่ LINE Bot</p>
             </div>
           </CardContent>
         </Card>
