@@ -20,6 +20,7 @@ import ForwardManagement from "./pages/ForwardManagement";
 import LineUserRoles from "./pages/LineUserRoles";
 import LinkLine from "./pages/LinkLine";
 import ResetPassword from "./pages/ResetPassword";
+import SystemAdmin from "./pages/SystemAdmin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
