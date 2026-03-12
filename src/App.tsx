@@ -18,6 +18,7 @@ import LineWebhookSettings from "./pages/LineWebhookSettings";
 import EventManagement from "./pages/EventManagement";
 import ForwardManagement from "./pages/ForwardManagement";
 import LineUserRoles from "./pages/LineUserRoles";
+import LinkLine from "./pages/LinkLine";
 import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/event-management" element={<EventManagement />} />
             <Route path="/forward-management" element={<ForwardManagement />} />
             <Route path="/line-user-roles" element={<LineUserRoles />} />
+            <Route path="/link-line" element={<LinkLine />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

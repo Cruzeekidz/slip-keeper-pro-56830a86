@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2 } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { EventAnalysis } from "@/components/event-analysis";
 import { useAuth } from "@/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
