@@ -606,6 +606,13 @@ async function forwardToRecipients(
 ) {
   if (!ownerUserId) return;
 
+  // Skip forwarding for PERSONAL transactions
+  const txnType = extractedData?.transaction_type as string | null;
+  if (txnType === 'PERSONAL') {
+    console.log("Skipping forward: PERSONAL transaction");
+    return;
+  }
+
   try {
     // Get active forward recipients for this user
     const { data: recipients, error } = await supabase
