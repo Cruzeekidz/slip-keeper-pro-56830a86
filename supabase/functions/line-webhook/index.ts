@@ -606,10 +606,10 @@ async function forwardToRecipients(
 ) {
   if (!ownerUserId) return;
 
-  // Skip forwarding for PERSONAL transactions
+  // Skip forwarding for PERSONAL and TRANSFER transactions — only forward BUSINESS
   const txnType = extractedData?.transaction_type as string | null;
-  if (txnType === 'PERSONAL') {
-    console.log("Skipping forward: PERSONAL transaction");
+  if (txnType !== 'BUSINESS') {
+    console.log(`Skipping forward: ${txnType || 'unknown'} transaction (not BUSINESS)`);
     return;
   }
 
