@@ -21,6 +21,7 @@ import LineUserRoles from "./pages/LineUserRoles";
 import LinkLine from "./pages/LinkLine";
 import ResetPassword from "./pages/ResetPassword";
 import SystemAdmin from "./pages/SystemAdmin";
+import ReceiptArchive from "./pages/ReceiptArchive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ const App = () => (
             <Route path="/line-user-roles" element={<LineUserRoles />} />
             <Route path="/link-line" element={<LinkLine />} />
             <Route path="/system-admin" element={<SystemAdmin />} />
+            <Route path="/receipt-archive" element={<ReceiptArchive />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
