@@ -166,6 +166,10 @@ const Index = () => {
                     <Link2 className="h-4 w-4 mr-2" />
                     ผูกบัญชี LINE
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/receipt-archive')}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    คลังสลิป
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/bulk-upload')}>
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
