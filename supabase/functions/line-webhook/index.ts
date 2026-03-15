@@ -482,21 +482,52 @@ serve(async (req) => {
           expenseData.user_id = mapping.supabase_user_id;
         }
 
-        // Check for duplicate transaction_id before inserting
-        const txnId = expenseData.transaction_id as string | null;
-        if (txnId && mapping?.supabase_user_id) {
-          const { data: existingTxn } = await supabase
-            .from('expenses')
-            .select('id')
-            .eq('user_id', mapping.supabase_user_id)
-            .eq('transaction_id', txnId)
-            .maybeSingle();
+        // Check for duplicate before inserting
+        if (mapping?.supabase_user_id) {
+          const txnId = expenseData.transaction_id as string | null;
+          const expAmount = expenseData.amount as number;
+          const expDate = expenseData.expense_date as string;
 
-          if (existingTxn) {
-            console.log("Duplicate transaction_id found:", txnId);
-            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว\n🔢 เลขที่รายการ: ${txnId}\nไม่ได้บันทึกซ้ำครับ`);
-            continue;
+          // Priority 1: Check by transaction_id (most reliable)
+          if (txnId) {
+            const { data: existingTxn } = await supabase
+              .from('expenses')
+              .select('id')
+              .eq('user_id', mapping.supabase_user_id)
+              .eq('transaction_id', txnId)
+              .maybeSingle();
+
+            if (existingTxn) {
+              console.log("Duplicate transaction_id found:", txnId);
+              await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+                `⚠️ สลิปนี้ถูกบันทึกไปแล้ว\n🔢 เลขที่รายการ: ${txnId}\nไม่ได้บันทึกซ้ำค่ะ`);
+              continue;
+            }
+          }
+
+          // Priority 2: Check by amount + date + time (fallback when no txn_id)
+          if (expAmount && expDate) {
+            let dupQuery = supabase
+              .from('expenses')
+              .select('id, transaction_id')
+              .eq('user_id', mapping.supabase_user_id)
+              .eq('amount', expAmount)
+              .eq('expense_date', expDate);
+
+            // If we have time, match that too for precision
+            const expTime = expenseData.expense_time as string | null;
+            if (expTime) {
+              dupQuery = dupQuery.eq('expense_time', expTime);
+            }
+
+            const { data: existingByAmount } = await dupQuery.maybeSingle();
+
+            if (existingByAmount) {
+              console.log("Duplicate by amount+date found:", expAmount, expDate);
+              await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+                `⚠️ พบรายการซ้ำ!\n💰 ${expAmount.toLocaleString()} บาท\n📅 ${expDate}\nสลิปนี้ถูกบันทึกไปแล้ว ไม่ได้บันทึกซ้ำค่ะ`);
+              continue;
+            }
           }
         }
 
