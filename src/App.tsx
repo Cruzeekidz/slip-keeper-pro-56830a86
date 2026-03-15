@@ -21,6 +21,7 @@ import LineUserRoles from "./pages/LineUserRoles";
 import LinkLine from "./pages/LinkLine";
 import ResetPassword from "./pages/ResetPassword";
 import SystemAdmin from "./pages/SystemAdmin";
+import ReceiptArchive from "./pages/ReceiptArchive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
