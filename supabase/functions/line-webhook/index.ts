@@ -344,15 +344,15 @@ serve(async (req) => {
         const contentBuffer = await contentResponse.arrayBuffer();
         const contentBytes = new Uint8Array(contentBuffer);
 
-        // 3. Upload to Storage (with appropriate extension and content type)
+        // 3. Upload to temporary path first (will move after AI analysis)
         const timestamp = Date.now();
         const fileExt = isPDF ? 'pdf' : 'jpg';
         const contentType = isPDF ? 'application/pdf' : 'image/jpeg';
-        const storagePath = `line/${userId}/${timestamp}_${messageId}.${fileExt}`;
+        const tempStoragePath = `line/${userId}/temp_${timestamp}_${messageId}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('receipts')
-          .upload(storagePath, contentBytes, {
+          .upload(tempStoragePath, contentBytes, {
             contentType,
             upsert: false,
           });
