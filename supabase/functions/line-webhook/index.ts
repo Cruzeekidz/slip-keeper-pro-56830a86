@@ -459,11 +459,22 @@ serve(async (req) => {
         }
         const storagePath = tempFile ? organizedPath : tempStoragePath;
 
-        // 6. Save to expenses
+        // 6. Clean time format (remove "น." suffix)
+        let cleanTime: string | null = extractedData?.time || null;
+        if (cleanTime) {
+          cleanTime = cleanTime.replace(/\s*น\.?\s*/g, '').trim();
+          // Validate HH:MM or HH:MM:SS format
+          if (!/^\d{1,2}:\d{2}(:\d{2})?$/.test(cleanTime)) {
+            console.log("Invalid time format after cleaning, skipping:", cleanTime);
+            cleanTime = null;
+          }
+        }
+
+        // Save to expenses
         const expenseData: Record<string, unknown> = {
           amount: extractedData?.amount || 0,
           expense_date: expDate,
-          expense_time: extractedData?.time || null,
+          expense_time: cleanTime,
           category: category,
           subcategory: extractedData?.subcategory || null,
           description: extractedData?.description || `LINE Receipt ${messageId}`,
