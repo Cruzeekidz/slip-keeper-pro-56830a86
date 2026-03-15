@@ -344,15 +344,15 @@ serve(async (req) => {
         const contentBuffer = await contentResponse.arrayBuffer();
         const contentBytes = new Uint8Array(contentBuffer);
 
-        // 3. Upload to Storage (with appropriate extension and content type)
+        // 3. Upload to temporary path first (will move after AI analysis)
         const timestamp = Date.now();
         const fileExt = isPDF ? 'pdf' : 'jpg';
         const contentType = isPDF ? 'application/pdf' : 'image/jpeg';
-        const storagePath = `line/${userId}/${timestamp}_${messageId}.${fileExt}`;
+        const tempStoragePath = `line/${userId}/temp_${timestamp}_${messageId}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('receipts')
-          .upload(storagePath, contentBytes, {
+          .upload(tempStoragePath, contentBytes, {
             contentType,
             upsert: false,
           });
@@ -397,10 +397,10 @@ serve(async (req) => {
             }
           ];
         } else {
-          // For images, use signed URL
+          // For images, use signed URL from temp path
           const { data: signedData, error: signError } = await supabase.storage
             .from('receipts')
-            .createSignedUrl(storagePath, 300);
+            .createSignedUrl(tempStoragePath, 300);
           if (signError || !signedData?.signedUrl) throw new Error("Failed to create signed URL");
           
           aiMessages = [
@@ -441,11 +441,28 @@ serve(async (req) => {
           console.error("AI analysis failed:", errText);
         }
 
-        // 6. Save to expenses
+        // 5. Move file to organized path: line/{userId}/{category}/{YYYY}/{MM}/
         const category = extractedData?.transaction_type || "PERSONAL";
+        const expDate = extractedData?.date || new Date().toISOString().split('T')[0];
+        const [year, month] = expDate.split('-');
+        const organizedPath = `line/${userId}/${category}/${year}/${month}/${timestamp}_${messageId}.${fileExt}`;
+
+        // Move: copy to new path, then delete temp
+        const { data: tempFile } = await supabase.storage.from('receipts').download(tempStoragePath);
+        if (tempFile) {
+          const fileBytes = new Uint8Array(await tempFile.arrayBuffer());
+          await supabase.storage.from('receipts').upload(organizedPath, fileBytes, {
+            contentType,
+            upsert: false,
+          });
+          await supabase.storage.from('receipts').remove([tempStoragePath]);
+        }
+        const storagePath = tempFile ? organizedPath : tempStoragePath;
+
+        // 6. Save to expenses
         const expenseData: Record<string, unknown> = {
           amount: extractedData?.amount || 0,
-          expense_date: extractedData?.date || new Date().toISOString().split('T')[0],
+          expense_date: expDate,
           expense_time: extractedData?.time || null,
           category: category,
           subcategory: extractedData?.subcategory || null,
@@ -486,7 +503,8 @@ serve(async (req) => {
         if (mapping?.supabase_user_id) {
           const txnId = expenseData.transaction_id as string | null;
           const expAmount = expenseData.amount as number;
-          const expDate = expenseData.expense_date as string;
+
+          let isDuplicate = false;
 
           // Priority 1: Check by transaction_id (most reliable)
           if (txnId) {
@@ -498,15 +516,13 @@ serve(async (req) => {
               .maybeSingle();
 
             if (existingTxn) {
+              isDuplicate = true;
               console.log("Duplicate transaction_id found:", txnId);
-              await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-                `⚠️ สลิปนี้ถูกบันทึกไปแล้ว\n🔢 เลขที่รายการ: ${txnId}\nไม่ได้บันทึกซ้ำค่ะ`);
-              continue;
             }
           }
 
           // Priority 2: Check by amount + date + time (fallback when no txn_id)
-          if (expAmount && expDate) {
+          if (!isDuplicate && expAmount && expDate) {
             let dupQuery = supabase
               .from('expenses')
               .select('id, transaction_id')
@@ -514,20 +530,26 @@ serve(async (req) => {
               .eq('amount', expAmount)
               .eq('expense_date', expDate);
 
-            // If we have time, match that too for precision
             const expTime = expenseData.expense_time as string | null;
             if (expTime) {
               dupQuery = dupQuery.eq('expense_time', expTime);
             }
 
             const { data: existingByAmount } = await dupQuery.maybeSingle();
-
             if (existingByAmount) {
+              isDuplicate = true;
               console.log("Duplicate by amount+date found:", expAmount, expDate);
-              await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-                `⚠️ พบรายการซ้ำ!\n💰 ${expAmount.toLocaleString()} บาท\n📅 ${expDate}\nสลิปนี้ถูกบันทึกไปแล้ว ไม่ได้บันทึกซ้ำค่ะ`);
-              continue;
             }
+          }
+
+          if (isDuplicate) {
+            // Still forward to recipients even if duplicate
+            await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
+
+            const amt = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : '';
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}\n📤 ส่งต่อให้นักบัญชีแล้ว`);
+            continue;
           }
         }
 
