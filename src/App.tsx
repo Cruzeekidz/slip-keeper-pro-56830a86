@@ -55,6 +55,7 @@ const App = () => (
             <Route path="/system-admin" element={<SystemAdmin />} />
             <Route path="/receipt-archive" element={<ReceiptArchive />} />
             <Route path="/system-docs" element={<SystemDocs />} />
+            <Route path="/review-queue" element={<ReviewQueue />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
