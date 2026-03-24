@@ -152,6 +152,10 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
       }
 
+      // Build a date lookup from registry first
+      const tagDateMap = new Map<string, string | null>();
+      activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
+
       // Merge Ready-go revenue into the map and collect festival dates
       for (const group of groups) {
         const tag = group.project_tag;
@@ -164,7 +168,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
         current.income += manualOther;
 
-        // Use festival_date from group if available
+        // Use festival_date from group if available (overrides registry date)
         if (group.festival_date) {
           tagDateMap.set(tag, group.festival_date);
         }
@@ -188,10 +192,6 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       }
 
       const groupTagSet = new Set(groups.map(g => g.project_tag));
-
-      // Build a date lookup from registry
-      const tagDateMap = new Map<string, string | null>();
-      activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
 
       const result: EventPLData[] = Array.from(map.entries())
         .map(([tag, data]) => ({
