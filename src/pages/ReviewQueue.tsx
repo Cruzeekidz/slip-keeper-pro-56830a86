@@ -492,6 +492,16 @@ export default function ReviewQueue() {
                   </div>
                 )}
 
+                <div className="space-y-2">
+                  <Label>ชื่ออีเวนท์</Label>
+                  <Combobox
+                    options={[...new Set(eventOptions.map(e => e.event_name))]}
+                    value={eventName}
+                    onValueChange={setEventName}
+                    placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
+                  />
+                </div>
+
                 <div className="flex gap-3 pt-4">
                   <Button onClick={handleApprove} disabled={!transactionType || saving} className="flex-1">
                     <CheckCircle className="h-4 w-4 mr-2" />
