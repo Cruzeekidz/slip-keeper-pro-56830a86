@@ -69,6 +69,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
   const [existingEventNames, setExistingEventNames] = useState<string[]>([]);
+  const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -100,7 +101,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
@@ -108,6 +109,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
         supabase.from('payee_groups').select('payee_pattern, group_name'),
         supabase.from('expenses').select('event_name').not('event_name', 'is', null),
+        supabase.from('event_registry').select('project_tag, event_name, event_date').eq('is_active', true).order('event_date', { ascending: false, nullsFirst: false }),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
@@ -116,6 +118,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setExistingSubcategories([...new Set(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
       setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
+      setRegistryTags(registryRes.data || []);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
@@ -141,10 +144,18 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   // Merge with existing custom subcategories
   const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
-  const projectTags = [
-    ...getDefaultProjectTags(formData.category_group as CategoryGroup || null),
-    ...existingTags.filter(t => !getDefaultProjectTags(formData.category_group as CategoryGroup || null).includes(t)),
-  ];
+  // Build project tags from event_registry first, then merge with existing
+  const registryTagsForGroup = registryTags
+    .filter(e => {
+      const group = formData.category_group;
+      if (group === 'EVENT') return e.project_tag.startsWith('EVT-');
+      if (group === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
+      if (group === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      return true;
+    })
+    .map(e => e.project_tag);
+  const defaultTags = getDefaultProjectTags(formData.category_group as CategoryGroup || null);
+  const projectTags = [...new Set([...registryTagsForGroup, ...defaultTags, ...existingTags])];
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);

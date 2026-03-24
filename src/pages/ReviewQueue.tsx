@@ -9,10 +9,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle } from "lucide-react";
+import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
 import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TransactionType, CategoryGroup,
-  getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
+  getSubcategoriesForType, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
 
 interface ReviewItem {
@@ -31,11 +31,19 @@ interface ReviewItem {
   memo_text: string | null;
 }
 
+interface EventOption {
+  project_tag: string;
+  event_name: string;
+  event_date: string | null;
+}
+
 export default function ReviewQueue() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
 
   // Edit state
   const [transactionType, setTransactionType] = useState<TransactionType | "">("");
@@ -62,7 +70,18 @@ export default function ReviewQueue() {
     setLoading(false);
   }, [user]);
 
-  useEffect(() => { fetchItems(); }, [fetchItems]);
+  const fetchEventOptions = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('event_registry')
+      .select('project_tag, event_name, event_date')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .order('event_date', { ascending: false, nullsFirst: false });
+    setEventOptions(data || []);
+  }, [user]);
+
+  useEffect(() => { fetchItems(); fetchEventOptions(); }, [fetchItems, fetchEventOptions]);
 
   const current = items[currentIndex];
 
@@ -85,7 +104,61 @@ export default function ReviewQueue() {
   const showGroup = transactionType === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(categoryGroup as CategoryGroup || null);
   const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, 'EXPENSE');
-  const projectTags = getDefaultProjectTags(categoryGroup as CategoryGroup || null);
+
+  // Build project tag options from event_registry
+  const projectTagOptions = showTag ? eventOptions
+    .filter(e => {
+      if (categoryGroup === 'EVENT') return e.project_tag.startsWith('EVT-');
+      if (categoryGroup === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
+      if (categoryGroup === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      return true;
+    })
+    .map(e => {
+      const dateStr = e.event_date ? ` (${e.event_date})` : '';
+      return { value: e.project_tag, label: `${e.project_tag} — ${e.event_name}${dateStr}` };
+    }) : [];
+
+  const handleReanalyze = async () => {
+    if (!current?.receipt_url) {
+      toast({ title: "ไม่มีรูปสลิป", description: "ไม่สามารถ re-analyze ได้เพราะไม่มีรูปสลิป", variant: "destructive" });
+      return;
+    }
+
+    setReanalyzing(true);
+    try {
+      const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
+        body: {
+          storagePath: current.receipt_url,
+          isPDF: current.receipt_url.endsWith('.pdf'),
+          memo: current.memo_text || undefined,
+        }
+      });
+
+      if (aiError) throw aiError;
+
+      if (aiData?.success && aiData.data) {
+        const d = aiData.data;
+        // Update local state with new AI results
+        setTransactionType((d.transaction_type as TransactionType) || "");
+        setCategoryGroup((d.category_group as CategoryGroup) || "");
+        setSubcategory(d.subcategory || "");
+        setProjectTag(d.project_tag || "");
+        if (d.amount) setAmount(String(d.amount));
+
+        toast({
+          title: "วิเคราะห์ใหม่สำเร็จ",
+          description: `${d.transaction_type || '?'} / ${d.category_group || '?'} / ${d.project_tag || 'ไม่มี tag'} (${d.confidence_score || 0}%)`,
+        });
+      } else {
+        toast({ title: "AI ไม่สามารถวิเคราะห์ได้", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error('Re-analyze error:', error);
+      toast({ title: "เกิดข้อผิดพลาด", description: "ลองใหม่อีกครั้ง", variant: "destructive" });
+    } finally {
+      setReanalyzing(false);
+    }
+  };
 
   const handleApprove = async () => {
     if (!current || !transactionType) return;
@@ -183,9 +256,24 @@ export default function ReviewQueue() {
 
             {/* Right: Edit Form */}
             <Card className="p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <AlertTriangle className="h-5 w-5 text-yellow-500" />
-                <span className="font-semibold">ตรวจสอบและแก้ไข</span>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-yellow-500" />
+                  <span className="font-semibold">ตรวจสอบและแก้ไข</span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReanalyze}
+                  disabled={reanalyzing || !current.receipt_url}
+                >
+                  {reanalyzing ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  {reanalyzing ? 'กำลังวิเคราะห์...' : 'Re-analyze'}
+                </Button>
               </div>
 
               <div className="space-y-4">
@@ -228,10 +316,22 @@ export default function ReviewQueue() {
                   </div>
                 )}
 
-                {showTag && projectTags.length > 0 && (
+                {showTag && (
                   <div className="space-y-2">
-                    <Label>แท็กโปรเจค</Label>
-                    <Combobox options={projectTags} value={projectTag} onValueChange={setProjectTag} placeholder="เลือกหรือพิมพ์แท็ก" />
+                    <Label>แท็กโปรเจค (จาก Event Registry)</Label>
+                    <Combobox
+                      options={projectTagOptions.map(o => o.value)}
+                      value={projectTag}
+                      onValueChange={setProjectTag}
+                      placeholder="เลือกอีเวนท์จากรายการ"
+                    />
+                    {projectTag && (
+                      <p className="text-xs text-muted-foreground">
+                        {eventOptions.find(e => e.project_tag === projectTag)?.event_name}
+                        {eventOptions.find(e => e.project_tag === projectTag)?.event_date && 
+                          ` (${eventOptions.find(e => e.project_tag === projectTag)?.event_date})`}
+                      </p>
+                    )}
                   </div>
                 )}
 
