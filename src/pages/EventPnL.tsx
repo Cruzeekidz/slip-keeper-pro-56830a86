@@ -126,6 +126,10 @@ const EventPnL = () => {
   const [productUnitCost, setProductUnitCost] = useState("");
 
   useEffect(() => {
+    if (!authLoading && !user) navigate("/auth");
+  }, [user, authLoading, navigate]);
+
+  useEffect(() => {
     if (user) {
       fetchEvents();
       fetchGroups();
@@ -136,6 +140,7 @@ const EventPnL = () => {
     if ((selectedEventId || selectedGroupId) && financialData) {
       fetchLocalExpenses();
       fetchOtherIncomes();
+      fetchProductCosts();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
