@@ -113,6 +113,7 @@ export type Database = {
       event_groups: {
         Row: {
           created_at: string
+          festival_date: string | null
           group_name: string
           id: string
           project_tag: string
@@ -121,6 +122,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          festival_date?: string | null
           group_name: string
           id?: string
           project_tag: string
@@ -129,6 +131,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          festival_date?: string | null
           group_name?: string
           id?: string
           project_tag?: string

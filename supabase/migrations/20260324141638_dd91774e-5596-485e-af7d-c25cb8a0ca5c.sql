@@ -1,0 +1,1 @@
+ALTER TABLE public.event_groups ADD COLUMN festival_date date DEFAULT NULL;
