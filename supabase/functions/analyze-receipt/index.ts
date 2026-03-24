@@ -70,25 +70,19 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
    เช่น "staff Peca Bridge" → ENTITY_BCC_NEXT, project_tag: BCCNEXT-PecaBridge
 10. "venue คู่ขนาน" → ENTITY_KUKANANG
 
-#### C. รูปแบบ Project Tag ใหม่: EVT-{สถานที่ย่อ}-{YYYYMMDD}
-ใช้วันที่จัดงานจริง (event_date) ในรูปแบบ YYYYMMDD เช่น:
-- Terminal21 Rama3 → EVT-T21R3-{YYYYMMDD} เช่น EVT-T21R3-20240323
-- Central Westville → EVT-Westville-{YYYYMMDD} เช่น EVT-Westville-20250607
-- Central Westgate → EVT-Westgate-{YYYYMMDD} เช่น EVT-Westgate-20251011
-- Rockstar → EVT-Rockstar3-{YYYYMMDD} หรือ EVT-Rockstar-{YYYYMMDD}
-- Peca Bridge → BCCNEXT-PecaBridge (BCC Next)
-- EngineerX → BCCNEXT-EngineerX25-T1 หรือ T2
-- Play Box → BCCNEXT-PlayBox2026
+#### C. รูปแบบ Project Tag: EVT-{สถานที่ย่อ}-{YYYYMMDD}
+**สำคัญมาก**: ใช้ project_tag จากรายการอีเวนท์จริงที่ให้ไว้ด้านล่างเท่านั้น!
+ห้ามสร้าง project_tag เอง — ต้องเลือกจากรายการที่มีอยู่จริง
 
-**สำคัญมาก - การจับคู่อีเวนท์จากวันที่สลิป**:
-1. **ชื่องาน/สถานที่มาก่อนเสมอ**: ถ้าสลิปหรือ memo ระบุชื่อสถานที่/อีเวนท์ → ใช้ชื่อนั้นจับคู่เป็นหลัก แล้วดูวันที่เพื่อหางานที่ใกล้ที่สุด
-2. **ช่วงจับคู่วันที่**: ค่าใช้จ่ายอาจเกิดก่อนงาน 30 วัน หรือหลังงาน 14 วัน (เช่น จ่ายค่า staff ล่วงหน้า, จ่ายเครดิตหลังงาน, ค่าจ้างทีมเฝ้าบูธก่อนงาน)
-3. **งานเดียวกันที่จัดซ้ำสถานที่** (เช่น Westgate หลายครั้งในปีเดียว) → จับคู่กับงานที่วันที่ใกล้เคียงที่สุด
-4. **สถานที่ที่มีช่วงเตรียมงานยาว** (เช่น Westville, Westgate ที่จัดสนามเด็กเล่นก่อนงานเป็นเดือน): ค่าใช้จ่าย staff/booth ก่อนงานนานถึง 30-45 วันถือเป็นของงานนั้น ถ้ามีชื่อสถานที่ระบุ
+**การจับคู่อีเวนท์จากสลิป**:
+1. **ชื่องาน/สถานที่มาก่อนเสมอ**: ถ้าสลิปหรือ memo ระบุชื่อสถานที่/อีเวนท์ → ค้นหาในรายการอีเวนท์ (ชื่อ + aliases) แล้วใช้ project_tag ของงานนั้น
+2. **จับคู่จากวันที่สลิป**: ถ้ามีหลายงานที่ตรงชื่อ → เลือกงานที่ event_date ใกล้วันที่สลิปที่สุด
+3. **ช่วงจับคู่วันที่**: ค่าใช้จ่ายอาจเกิดก่อนงาน 30 วัน หรือหลังงาน 14 วัน
+4. **สถานที่ที่มีช่วงเตรียมงานยาว** (Westville, Westgate): ค่าใช้จ่าย staff/booth ก่อนงานนานถึง 30-45 วันถือเป็นของงานนั้น
 5. ถ้าไม่แน่ใจงานไหน → ใส่ project_tag เป็น null และ confidence_score ต่ำ
 
 #### D. โครงการระยะยาว (BCCNEXT / PROGRAM):
-โครงการเหล่านี้ไม่มี event_date เดียว แต่เป็นช่วงเวลา 1-3 เดือน (เช่น คลาสสอนเป็น Term):
+โครงการเหล่านี้ไม่มี event_date เดียว แต่เป็นช่วงเวลา 1-3 เดือน:
 - BCCNEXT-PecaBridge, BCCNEXT-EngineerX25-T1, BCCNEXT-EngineerX25-T2, BCCNEXT-PlayBox2026
 - ถ้า memo ระบุชื่อโครงการ → จับคู่ได้เลยโดยไม่ต้องดูวันที่
 
@@ -102,7 +96,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 - transaction_type: TRANSFER / BUSINESS / PERSONAL
 - category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC_NEXT / GENERAL (เฉพาะ BUSINESS) หรือ null
-- project_tag: เช่น "EVT-Rockstar3", "PROG-BikeClass" หรือ null
+- project_tag: **ต้องเลือกจากรายการอีเวนท์ที่ให้ไว้เท่านั้น** หรือ null
 - subcategory: จากรายการด้านบน
 - transaction_direction: INCOME หรือ EXPENSE (default EXPENSE, ใช้ INCOME ถ้าเป็นรายรับ เช่น ค่าสมัคร/สปอนเซอร์)
 - confidence_score: 0-100
@@ -147,6 +141,36 @@ const TOOL_SCHEMA = {
   }
 };
 
+// Fetch event registry and format as reference for the AI
+async function getEventRegistryPrompt(supabase: any): Promise<string> {
+  try {
+    const { data: events, error } = await supabase
+      .from('event_registry')
+      .select('event_name, project_tag, event_date, aliases')
+      .eq('is_active', true)
+      .order('event_date', { ascending: false, nullsFirst: false });
+
+    if (error || !events?.length) {
+      console.warn('No events found in registry:', error);
+      return '';
+    }
+
+    const lines = events.map((e: any) => {
+      const date = e.event_date || 'ไม่มีวันที่ (โครงการระยะยาว)';
+      const aliases = e.aliases?.length ? ` | aliases: ${e.aliases.join(', ')}` : '';
+      return `- ${e.project_tag} | ${e.event_name} | ${date}${aliases}`;
+    });
+
+    return `\n\n## 📋 รายการอีเวนท์ที่ลงทะเบียนในระบบ (ใช้ project_tag จากรายการนี้เท่านั้น!):
+${lines.join('\n')}
+
+**คำแนะนำ**: ถ้าสลิปหรือ memo มีคำว่า "Westgate", "Westville", "Terminal21", "Rockstar" ฯลฯ → ค้นหาในรายการด้านบน แล้วเลือก project_tag ที่ event_date ใกล้วันที่สลิปมากที่สุด (±30 วันก่อน, ±14 วันหลัง, ±45 วันสำหรับ Westville/Westgate)`;
+  } catch (e) {
+    console.error('Error fetching event registry:', e);
+    return '';
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -155,18 +179,22 @@ serve(async (req) => {
   try {
     const { fileBase64, isPDF, storagePath, memo } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
+    // Create supabase client for event registry & storage
+    let supabase: any = null;
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    }
+
     let contentUrl = fileBase64;
     try {
-      if (storagePath) {
-        const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
-        const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-        if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Missing env vars");
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      if (storagePath && supabase) {
         const { data: signed, error: signErr } = await supabase.storage.from('receipts').createSignedUrl(storagePath, 300);
         if (signErr || !signed?.signedUrl) throw new Error("Failed to sign URL");
         contentUrl = signed.signedUrl;
@@ -175,8 +203,11 @@ serve(async (req) => {
       console.warn('Falling back to base64:', e);
     }
 
+    // Fetch event registry to inject into prompt
+    const eventRegistryPrompt = supabase ? await getEventRegistryPrompt(supabase) : '';
+
     // Build prompt with memo if available
-    let promptText = ANALYSIS_PROMPT;
+    let promptText = ANALYSIS_PROMPT + eventRegistryPrompt;
     if (memo) {
       promptText += `\n\n## Memo/Caption ที่ส่งมาพร้อมสลิป:\n"${memo}"\n\nให้ใช้ข้อมูลจาก memo นี้เป็นหลักในการจัดหมวดหมู่และดึงข้อมูล staff_name, days_worked, event_name`;
     }
