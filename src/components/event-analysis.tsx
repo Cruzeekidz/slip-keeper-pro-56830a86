@@ -257,9 +257,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
                 </span>
               )}
             </div>
-            {event.displayName !== event.tag && (
-              <p className="text-xs text-muted-foreground mb-2 font-mono">{event.tag}</p>
-            )}
+            <div className="flex items-center gap-2 mb-2">
+              {event.displayName !== event.tag && (
+                <span className="text-xs text-muted-foreground font-mono">{event.tag}</span>
+              )}
+              {event.eventDate && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {new Date(event.eventDate).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                </span>
+              )}
+            </div>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">รายได้รวม:</span>
