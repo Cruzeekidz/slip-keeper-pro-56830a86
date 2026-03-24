@@ -91,11 +91,9 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
   const fetchEventPL = async (forceRefresh = false) => {
     try {
-      // Fetch registry, expenses, event groups, and other income in parallel
-      const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes, otherExpensesRes] = await Promise.all([
+      // Fetch registry, event groups, and other income/costs in parallel (no bulk expenses fetch)
+      const [registryRes, groupsRes, otherIncomeRes, productCostsRes, otherExpensesRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
-        supabase.from('expenses')
-          .select('project_tag, event_name, project, amount, transaction_type, category_group, transaction_direction'),
         supabase.from('event_groups').select('*'),
         supabase.from('event_other_income').select('*'),
         supabase.from('event_product_costs' as any).select('*'),
@@ -103,7 +101,6 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       ]);
 
       const registry = (registryRes.data as EventRegistryItem[]) || [];
-      const expenses = expensesRes.data || [];
       const groups = (groupsRes.data as EventGroup[]) || [];
       const otherIncomes = (otherIncomeRes.data as any[]) || [];
       const productCostsData = (productCostsRes.data as any[]) || [];
@@ -122,51 +119,55 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         });
       }
 
-      // Build alias lookup
-      const aliasMap = new Map<string, string>();
+      // Build search terms per project_tag (same approach as P&L page)
       const tagDisplayName = new Map<string, string>();
+      const tagSearchTerms = new Map<string, string[]>();
 
       activeRegistry.forEach(r => {
         tagDisplayName.set(r.project_tag, r.event_name);
-        aliasMap.set(normalizeForMatch(r.project_tag), r.project_tag);
-        aliasMap.set(normalizeForMatch(r.event_name), r.project_tag);
-        r.aliases.forEach(a => {
-          aliasMap.set(normalizeForMatch(a), r.project_tag);
-        });
+        const terms = [r.project_tag, r.event_name, ...r.aliases].filter(t => t && t.trim());
+        tagSearchTerms.set(r.project_tag, [...new Set(terms)]);
       });
 
-      // Aggregate local expenses
+      // Also add group names as search terms
+      groups.forEach(g => {
+        const existing = tagSearchTerms.get(g.project_tag) || [g.project_tag];
+        existing.push(g.group_name);
+        tagSearchTerms.set(g.project_tag, [...new Set(existing)]);
+        if (!tagDisplayName.has(g.project_tag)) {
+          tagDisplayName.set(g.project_tag, g.group_name);
+        }
+      });
+
+      // Fetch expenses per event using targeted SQL ilike queries (same as P&L page)
       const map = new Map<string, { income: number; expense: number }>();
 
-      expenses.forEach(exp => {
-        // Try all text fields that might contain event info
-        const candidates = [exp.project_tag, exp.event_name, exp.project].filter(Boolean);
-        if (candidates.length === 0) return;
+      const expensePromises = Array.from(tagSearchTerms.entries()).map(async ([tag, terms]) => {
+        if (terms.length === 0) return;
+        const orClauses = terms
+          .flatMap(t => [`event_name.ilike.%${t}%`, `project.ilike.%${t}%`, `project_tag.ilike.%${t}%`])
+          .join(",");
 
-        let finalTag: string | null = null;
-        for (const candidate of candidates) {
-          const normalized = normalizeForMatch(candidate!);
-          const registryTag = aliasMap.get(normalized);
-          if (registryTag) { finalTag = registryTag; break; }
-          // Also try partial matching against alias keys
-          for (const [aliasKey, tag] of aliasMap.entries()) {
-            if (normalized.includes(aliasKey) || aliasKey.includes(normalized)) {
-              finalTag = tag; break;
-            }
+        const { data } = await supabase
+          .from('expenses')
+          .select('amount, transaction_direction')
+          .or(orClauses);
+
+        if (!data || data.length === 0) return;
+
+        let income = 0;
+        let expense = 0;
+        data.forEach(exp => {
+          if (exp.transaction_direction === 'INCOME') {
+            income += Number(exp.amount);
+          } else {
+            expense += Number(exp.amount);
           }
-          if (finalTag) break;
-        }
-        if (!finalTag) finalTag = exp.project_tag || exp.event_name || null;
-        if (!finalTag) return;
-
-        const current = map.get(finalTag) || { income: 0, expense: 0 };
-        if (exp.transaction_direction === 'INCOME') {
-          current.income += exp.amount;
-        } else {
-          current.expense += exp.amount;
-        }
-        map.set(finalTag, current);
+        });
+        map.set(tag, { income, expense });
       });
+
+      await Promise.allSettled(expensePromises);
 
       // Ready-go revenue: use cache unless forceRefresh
       const groupsWithIds = groups.filter(g => g.readygo_event_ids?.length > 0);
