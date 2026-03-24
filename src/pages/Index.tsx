@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -176,6 +176,18 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/transaction-report')}>
                     <BarChart3 className="h-4 w-4 mr-2" />
                     รายงานธุรกรรม
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 สตาฟ & ค่าแรง</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => navigate('/staff-management')}>
+                    <Users className="h-4 w-4 mr-2" />
+                    จัดการทะเบียนสตาฟ
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/staff-payments')}>
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    ใบเรียกเก็บ/จ่ายเงิน
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
