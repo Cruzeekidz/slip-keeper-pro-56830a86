@@ -122,6 +122,7 @@ export default function ReviewQueue() {
   const showGroup = transactionType === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(categoryGroup as CategoryGroup || null);
   const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, 'EXPENSE');
+  const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
   // Build project tag options from event_registry
   const projectTagOptions = showTag ? eventOptions
