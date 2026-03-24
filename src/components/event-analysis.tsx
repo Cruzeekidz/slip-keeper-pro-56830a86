@@ -252,7 +252,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         setCacheTime(new Date().toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
       }
 
-      // Add other income from event_other_income table per group
+      // Add other income from event_other_income table — per group AND per single event
       const manualOtherIncomeByTag = new Map<string, number>();
       for (const group of groups) {
         const groupIncomes = otherIncomes.filter(i => i.event_group_id === group.id);
@@ -261,8 +261,16 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           manualOtherIncomeByTag.set(group.project_tag, (manualOtherIncomeByTag.get(group.project_tag) || 0) + total);
         }
       }
+      // Single events (by event_id = readygo_event_id)
+      for (const reg of registryWithReadyGo) {
+        const regIncomes = otherIncomes.filter((i: any) => i.event_id === reg.readygo_event_id);
+        const total = regIncomes.reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
+        if (total > 0) {
+          manualOtherIncomeByTag.set(reg.project_tag, (manualOtherIncomeByTag.get(reg.project_tag) || 0) + total);
+        }
+      }
 
-      // Aggregate product costs per group
+      // Aggregate product costs — per group AND per single event
       const productCostByTag = new Map<string, number>();
       for (const group of groups) {
         const groupCosts = productCostsData.filter((c: any) => c.event_group_id === group.id);
@@ -271,14 +279,28 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           productCostByTag.set(group.project_tag, (productCostByTag.get(group.project_tag) || 0) + total);
         }
       }
+      for (const reg of registryWithReadyGo) {
+        const regCosts = productCostsData.filter((c: any) => c.event_id === reg.readygo_event_id);
+        const total = regCosts.reduce((s: number, c: any) => s + Number(c.quantity || 0) * Number(c.unit_cost || 0), 0);
+        if (total > 0) {
+          productCostByTag.set(reg.project_tag, (productCostByTag.get(reg.project_tag) || 0) + total);
+        }
+      }
 
-      // Aggregate other expenses per group
+      // Aggregate other expenses — per group AND per single event
       const otherExpenseByTag = new Map<string, number>();
       for (const group of groups) {
         const groupExpenses = otherExpensesData.filter((e: any) => e.event_group_id === group.id);
         const total = groupExpenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
         if (total > 0) {
           otherExpenseByTag.set(group.project_tag, (otherExpenseByTag.get(group.project_tag) || 0) + total);
+        }
+      }
+      for (const reg of registryWithReadyGo) {
+        const regExpenses = otherExpensesData.filter((e: any) => e.event_id === reg.readygo_event_id);
+        const total = regExpenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+        if (total > 0) {
+          otherExpenseByTag.set(reg.project_tag, (otherExpenseByTag.get(reg.project_tag) || 0) + total);
         }
       }
 
@@ -314,15 +336,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         map.set(tag, current);
       }
 
-      // Merge Ready-go revenue for single registry entries (not in groups)
+      // Merge Ready-go revenue + manual costs for single registry entries (not in groups)
       for (const reg of registryWithReadyGo) {
         const tag = reg.project_tag;
+        const current = map.get(tag) || { income: 0, expense: 0 };
         const readyGo = readyGoRevenueMap.get(tag);
         if (readyGo) {
-          const current = map.get(tag) || { income: 0, expense: 0 };
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
-          map.set(tag, current);
         }
+        current.income += manualOtherIncomeByTag.get(tag) || 0;
+        current.expense += (productCostByTag.get(tag) || 0) + (otherExpenseByTag.get(tag) || 0);
+        map.set(tag, current);
       }
 
       // Filter and build result
