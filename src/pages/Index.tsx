@@ -164,8 +164,7 @@ const Index = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="bg-popover border-border w-56">
-                  {/* กลุ่ม: อีเวนท์ & รายได้ */}
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">📅 อีเวนท์ & รายได้</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-bold text-blue-400">📅 อีเวนท์ & รายได้</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/event-management')}>
                     <Calendar className="h-4 w-4 mr-2" />
                     จัดการอีเวนท์
@@ -181,8 +180,7 @@ const Index = () => {
 
                   <DropdownMenuSeparator />
 
-                  {/* กลุ่ม: สลิป & อัพโหลด */}
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">🧾 สลิป & อัพโหลด</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-bold text-amber-400">🧾 สลิป & อัพโหลด</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/receipt-archive')}>
                     <FolderOpen className="h-4 w-4 mr-2" />
                     คลังสลิป
@@ -198,8 +196,7 @@ const Index = () => {
 
                   <DropdownMenuSeparator />
 
-                  {/* กลุ่ม: ตรวจสอบ & แก้ไข */}
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">🔍 ตรวจสอบ & แก้ไข</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-bold text-emerald-400">🔍 ตรวจสอบ & แก้ไข</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/review-queue')}>
                     <ClipboardCheck className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการ (Review)
@@ -212,11 +209,20 @@ const Index = () => {
                     <History className="h-4 w-4 mr-2" />
                     ประวัติการลบ
                   </DropdownMenuItem>
-
-                  <DropdownMenuSeparator />
-
-                  {/* กลุ่ม: ตั้งค่า */}
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">⚙️ ตั้งค่า</DropdownMenuLabel>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button 
+                    className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                    size="sm"
+                  >
+                    <Settings className="h-4 w-4 mr-1.5" />
+                    ตั้งค่า
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-popover border-border w-56">
+                  <DropdownMenuLabel className="text-xs font-bold text-violet-400">⚙️ ตั้งค่า</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/link-line')}>
                     <Link2 className="h-4 w-4 mr-2" />
                     ผูกบัญชี LINE
@@ -237,7 +243,7 @@ const Index = () => {
                   {isSuperAdmin && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs text-muted-foreground">🔧 ผู้ดูแลระบบ</DropdownMenuLabel>
+                      <DropdownMenuLabel className="text-xs font-bold text-rose-400">🔧 ผู้ดูแลระบบ</DropdownMenuLabel>
                       <DropdownMenuItem onClick={() => navigate('/system-admin')}>
                         <ServerCog className="h-4 w-4 mr-2" />
                         จัดการผู้ดูแลระบบ
