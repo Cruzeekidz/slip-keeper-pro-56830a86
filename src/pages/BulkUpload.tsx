@@ -267,6 +267,7 @@ export default function BulkUpload() {
               updatedFiles[index].error = `สลิปซ้ำ (ID: ${d.transaction_id})`;
               setFiles([...updatedFiles]);
               setStats(prev => ({ ...prev, duplicate: prev.duplicate + 1 }));
+              setProcessedCount(prev => prev + 1);
               return;
             }
           }
@@ -281,6 +282,7 @@ export default function BulkUpload() {
               updatedFiles[index].error = `สลิปซ้ำ (${d.amount} บาท, ${d.date}${d.time ? ' ' + d.time : ''})`;
               setFiles([...updatedFiles]);
               setStats(prev => ({ ...prev, duplicate: prev.duplicate + 1 }));
+              setProcessedCount(prev => prev + 1);
               return;
             }
           }
