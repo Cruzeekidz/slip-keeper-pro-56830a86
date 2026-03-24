@@ -960,6 +960,125 @@ export type Database = {
         }
         Relationships: []
       }
+      vendor_invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          due_date: string | null
+          file_url: string | null
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          net_amount: number
+          notes: string | null
+          ocr_data: Json | null
+          paid_at: string | null
+          status: string
+          user_id: string
+          vat_amount: number
+          vendor_id: string | null
+          wht_amount: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          net_amount?: number
+          notes?: string | null
+          ocr_data?: Json | null
+          paid_at?: string | null
+          status?: string
+          user_id: string
+          vat_amount?: number
+          vendor_id?: string | null
+          wht_amount?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          file_url?: string | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          net_amount?: number
+          notes?: string | null
+          ocr_data?: Json | null
+          paid_at?: string | null
+          status?: string
+          user_id?: string
+          vat_amount?: number
+          vendor_id?: string | null
+          wht_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendor_profiles: {
+        Row: {
+          address: string | null
+          bank_account: string | null
+          bank_name: string | null
+          company_name: string
+          contact_name: string | null
+          created_at: string
+          email: string | null
+          id: string
+          is_active: boolean
+          phone: string | null
+          tax_doc_url: string | null
+          tax_id: string | null
+          user_id: string
+          vendor_type: string
+        }
+        Insert: {
+          address?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          company_name: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          tax_doc_url?: string | null
+          tax_id?: string | null
+          user_id: string
+          vendor_type?: string
+        }
+        Update: {
+          address?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          company_name?: string
+          contact_name?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          tax_doc_url?: string | null
+          tax_id?: string | null
+          user_id?: string
+          vendor_type?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
