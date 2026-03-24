@@ -140,6 +140,7 @@ const formatNumber = (n: number) => n.toLocaleString("th-TH", { minimumFractionD
 const EventPnL = () => {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [events, setEvents] = useState<ReadyGoEvent[]>([]);
