@@ -22,6 +22,7 @@ import LinkLine from "./pages/LinkLine";
 import ResetPassword from "./pages/ResetPassword";
 import SystemAdmin from "./pages/SystemAdmin";
 import ReceiptArchive from "./pages/ReceiptArchive";
+import SystemDocs from "./pages/SystemDocs";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -52,6 +53,7 @@ const App = () => (
             <Route path="/link-line" element={<LinkLine />} />
             <Route path="/system-admin" element={<SystemAdmin />} />
             <Route path="/receipt-archive" element={<ReceiptArchive />} />
+            <Route path="/system-docs" element={<SystemDocs />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
