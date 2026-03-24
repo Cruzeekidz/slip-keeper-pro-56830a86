@@ -174,6 +174,10 @@ const Index = () => {
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/review-queue')}>
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    ตรวจสอบรายการ (Review)
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/duplicate-checker')}>
                     <AlertTriangle className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการซ้ำ
