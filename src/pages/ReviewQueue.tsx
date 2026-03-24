@@ -167,6 +167,91 @@ export default function ReviewQueue() {
     }
   };
 
+  const handleBatchReanalyze = async () => {
+    const withReceipt = items.filter(i => i.receipt_url);
+    if (withReceipt.length === 0) {
+      toast({ title: "ไม่มีรายการที่มีสลิป", variant: "destructive" });
+      return;
+    }
+
+    setBatchRunning(true);
+    batchPausedRef.current = false;
+    batchAbortRef.current = false;
+    setBatchProgress({ done: 0, total: withReceipt.length, success: 0, failed: 0, updated: 0 });
+
+    let success = 0, failed = 0, updated = 0;
+
+    for (let i = 0; i < withReceipt.length; i++) {
+      if (batchAbortRef.current) break;
+      while (batchPausedRef.current && !batchAbortRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (batchAbortRef.current) break;
+
+      const item = withReceipt[i];
+      try {
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
+          body: {
+            storagePath: item.receipt_url,
+            isPDF: item.receipt_url!.endsWith('.pdf'),
+            memo: item.memo_text || undefined,
+          }
+        });
+
+        if (aiError) throw aiError;
+
+        if (aiData?.success && aiData.data) {
+          const d = aiData.data;
+          const newConfidence = d.confidence_score || 0;
+          const category = d.transaction_type === 'BUSINESS' && d.category_group
+            ? `${d.transaction_type}/${d.category_group}` : d.transaction_type || item.transaction_type || '';
+
+          const autoApprove = newConfidence >= 75;
+
+          const { error: updateError } = await supabase.from('expenses').update({
+            transaction_type: d.transaction_type || item.transaction_type,
+            category_group: d.category_group || null,
+            category,
+            subcategory: d.subcategory || null,
+            project_tag: d.project_tag || null,
+            amount: d.amount || item.amount,
+            confidence_score: newConfidence,
+            needs_review: !autoApprove,
+            event_name: d.event_name || item.event_name,
+            merchant: d.merchant || item.merchant,
+            description: d.description || item.description,
+          }).eq('id', item.id);
+
+          if (updateError) throw updateError;
+          success++;
+          if (autoApprove) updated++;
+        } else {
+          failed++;
+        }
+      } catch (err) {
+        console.error(`Batch re-analyze error for ${item.id}:`, err);
+        failed++;
+        if (err && typeof err === 'object' && 'status' in err && (err as any).status === 429) {
+          await new Promise(r => setTimeout(r, 10000));
+          i--;
+          continue;
+        }
+      }
+
+      setBatchProgress({ done: i + 1, total: withReceipt.length, success, failed, updated });
+      if (i < withReceipt.length - 1) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+
+    setBatchRunning(false);
+    toast({
+      title: "Re-analyze ทั้งหมดเสร็จสิ้น",
+      description: `สำเร็จ ${success} | ผิดพลาด ${failed} | อนุมัติอัตโนมัติ ${updated} รายการ`,
+    });
+    fetchItems();
+  };
+
   const handleApprove = async () => {
     if (!current || !transactionType) return;
     setSaving(true);
