@@ -279,6 +279,7 @@ export default function ReviewQueue() {
       category,
       subcategory: subcategory || null,
       project_tag: projectTag || null,
+      event_name: eventName || null,
       amount: parseFloat(amount),
       needs_review: false,
       confidence_score: 100,
