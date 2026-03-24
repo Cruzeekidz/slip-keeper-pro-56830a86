@@ -3,8 +3,7 @@ import { Card } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, TrendingUp, TrendingDown } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Calendar, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 
 interface EventPLData {
@@ -13,6 +12,7 @@ interface EventPLData {
   income: number;
   expense: number;
   profit: number;
+  hasReadyGoData: boolean;
 }
 
 interface EventRegistryItem {
@@ -24,8 +24,15 @@ interface EventRegistryItem {
   is_active: boolean;
 }
 
+interface EventGroup {
+  id: string;
+  group_name: string;
+  project_tag: string;
+  readygo_event_ids: string[];
+}
+
 interface EventAnalysisProps {
-  recentOnly?: boolean; // true = show only events within 3 months of now
+  recentOnly?: boolean;
 }
 
 export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
@@ -39,38 +46,41 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
   const fetchEventPL = async () => {
     try {
-      // Fetch event registry and expenses in parallel
-      const [registryRes, expensesRes] = await Promise.all([
+      // Fetch registry, expenses, event groups, and other income in parallel
+      const [registryRes, expensesRes, groupsRes, otherIncomeRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
         supabase.from('expenses')
           .select('project_tag, event_name, amount, transaction_type, category_group, transaction_direction')
           .eq('transaction_type', 'BUSINESS')
           .eq('category_group', 'EVENT'),
+        supabase.from('event_groups').select('*'),
+        supabase.from('event_other_income').select('*'),
       ]);
 
       const registry = (registryRes.data as EventRegistryItem[]) || [];
       const expenses = expensesRes.data || [];
+      const groups = (groupsRes.data as EventGroup[]) || [];
+      const otherIncomes = (otherIncomeRes.data as any[]) || [];
 
-      // Filter recent events if needed (event_date within 3 months)
+      // Filter recent events if needed
       let activeRegistry = registry.filter(r => r.is_active);
       if (recentOnly) {
         const now = new Date();
         const threeMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
         const threeMonthsAhead = new Date(now.getFullYear(), now.getMonth() + 3, 28);
         activeRegistry = activeRegistry.filter(r => {
-          if (!r.event_date) return true; // no date = always show
+          if (!r.event_date) return true;
           const d = new Date(r.event_date);
           return d >= threeMonthsAgo && d <= threeMonthsAhead;
         });
       }
 
-      // Build alias lookup: normalized alias -> project_tag
+      // Build alias lookup
       const aliasMap = new Map<string, string>();
       const tagDisplayName = new Map<string, string>();
 
       activeRegistry.forEach(r => {
         tagDisplayName.set(r.project_tag, r.event_name);
-        // Map the project_tag itself
         aliasMap.set(normalizeForMatch(r.project_tag), r.project_tag);
         aliasMap.set(normalizeForMatch(r.event_name), r.project_tag);
         r.aliases.forEach(a => {
@@ -78,22 +88,16 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         });
       });
 
-      // Aggregate expenses, normalizing tags via registry
+      // Aggregate local expenses
       const map = new Map<string, { income: number; expense: number }>();
 
       expenses.forEach(exp => {
-        // Try to match via project_tag or event_name
         let resolvedTag = exp.project_tag || exp.event_name || null;
         if (!resolvedTag) return;
 
         const normalized = normalizeForMatch(resolvedTag);
         const registryTag = aliasMap.get(normalized);
         const finalTag = registryTag || resolvedTag;
-
-        // If recentOnly and this tag is not in the active registry, check if we should skip
-        if (recentOnly && !tagDisplayName.has(finalTag) && registryTag === undefined) {
-          // Not in registry at all - still show it (legacy data)
-        }
 
         const current = map.get(finalTag) || { income: 0, expense: 0 };
         if (exp.transaction_direction === 'INCOME') {
@@ -104,20 +108,88 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         map.set(finalTag, current);
       });
 
-      // If recentOnly, filter to only registry tags
-      let entries = Array.from(map.entries());
-      if (recentOnly && activeRegistry.length > 0) {
-        const activeTags = new Set(activeRegistry.map(r => r.project_tag));
-        entries = entries.filter(([tag]) => activeTags.has(tag));
+      // Fetch Ready-go.fun revenue for groups that have readygo_event_ids
+      const groupsWithIds = groups.filter(g => g.readygo_event_ids?.length > 0);
+      const readyGoRevenueMap = new Map<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>();
+
+      if (groupsWithIds.length > 0) {
+        // Fetch all groups' financials in parallel
+        const fetchPromises = groupsWithIds.map(async (group) => {
+          try {
+            const action = group.readygo_event_ids.length === 1 
+              ? "event-financials" 
+              : "multi-event-financials";
+            const body = group.readygo_event_ids.length === 1
+              ? { action, event_id: group.readygo_event_ids[0] }
+              : { action, event_ids: group.readygo_event_ids };
+
+            const { data, error } = await supabase.functions.invoke("fetch-readygo-data", { body });
+            if (error) throw error;
+
+            const stats = data?.registrationStats || {};
+            readyGoRevenueMap.set(group.project_tag, {
+              registrationRevenue: Number(stats.actual_revenue || 0),
+              otoRevenue: Number(stats.total_oto_revenue || 0),
+              readyGoOtherIncome: Number(data?.summary?.totalOtherIncome || 0),
+            });
+          } catch (err) {
+            console.error(`Failed to fetch Ready-go data for group ${group.group_name}:`, err);
+          }
+        });
+
+        await Promise.allSettled(fetchPromises);
       }
 
-      const result: EventPLData[] = entries
+      // Add other income from event_other_income table per group
+      const manualOtherIncomeByTag = new Map<string, number>();
+      for (const group of groups) {
+        const groupIncomes = otherIncomes.filter(i => i.event_group_id === group.id);
+        const total = groupIncomes.reduce((s: number, i: any) => s + Number(i.amount || 0), 0);
+        if (total > 0) {
+          manualOtherIncomeByTag.set(group.project_tag, (manualOtherIncomeByTag.get(group.project_tag) || 0) + total);
+        }
+      }
+
+      // Merge Ready-go revenue into the map
+      for (const group of groups) {
+        const tag = group.project_tag;
+        const current = map.get(tag) || { income: 0, expense: 0 };
+        const readyGo = readyGoRevenueMap.get(tag);
+        const manualOther = manualOtherIncomeByTag.get(tag) || 0;
+
+        if (readyGo) {
+          current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
+        }
+        current.income += manualOther;
+
+        // Also set display name from group if not in registry
+        if (!tagDisplayName.has(tag)) {
+          tagDisplayName.set(tag, group.group_name);
+        }
+
+        map.set(tag, current);
+      }
+
+      // Filter and build result
+      if (recentOnly) {
+        const activeTags = new Set(activeRegistry.map(r => r.project_tag));
+        // Also include group tags
+        groups.forEach(g => activeTags.add(g.project_tag));
+        const entries = Array.from(map.entries()).filter(([tag]) => activeTags.has(tag));
+        map.clear();
+        entries.forEach(([k, v]) => map.set(k, v));
+      }
+
+      const groupTagSet = new Set(groups.map(g => g.project_tag));
+
+      const result: EventPLData[] = Array.from(map.entries())
         .map(([tag, data]) => ({
           tag,
           displayName: tagDisplayName.get(tag) || tag,
           income: data.income,
           expense: data.expense,
           profit: data.income - data.expense,
+          hasReadyGoData: readyGoRevenueMap.has(tag) || groupTagSet.has(tag),
         }))
         .sort((a, b) => b.expense - a.expense);
 
@@ -128,7 +200,14 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   };
 
   if (loading) {
-    return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
+    return (
+      <Card className="p-6">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <p>กำลังโหลดข้อมูล P&L อีเวนท์...</p>
+        </div>
+      </Card>
+    );
   }
 
   if (eventPL.length === 0) return null;
@@ -152,7 +231,14 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {eventPL.map(event => (
           <Card key={event.tag} className="p-4 border">
-            <div className="font-semibold text-foreground mb-1">{event.displayName}</div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold text-foreground">{event.displayName}</span>
+              {event.hasReadyGoData && (
+                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">
+                  Ready-go
+                </span>
+              )}
+            </div>
             {event.displayName !== event.tag && (
               <p className="text-xs text-muted-foreground mb-2 font-mono">{event.tag}</p>
             )}
