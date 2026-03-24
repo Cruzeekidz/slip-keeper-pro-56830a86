@@ -84,21 +84,31 @@ const StaffManagement = () => {
     mutationFn: async (values: typeof emptyForm) => {
       if (!user) throw new Error("Not authenticated");
       setUploading(true);
-      const payload: Record<string, unknown> = {
-        ...values,
-        daily_rate: Number(values.daily_rate),
-        user_id: user.id,
-      };
 
       if (editingId) {
+        const updatePayload: Record<string, unknown> = {
+          ...values,
+          daily_rate: Number(values.daily_rate),
+        };
         if (idCardFile) {
           const url = await uploadIdCard(editingId);
-          if (url) payload.id_card_url = url;
+          if (url) updatePayload.id_card_url = url;
         }
-        const { error } = await supabase.from("staff_profiles").update(payload).eq("id", editingId);
+        const { error } = await supabase.from("staff_profiles").update(updatePayload).eq("id", editingId);
         if (error) throw error;
       } else {
-        const { data, error } = await supabase.from("staff_profiles").insert(payload).select("id").single();
+        const { data, error } = await supabase.from("staff_profiles").insert({
+          staff_name: values.staff_name,
+          nickname: values.nickname || null,
+          position: values.position || null,
+          tax_id: values.tax_id || null,
+          daily_rate: Number(values.daily_rate),
+          phone: values.phone || null,
+          bank_name: values.bank_name || null,
+          bank_account: values.bank_account || null,
+          address: values.address || null,
+          user_id: user.id,
+        }).select("id").single();
         if (error) throw error;
         if (idCardFile && data) {
           const url = await uploadIdCard(data.id);
