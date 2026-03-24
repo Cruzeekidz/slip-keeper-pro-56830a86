@@ -58,6 +58,7 @@ export default function ReviewQueue() {
   const [categoryGroup, setCategoryGroup] = useState<CategoryGroup | "">("");
   const [subcategory, setSubcategory] = useState("");
   const [projectTag, setProjectTag] = useState("");
+  const [eventName, setEventName] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
