@@ -651,6 +651,8 @@ const EventPnL = () => {
 
   const localOtherIncomeTotal = otherIncomes.reduce((s, i) => s + Number(i.amount), 0);
   const totalProductCost = productCosts.reduce((s, p) => s + Number(p.total_cost || p.quantity * p.unit_cost), 0);
+  const totalOtherExpenses = otherExpenses.reduce((s, e) => s + Number(e.amount), 0);
+  const refundableTotal = otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').reduce((s, e) => s + Number(e.amount), 0);
 
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
@@ -665,7 +667,7 @@ const EventPnL = () => {
     : [];
 
   const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
-  const totalCost = Number(localExpenses || 0) + totalProductCost;
+  const totalCost = Number(localExpenses || 0) + totalProductCost + totalOtherExpenses;
   const combinedProfit = totalRevenue - totalCost;
 
   const pnlBarData = [
