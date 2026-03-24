@@ -185,7 +185,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         const groupsToFetch = cached ? newGroupsToFetch : groupsWithIds;
         const registryToFetch = cached ? newRegistryToFetch : registryWithReadyGo;
         // Fetch fresh from API — groups (multi-event)
-        const fetchPromises = groupsWithIds.map(async (group) => {
+        const fetchPromises = groupsToFetch.map(async (group) => {
           try {
             const action = group.readygo_event_ids.length === 1 
               ? "event-financials" 
@@ -208,8 +208,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           }
         });
 
-        // Fetch fresh from API — single registry entries
-        const registryFetchPromises = registryWithReadyGo.map(async (reg) => {
+        const registryFetchPromises = registryToFetch.map(async (reg) => {
           try {
             const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
               body: { action: "event-financials", event_id: reg.readygo_event_id },
