@@ -17,6 +17,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { FestivalManagement } from "@/components/festival-management";
 
 interface EventRegistryItem {
   id: string;
@@ -191,7 +193,13 @@ const EventManagement = () => {
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto p-6 space-y-4">
+      <main className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Festival Section */}
+        <FestivalManagement userId={user.id} events={events} />
+
+        <Separator />
+
+        <h2 className="text-lg font-bold text-foreground">อีเวนท์ทั้งหมด</h2>
         {events.length === 0 && (
           <Card className="p-8 text-center text-muted-foreground">
             <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
