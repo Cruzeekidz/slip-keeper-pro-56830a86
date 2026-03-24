@@ -56,11 +56,14 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 9. "[subcategory] BCC" → ENTITY_BCC (เช่น staff BCC, expense BCC)
 10. "[subcategory] คู่ขนาง" → ENTITY_KUKANANG (เช่น venue คู่ขนาน)
 
-#### C. ชื่ออีเวนท์ที่รู้จัก:
-- Terminal21 / T21 → EVT-T21, event_name: Terminal21
+#### C. ชื่ออีเวนท์ที่รู้จัก (ระบบจะ normalize อัตโนมัติจาก event_registry):
+- Terminal21 / T21 → project_tag: EVT-Terminal21, event_name: Terminal21
 - KMT + เลข → EVT-KMT41
 - Rockstar + เลข → EVT-Rockstar3
-- TNV2 / Tooniverse2 → EVT-TNV2, event_name: Tooniverse2
+- TNV2 / Tooniverse2 → EVT-TNV2
+- Westville / WestVille → EVT-Westville, event_name: Westville
+- Promenade / พรอมมานาด → EVT-Promenade, event_name: Promenade
+- Peca Bridge → EVT-Peca Bridge, event_name: Peca Bridge
 
 ## กฎพิเศษ:
 - "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
@@ -470,12 +473,45 @@ serve(async (req) => {
           }
         }
 
+        // 7. Auto-normalize event_name using event_registry
+        let normalizedEventName = extractedData?.event_name || null;
+        let normalizedProjectTag = extractedData?.project_tag || null;
+
+        if (normalizedEventName || normalizedProjectTag) {
+          const searchTerm = (normalizedEventName || normalizedProjectTag || '').toLowerCase().replace(/\s+/g, '');
+          
+          const { data: registryEntries } = await supabase
+            .from('event_registry')
+            .select('event_name, project_tag, aliases')
+            .eq('is_active', true);
+
+          if (registryEntries) {
+            for (const entry of registryEntries) {
+              const nameMatch = entry.event_name.toLowerCase().replace(/\s+/g, '') === searchTerm;
+              const tagMatch = entry.project_tag.toLowerCase().replace(/\s+/g, '') === searchTerm;
+              const aliasMatch = (entry.aliases || []).some(
+                (a: string) => a.toLowerCase().replace(/\s+/g, '') === searchTerm
+              );
+
+              if (nameMatch || tagMatch || aliasMatch) {
+                normalizedEventName = entry.event_name;
+                normalizedProjectTag = entry.project_tag;
+                console.log(`Event normalized: "${searchTerm}" → ${entry.event_name} / ${entry.project_tag}`);
+                break;
+              }
+            }
+          }
+        }
+
+        // Determine category label from transaction_type
+        const typeLabel = category === 'BUSINESS' ? 'ธุรกิจ' : category === 'PERSONAL' ? 'ส่วนตัว' : category === 'TRANSFER' ? 'โอนเงิน' : category;
+
         // Save to expenses
         const expenseData: Record<string, unknown> = {
           amount: extractedData?.amount || 0,
           expense_date: expDate,
           expense_time: cleanTime,
-          category: category,
+          category: typeLabel,
           subcategory: extractedData?.subcategory || null,
           description: extractedData?.description || `LINE Receipt ${messageId}`,
           merchant: extractedData?.merchant || null,
@@ -484,14 +520,14 @@ serve(async (req) => {
           transaction_id: extractedData?.transaction_id || null,
           transaction_type: extractedData?.transaction_type || null,
           category_group: extractedData?.category_group || null,
-          project_tag: extractedData?.project_tag || null,
+          project_tag: normalizedProjectTag,
           transaction_direction: extractedData?.transaction_direction || 'EXPENSE',
           confidence_score: extractedData?.confidence_score || null,
           needs_review: (extractedData?.confidence_score || 0) < 75,
           receipt_url: storagePath,
           staff_name: extractedData?.staff_name || null,
           days_worked: extractedData?.days_worked || null,
-          event_name: extractedData?.event_name || null,
+          event_name: normalizedEventName,
           memo_text: memo || null,
         };
 
