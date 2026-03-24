@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard, Building2 } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -200,6 +200,10 @@ const Index = () => {
                   }}>
                     <Link2 className="h-4 w-4 mr-2" />
                     คัดลอกลิงก์พอร์ทัล
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/vendor-management')}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    จัดการคู่ค้า & บิล
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
