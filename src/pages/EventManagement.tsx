@@ -167,6 +167,11 @@ const EventManagement = () => {
                   <Input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
                 </div>
                 <div>
+                  <Label>Ready-go Event ID (ถ้ามี)</Label>
+                  <Input value={readygoEventId} onChange={e => setReadygoEventId(e.target.value)} placeholder="เช่น 97fbe10a-8639-..." />
+                  <p className="text-xs text-muted-foreground mt-1">UUID ของอีเวนท์ใน Ready-go.fun สำหรับดึงรายได้อัตโนมัติ</p>
+                </div>
+                <div>
                   <Label>ชื่อเรียกอื่น (Aliases)</Label>
                   <p className="text-xs text-muted-foreground mb-2">ชื่อที่อาจปรากฏบนสลิป/บิล ระบบจะจับคู่อัตโนมัติ</p>
                   <div className="flex gap-2">
@@ -227,6 +232,9 @@ const EventManagement = () => {
                     </Badge>
                   )}
                   {!ev.is_active && <Badge variant="destructive" className="text-xs">ปิดใช้งาน</Badge>}
+                  {ev.readygo_event_id && (
+                    <Badge className="text-xs bg-primary/10 text-primary border-0">Ready-go</Badge>
+                  )}
                 </div>
                 {ev.aliases.length > 0 && (
                   <div className="flex flex-wrap gap-1">
