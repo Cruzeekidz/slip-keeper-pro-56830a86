@@ -99,6 +99,31 @@ interface EventNote {
   created_at: string;
 }
 
+interface EventReminder {
+  id: string;
+  reminder_type: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  due_date: string;
+  remind_before_days: number;
+  is_completed: boolean;
+  completed_at: string | null;
+  notify_line: boolean;
+  notify_gcal: boolean;
+  line_notified_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
+const REMINDER_TYPES = [
+  { value: "billing", label: "📋 วางบิล", color: "text-blue-600" },
+  { value: "payment_check", label: "💳 เช็คยอดโอน/รับเช็ค", color: "text-green-600" },
+  { value: "deposit_refund", label: "💰 ทวงคืนมัดจำ", color: "text-amber-600" },
+  { value: "outstanding", label: "⚠️ ค่าใช้จ่ายค้างจ่าย", color: "text-red-600" },
+];
+
 const CHART_COLORS = [
   "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
   "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
