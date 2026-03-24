@@ -338,7 +338,7 @@ const EventPnL = () => {
                 </CardHeader>
                 <CardContent>
                   {revenueBreakdown.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={280}>
+                    <ResponsiveContainer width="100%" height={280} className="text-[#c258c6] bg-destructive-foreground">
                       <PieChart>
                         <Pie
                           data={revenueBreakdown}
