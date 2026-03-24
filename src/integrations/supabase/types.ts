@@ -804,6 +804,7 @@ export type Database = {
       }
       staff_invoices: {
         Row: {
+          bonus_amount: number
           created_at: string
           daily_rate: number
           days_worked: number
@@ -826,6 +827,7 @@ export type Database = {
           work_start_date: string | null
         }
         Insert: {
+          bonus_amount?: number
           created_at?: string
           daily_rate?: number
           days_worked?: number
@@ -848,6 +850,7 @@ export type Database = {
           work_start_date?: string | null
         }
         Update: {
+          bonus_amount?: number
           created_at?: string
           daily_rate?: number
           days_worked?: number
@@ -887,10 +890,12 @@ export type Database = {
           created_at: string
           daily_rate: number
           id: string
+          id_card_url: string | null
           is_active: boolean
           line_user_id: string | null
           nickname: string | null
           phone: string | null
+          position: string | null
           staff_name: string
           tax_id: string | null
           user_id: string
@@ -902,10 +907,12 @@ export type Database = {
           created_at?: string
           daily_rate?: number
           id?: string
+          id_card_url?: string | null
           is_active?: boolean
           line_user_id?: string | null
           nickname?: string | null
           phone?: string | null
+          position?: string | null
           staff_name: string
           tax_id?: string | null
           user_id: string
@@ -917,10 +924,12 @@ export type Database = {
           created_at?: string
           daily_rate?: number
           id?: string
+          id_card_url?: string | null
           is_active?: boolean
           line_user_id?: string | null
           nickname?: string | null
           phone?: string | null
+          position?: string | null
           staff_name?: string
           tax_id?: string | null
           user_id?: string

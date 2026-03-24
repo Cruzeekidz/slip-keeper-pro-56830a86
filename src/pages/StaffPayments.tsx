@@ -83,7 +83,7 @@ const StaffPayments = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <CreditCard className="h-6 w-6" />
-          <h1 className="text-xl font-bold">จัดการจ่ายเงินสตาฟ</h1>
+          <h1 className="text-xl font-bold">จัดการจ่ายเงินทีมงาน</h1>
         </div>
       </header>
 
@@ -141,7 +141,7 @@ const StaffPayments = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>เลขที่</TableHead>
-                      <TableHead>สตาฟ</TableHead>
+                      <TableHead>ทีมงาน</TableHead>
                       <TableHead>อีเวนท์</TableHead>
                       <TableHead className="text-right">วัน</TableHead>
                       <TableHead className="text-right">ค่าแรง/วัน</TableHead>
