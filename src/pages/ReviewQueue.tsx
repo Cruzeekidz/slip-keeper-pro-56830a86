@@ -89,7 +89,17 @@ export default function ReviewQueue() {
     setEventOptions(data || []);
   }, [user]);
 
-  useEffect(() => { fetchItems(); fetchEventOptions(); }, [fetchItems, fetchEventOptions]);
+  const fetchExistingSubcategories = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('expenses')
+      .select('subcategory')
+      .eq('user_id', user.id)
+      .not('subcategory', 'is', null);
+    setExistingSubcategories([...new Set(data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
+  }, [user]);
+
+  useEffect(() => { fetchItems(); fetchEventOptions(); fetchExistingSubcategories(); }, [fetchItems, fetchEventOptions, fetchExistingSubcategories]);
 
   const current = items[currentIndex];
 
