@@ -1597,6 +1597,7 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
+            <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>{editingIncome ? "แก้ไขรายได้อื่น" : "เพิ่มรายได้อื่น"}</DialogTitle>
