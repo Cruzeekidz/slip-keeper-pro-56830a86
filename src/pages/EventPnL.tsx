@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins, ShoppingBag, FileText, CircleDot, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins, ShoppingBag, FileText, CircleDot, CheckCircle2, AlertCircle, Bell, Calendar, Send } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -98,6 +99,31 @@ interface EventNote {
   created_at: string;
 }
 
+interface EventReminder {
+  id: string;
+  reminder_type: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  due_date: string;
+  remind_before_days: number;
+  is_completed: boolean;
+  completed_at: string | null;
+  notify_line: boolean;
+  notify_gcal: boolean;
+  line_notified_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
+const REMINDER_TYPES = [
+  { value: "billing", label: "📋 วางบิล", color: "text-blue-600" },
+  { value: "payment_check", label: "💳 เช็คยอดโอน/รับเช็ค", color: "text-green-600" },
+  { value: "deposit_refund", label: "💰 ทวงคืนมัดจำ", color: "text-amber-600" },
+  { value: "outstanding", label: "⚠️ ค่าใช้จ่ายค้างจ่าย", color: "text-red-600" },
+];
+
 const CHART_COLORS = [
   "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
   "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
@@ -164,6 +190,19 @@ const EventPnL = () => {
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("general");
 
+  // Reminders management
+  const [reminders, setReminders] = useState<EventReminder[]>([]);
+  const [showReminderDialog, setShowReminderDialog] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<EventReminder | null>(null);
+  const [reminderType, setReminderType] = useState("billing");
+  const [reminderTitle, setReminderTitle] = useState("");
+  const [reminderDesc, setReminderDesc] = useState("");
+  const [reminderAmount, setReminderAmount] = useState("");
+  const [reminderDueDate, setReminderDueDate] = useState("");
+  const [reminderBeforeDays, setReminderBeforeDays] = useState("1");
+  const [reminderNotifyLine, setReminderNotifyLine] = useState(true);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
@@ -182,6 +221,7 @@ const EventPnL = () => {
       fetchProductCosts();
       fetchOtherExpenses();
       fetchEventNotes();
+      fetchReminders();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
@@ -571,6 +611,118 @@ const EventPnL = () => {
     fetchEventNotes();
     toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" });
   };
+
+  // Reminders CRUD
+  const fetchReminders = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_reminders" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setReminders([]);
+      return;
+    }
+
+    const { data } = await query.order("due_date", { ascending: true });
+    setReminders((data as any[]) || []);
+  };
+
+  const openCreateReminder = (prefillType?: string, prefillTitle?: string, prefillAmount?: number) => {
+    setEditingReminder(null);
+    setReminderType(prefillType || "billing");
+    setReminderTitle(prefillTitle || "");
+    setReminderDesc("");
+    setReminderAmount(prefillAmount ? String(prefillAmount) : "");
+    setReminderDueDate("");
+    setReminderBeforeDays("1");
+    setReminderNotifyLine(true);
+    setShowReminderDialog(true);
+  };
+
+  const openEditReminder = (r: EventReminder) => {
+    setEditingReminder(r);
+    setReminderType(r.reminder_type);
+    setReminderTitle(r.title);
+    setReminderDesc(r.description || "");
+    setReminderAmount(String(r.amount));
+    setReminderDueDate(r.due_date);
+    setReminderBeforeDays(String(r.remind_before_days));
+    setReminderNotifyLine(r.notify_line);
+    setShowReminderDialog(true);
+  };
+
+  const saveReminder = async () => {
+    if (!user || !reminderTitle.trim() || !reminderDueDate) {
+      toast({ title: "กรุณากรอกชื่อและวันครบกำหนด", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        user_id: user.id,
+        reminder_type: reminderType,
+        title: reminderTitle.trim(),
+        description: reminderDesc.trim() || null,
+        amount: Number(reminderAmount) || 0,
+        due_date: reminderDueDate,
+        remind_before_days: Number(reminderBeforeDays) || 1,
+        notify_line: reminderNotifyLine,
+      };
+      if (editingReminder) {
+        await supabase.from("event_reminders" as any).update(payload).eq("id", editingReminder.id);
+        toast({ title: "อัปเดตแจ้งเตือนสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_reminders" as any).insert(payload);
+        toast({ title: "สร้างแจ้งเตือนสำเร็จ" });
+      }
+      setShowReminderDialog(false);
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteReminder = async (id: string) => {
+    await supabase.from("event_reminders" as any).delete().eq("id", id);
+    fetchReminders();
+    toast({ title: "ลบแจ้งเตือนสำเร็จ" });
+  };
+
+  const toggleReminderCompleted = async (r: EventReminder) => {
+    const newCompleted = !r.is_completed;
+    await supabase.from("event_reminders" as any).update({
+      is_completed: newCompleted,
+      completed_at: newCompleted ? new Date().toISOString() : null,
+    }).eq("id", r.id);
+    fetchReminders();
+    toast({ title: newCompleted ? "ทำเครื่องหมายว่าเสร็จแล้ว" : "ยกเลิกสถานะเสร็จ" });
+  };
+
+  const sendReminderNow = async (r: EventReminder) => {
+    setSendingReminder(r.id);
+    try {
+      const { error } = await supabase.functions.invoke("send-reminder-line", {
+        body: { reminder_id: r.id },
+      });
+      if (error) throw error;
+      toast({ title: "ส่งแจ้งเตือนไปที่ LINE สำเร็จ" });
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "ส่งแจ้งเตือนไม่สำเร็จ", variant: "destructive" });
+    } finally {
+      setSendingReminder(null);
+    }
+  };
+
 
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
@@ -1353,6 +1505,98 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
+            {/* Reminders */}
+            <Card className="border-primary/30">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-primary" />
+                    <span className="text-primary">แจ้งเตือน / นัดหมาย</span>
+                    {reminders.filter(r => !r.is_completed).length > 0 && (
+                      <Badge variant="destructive" className="text-xs">{reminders.filter(r => !r.is_completed).length}</Badge>
+                    )}
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={() => openCreateReminder()}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มแจ้งเตือน
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {reminders.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีแจ้งเตือน — เพิ่มเพื่อติดตามการวางบิล ทวงคืนมัดจำ หรือเช็คยอดโอน
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {reminders.map((r) => {
+                      const typeInfo = REMINDER_TYPES.find(t => t.value === r.reminder_type);
+                      const dueDate = new Date(r.due_date);
+                      const today = new Date();
+                      today.setHours(0,0,0,0);
+                      const isOverdue = dueDate < today && !r.is_completed;
+                      const isDueSoon = !isOverdue && !r.is_completed && dueDate <= new Date(today.getTime() + r.remind_before_days * 86400000);
+                      return (
+                        <div key={r.id} className={`flex items-start justify-between p-3 rounded-lg border ${r.is_completed ? 'bg-muted/50 opacity-60' : isOverdue ? 'border-red-400 bg-red-50 dark:bg-red-950/20' : isDueSoon ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant={r.is_completed ? 'secondary' : isOverdue ? 'destructive' : 'outline'} className="text-xs">
+                                {typeInfo?.label || r.reminder_type}
+                              </Badge>
+                              {isOverdue && <Badge variant="destructive" className="text-xs">เลยกำหนด!</Badge>}
+                              {isDueSoon && !isOverdue && <Badge className="text-xs bg-amber-500">ใกล้ถึงกำหนด</Badge>}
+                              {r.notify_line && <Badge variant="outline" className="text-xs">🔔 LINE</Badge>}
+                              {r.line_notified_at && <Badge variant="secondary" className="text-xs">✅ แจ้งแล้ว</Badge>}
+                            </div>
+                            <p className={`text-sm font-medium ${r.is_completed ? 'line-through text-muted-foreground' : ''}`}>{r.title}</p>
+                            {r.description && <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>}
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                ครบ {new Date(r.due_date).toLocaleDateString("th-TH", { day: 'numeric', month: 'short', year: '2-digit' })}
+                              </span>
+                              {r.amount > 0 && <span className="font-semibold text-foreground">฿{formatNumber(r.amount)}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 ml-2 shrink-0">
+                            {r.notify_line && !r.is_completed && (
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => sendReminderNow(r)} disabled={sendingReminder === r.id} title="ส่งแจ้งเตือน LINE ตอนนี้">
+                                <Send className={`h-3.5 w-3.5 text-green-600 ${sendingReminder === r.id ? 'animate-pulse' : ''}`} />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleReminderCompleted(r)} title={r.is_completed ? 'ยกเลิก' : 'เสร็จแล้ว'}>
+                              {r.is_completed ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditReminder(r)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteReminder(r.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Quick create from refundable expenses */}
+                {otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">สร้างแจ้งเตือนอัตโนมัติจากค่ามัดจำ:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').map(exp => (
+                        <Button key={exp.id} size="sm" variant="outline" className="text-xs" onClick={() => openCreateReminder('deposit_refund', `ทวงคืน: ${exp.description}`, exp.amount)}>
+                          <Bell className="h-3 w-3 mr-1" />
+                          {exp.description} ฿{formatNumber(exp.amount)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
@@ -1485,6 +1729,64 @@ const EventPnL = () => {
                   <Button variant="outline" onClick={() => setShowNoteDialog(false)}>ยกเลิก</Button>
                   <Button onClick={saveNote} disabled={!noteText.trim()}>
                     {editingNote ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Reminder Dialog */}
+            <Dialog open={showReminderDialog} onOpenChange={setShowReminderDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingReminder ? "แก้ไขแจ้งเตือน" : "สร้างแจ้งเตือน"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">ประเภท</label>
+                    <Select value={reminderType} onValueChange={setReminderType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REMINDER_TYPES.map(t => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ชื่อ/รายละเอียดหลัก</label>
+                    <Input value={reminderTitle} onChange={e => setReminderTitle(e.target.value)} placeholder="เช่น วางบิลค่าสถานที่ Mahanakhon" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">หมายเหตุเพิ่มเติม</label>
+                    <Textarea value={reminderDesc} onChange={e => setReminderDesc(e.target.value)} placeholder="รายละเอียดเพิ่มเติม..." rows={2} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                      <Input type="number" value={reminderAmount} onChange={e => setReminderAmount(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">วันครบกำหนด</label>
+                      <Input type="date" value={reminderDueDate} onChange={e => setReminderDueDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">แจ้งเตือนก่อน (วัน)</label>
+                    <Input type="number" value={reminderBeforeDays} onChange={e => setReminderBeforeDays(e.target.value)} min="0" max="30" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={reminderNotifyLine} onCheckedChange={(v) => setReminderNotifyLine(!!v)} />
+                    <label className="text-sm font-medium cursor-pointer" onClick={() => setReminderNotifyLine(!reminderNotifyLine)}>
+                      🔔 แจ้งเตือนผ่าน LINE (ส่งหา admin)
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowReminderDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveReminder} disabled={!reminderTitle.trim() || !reminderDueDate}>
+                    {editingReminder ? "บันทึก" : "สร้าง"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
