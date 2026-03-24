@@ -54,7 +54,7 @@ serve(async (req) => {
     if (action === "list-events") {
       const { data: events, error } = await readygo
         .from("events")
-        .select("id, title, short_code, event_date, location, is_active, status")
+        .select("id, title, short_code, event_date, location, status")
         .order("event_date", { ascending: false });
 
       if (error) throw error;
