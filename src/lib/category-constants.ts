@@ -154,5 +154,5 @@ export function formatTypeLabel(type: TransactionType | null, group?: CategoryGr
 }
 
 export function showProjectTag(group: CategoryGroup | null): boolean {
-  return group === 'EVENT' || group === 'PROGRAM' || group === 'ENTITY_BCC_NEXT';
+  return group === 'EVENT' || group === 'PROGRAM' || group === 'ENTITY_BCC_NEXT' || group === 'ENTITY_KUKANANG';
 }
