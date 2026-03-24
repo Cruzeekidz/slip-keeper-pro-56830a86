@@ -371,6 +371,7 @@ const EventPnL = () => {
     toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
   };
 
+  const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
   };
