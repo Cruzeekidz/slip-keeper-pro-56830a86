@@ -95,7 +95,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes, otherExpensesRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
         supabase.from('expenses')
-          .select('project_tag, event_name, amount, transaction_type, category_group, transaction_direction'),
+          .select('project_tag, event_name, project, amount, transaction_type, category_group, transaction_direction'),
         supabase.from('event_groups').select('*'),
         supabase.from('event_other_income').select('*'),
         supabase.from('event_product_costs' as any).select('*'),
