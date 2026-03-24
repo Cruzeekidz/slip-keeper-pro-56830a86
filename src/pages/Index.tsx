@@ -227,7 +227,7 @@ const Index = () => {
                         <BookOpen className="h-4 w-4 mr-2" />
                         เอกสารระบบ
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/line-webhook'))}>
+                      <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                         <MessageSquare className="h-4 w-4 mr-2" />
                         LINE Webhook
                       </DropdownMenuItem>
