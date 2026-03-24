@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins, ShoppingBag } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins, ShoppingBag, FileText, CircleDot, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,6 +75,29 @@ interface ProductCost {
   event_id: string | null;
 }
 
+interface OtherExpense {
+  id: string;
+  description: string;
+  amount: number;
+  expense_date: string | null;
+  is_refundable: boolean;
+  refund_status: string;
+  refunded_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
+interface EventNote {
+  id: string;
+  note_text: string;
+  note_type: string;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
 const CHART_COLORS = [
   "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
   "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
@@ -125,6 +148,22 @@ const EventPnL = () => {
   const [productQty, setProductQty] = useState("");
   const [productUnitCost, setProductUnitCost] = useState("");
 
+  // Other expenses management
+  const [otherExpenses, setOtherExpenses] = useState<OtherExpense[]>([]);
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<OtherExpense | null>(null);
+  const [expenseDesc, setExpenseDesc] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState("");
+  const [expenseRefundable, setExpenseRefundable] = useState(false);
+
+  // Event notes management
+  const [eventNotes, setEventNotes] = useState<EventNote[]>([]);
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [editingNote, setEditingNote] = useState<EventNote | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [noteType, setNoteType] = useState("general");
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
@@ -141,6 +180,8 @@ const EventPnL = () => {
       fetchLocalExpenses();
       fetchOtherIncomes();
       fetchProductCosts();
+      fetchOtherExpenses();
+      fetchEventNotes();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
@@ -371,6 +412,166 @@ const EventPnL = () => {
     toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
   };
 
+  // Other Expenses CRUD
+  const fetchOtherExpenses = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_other_expenses" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setOtherExpenses([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setOtherExpenses((data as any[]) || []);
+  };
+
+  const openCreateExpense = () => {
+    setEditingExpense(null);
+    setExpenseDesc("");
+    setExpenseAmount("");
+    setExpenseDate("");
+    setExpenseRefundable(false);
+    setShowExpenseDialog(true);
+  };
+
+  const openEditExpense = (exp: OtherExpense) => {
+    setEditingExpense(exp);
+    setExpenseDesc(exp.description);
+    setExpenseAmount(String(exp.amount));
+    setExpenseDate(exp.expense_date || "");
+    setExpenseRefundable(exp.is_refundable);
+    setShowExpenseDialog(true);
+  };
+
+  const saveExpense = async () => {
+    if (!user) return;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        description: expenseDesc.trim(),
+        amount: Number(expenseAmount),
+        expense_date: expenseDate || null,
+        is_refundable: expenseRefundable,
+        refund_status: expenseRefundable ? "pending" : "not_applicable",
+      };
+      if (editingExpense) {
+        await supabase.from("event_other_expenses" as any).update(payload).eq("id", editingExpense.id);
+        toast({ title: "อัปเดตค่าใช้จ่ายอื่นสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_other_expenses" as any).insert(payload);
+        toast({ title: "เพิ่มค่าใช้จ่ายอื่นสำเร็จ" });
+      }
+      setShowExpenseDialog(false);
+      fetchOtherExpenses();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteExpense = async (id: string) => {
+    await supabase.from("event_other_expenses" as any).delete().eq("id", id);
+    fetchOtherExpenses();
+    toast({ title: "ลบค่าใช้จ่ายอื่นสำเร็จ" });
+  };
+
+  const toggleRefundStatus = async (exp: OtherExpense) => {
+    const newStatus = exp.refund_status === "refunded" ? "pending" : "refunded";
+    await supabase.from("event_other_expenses" as any).update({
+      refund_status: newStatus,
+      refunded_at: newStatus === "refunded" ? new Date().toISOString() : null,
+    }).eq("id", exp.id);
+    fetchOtherExpenses();
+    toast({ title: newStatus === "refunded" ? "ทำเครื่องหมายว่าได้รับคืนแล้ว" : "ยกเลิกสถานะได้รับคืน" });
+  };
+
+  // Event Notes CRUD
+  const fetchEventNotes = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_notes" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setEventNotes([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setEventNotes((data as any[]) || []);
+  };
+
+  const openCreateNote = () => {
+    setEditingNote(null);
+    setNoteText("");
+    setNoteType("general");
+    setShowNoteDialog(true);
+  };
+
+  const openEditNote = (note: EventNote) => {
+    setEditingNote(note);
+    setNoteText(note.note_text);
+    setNoteType(note.note_type);
+    setShowNoteDialog(true);
+  };
+
+  const saveNote = async () => {
+    if (!user) return;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        note_text: noteText.trim(),
+        note_type: noteType,
+      };
+      if (editingNote) {
+        await supabase.from("event_notes" as any).update(payload).eq("id", editingNote.id);
+        toast({ title: "อัปเดตหมายเหตุสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_notes" as any).insert(payload);
+        toast({ title: "เพิ่มหมายเหตุสำเร็จ" });
+      }
+      setShowNoteDialog(false);
+      fetchEventNotes();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteNote = async (id: string) => {
+    await supabase.from("event_notes" as any).delete().eq("id", id);
+    fetchEventNotes();
+    toast({ title: "ลบหมายเหตุสำเร็จ" });
+  };
+
+  const toggleNoteResolved = async (note: EventNote) => {
+    const newResolved = !note.is_resolved;
+    await supabase.from("event_notes" as any).update({
+      is_resolved: newResolved,
+      resolved_at: newResolved ? new Date().toISOString() : null,
+      note_type: newResolved ? "resolved" : "general",
+    }).eq("id", note.id);
+    fetchEventNotes();
+    toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" });
+  };
+
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
@@ -450,6 +651,8 @@ const EventPnL = () => {
 
   const localOtherIncomeTotal = otherIncomes.reduce((s, i) => s + Number(i.amount), 0);
   const totalProductCost = productCosts.reduce((s, p) => s + Number(p.total_cost || p.quantity * p.unit_cost), 0);
+  const totalOtherExpenses = otherExpenses.reduce((s, e) => s + Number(e.amount), 0);
+  const refundableTotal = otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').reduce((s, e) => s + Number(e.amount), 0);
 
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
@@ -464,7 +667,7 @@ const EventPnL = () => {
     : [];
 
   const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
-  const totalCost = Number(localExpenses || 0) + totalProductCost;
+  const totalCost = Number(localExpenses || 0) + totalProductCost + totalOtherExpenses;
   const combinedProfit = totalRevenue - totalCost;
 
   const pnlBarData = [
@@ -898,6 +1101,18 @@ const EventPnL = () => {
                         <span className="font-medium text-red-600">฿{formatNumber(totalProductCost)}</span>
                       </div>
                     )}
+                    {totalOtherExpenses > 0 && (
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-sm">ค่าใช้จ่ายอื่นๆ</span>
+                        <span className="font-medium text-red-600">฿{formatNumber(totalOtherExpenses)}</span>
+                      </div>
+                    )}
+                    {refundableTotal > 0 && (
+                      <div className="flex justify-between py-1 text-xs">
+                        <span className="text-amber-500">⏳ รอทวงคืน (มัดจำ/ประกัน)</span>
+                        <span className="text-amber-500">฿{formatNumber(refundableTotal)}</span>
+                      </div>
+                    )}
                     {(financialData.financials || [])
                       .filter(f => f.category === "expense")
                       .map((f, i) => (
@@ -1015,7 +1230,129 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
-            {/* Other Income Dialog */}
+            {/* Other Expenses Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    ค่าใช้จ่ายอื่นๆ (บันทึกเอง)
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateExpense}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มรายจ่าย
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {otherExpenses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีค่าใช้จ่ายอื่นๆ เช่น ค่ามัดจำสถานที่ ค่าประกัน ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {otherExpenses.map((exp) => (
+                      <div key={exp.id} className={`flex items-center justify-between p-3 rounded-lg border ${exp.is_refundable && exp.refund_status === 'refunded' ? 'bg-muted/50 opacity-60' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{exp.description}</p>
+                            {exp.is_refundable && (
+                              <Badge variant={exp.refund_status === 'refunded' ? 'secondary' : 'outline'} className="text-xs">
+                                {exp.refund_status === 'refunded' ? '✅ ได้คืนแล้ว' : '⏳ รอทวงคืน'}
+                              </Badge>
+                            )}
+                          </div>
+                          {exp.expense_date && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(exp.expense_date).toLocaleDateString("th-TH")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          <span className={`font-semibold ${exp.is_refundable && exp.refund_status === 'refunded' ? 'text-muted-foreground line-through' : 'text-red-600'}`}>
+                            ฿{formatNumber(exp.amount)}
+                          </span>
+                          {exp.is_refundable && (
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleRefundStatus(exp)} title={exp.refund_status === 'refunded' ? 'ยกเลิกสถานะ' : 'ทำเครื่องหมายว่าได้คืน'}>
+                              {exp.refund_status === 'refunded' ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5 text-amber-500" />}
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditExpense(exp)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteExpense(exp.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 font-bold border-t-2">
+                      <span>ค่าใช้จ่ายอื่นรวม</span>
+                      <span className="text-red-600">฿{formatNumber(totalOtherExpenses)}</span>
+                    </div>
+                    {refundableTotal > 0 && (
+                      <div className="flex justify-between text-sm text-amber-500">
+                        <span>⏳ รอทวงคืน</span>
+                        <span>฿{formatNumber(refundableTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Event Notes */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    หมายเหตุ
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateNote}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มหมายเหตุ
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {eventNotes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีหมายเหตุ เช่น สิ่งที่ต้องติดตาม การทวงคืนมัดจำ ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {eventNotes.map((note) => (
+                      <div key={note.id} className={`flex items-start justify-between p-3 rounded-lg border ${note.is_resolved ? 'bg-muted/50 opacity-60' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={note.is_resolved ? 'secondary' : note.note_type === 'deposit' ? 'outline' : note.note_type === 'action_required' ? 'destructive' : 'default'} className="text-xs">
+                              {note.is_resolved ? '✅ เรียบร้อย' : note.note_type === 'deposit' ? '💰 มัดจำ/ประกัน' : note.note_type === 'action_required' ? '⚠️ ต้องดำเนินการ' : '📝 ทั่วไป'}
+                            </Badge>
+                          </div>
+                          <p className={`text-sm ${note.is_resolved ? 'line-through text-muted-foreground' : ''}`}>{note.note_text}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(note.created_at).toLocaleDateString("th-TH", { day: 'numeric', month: 'short', year: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2 shrink-0">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleNoteResolved(note)} title={note.is_resolved ? 'ยกเลิก' : 'เรียบร้อยแล้ว'}>
+                            {note.is_resolved ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditNote(note)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteNote(note.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
@@ -1076,6 +1413,78 @@ const EventPnL = () => {
                   <Button variant="outline" onClick={() => setShowProductDialog(false)}>ยกเลิก</Button>
                   <Button onClick={saveProduct} disabled={!productName.trim() || !productQty || !productUnitCost}>
                     {editingProduct ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Other Expense Dialog */}
+            <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingExpense ? "แก้ไขค่าใช้จ่ายอื่น" : "เพิ่มค่าใช้จ่ายอื่น"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="เช่น ค่ามัดจำสถานที่ ค่าประกัน" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                    <Input type="number" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">วันที่ (ไม่บังคับ)</label>
+                    <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={expenseRefundable}
+                      onCheckedChange={(v) => setExpenseRefundable(!!v)}
+                    />
+                    <label className="text-sm font-medium cursor-pointer" onClick={() => setExpenseRefundable(!expenseRefundable)}>
+                      เป็นค่ามัดจำ/ประกัน (ทวงคืนได้)
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowExpenseDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveExpense} disabled={!expenseDesc.trim() || !expenseAmount}>
+                    {editingExpense ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Event Note Dialog */}
+            <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingNote ? "แก้ไขหมายเหตุ" : "เพิ่มหมายเหตุ"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">ประเภท</label>
+                    <Select value={noteType} onValueChange={setNoteType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">📝 ทั่วไป</SelectItem>
+                        <SelectItem value="deposit">💰 มัดจำ/ประกัน</SelectItem>
+                        <SelectItem value="action_required">⚠️ ต้องดำเนินการ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="เช่น มัดจำสถานที่ 10,000 บาท ทวงคืนหลังจบงาน" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowNoteDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveNote} disabled={!noteText.trim()}>
+                    {editingNote ? "บันทึก" : "เพิ่ม"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

@@ -140,6 +140,100 @@ export type Database = {
         }
         Relationships: []
       }
+      event_notes: {
+        Row: {
+          created_at: string
+          event_group_id: string | null
+          event_id: string | null
+          id: string
+          is_resolved: boolean
+          note_text: string
+          note_type: string
+          resolved_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          is_resolved?: boolean
+          note_text: string
+          note_type?: string
+          resolved_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          is_resolved?: boolean
+          note_text?: string
+          note_type?: string
+          resolved_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_notes_event_group_id_fkey"
+            columns: ["event_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_other_expenses: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          event_group_id: string | null
+          event_id: string | null
+          expense_date: string | null
+          id: string
+          is_refundable: boolean
+          refund_status: string
+          refunded_at: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description: string
+          event_group_id?: string | null
+          event_id?: string | null
+          expense_date?: string | null
+          id?: string
+          is_refundable?: boolean
+          refund_status?: string
+          refunded_at?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          expense_date?: string | null
+          id?: string
+          is_refundable?: boolean
+          refund_status?: string
+          refunded_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_other_expenses_event_group_id_fkey"
+            columns: ["event_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_other_income: {
         Row: {
           amount: number
