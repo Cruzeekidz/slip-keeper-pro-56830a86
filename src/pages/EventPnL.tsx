@@ -412,7 +412,167 @@ const EventPnL = () => {
     toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
   };
 
-  const handleEventSelect = (eventId: string) => {
+  // Other Expenses CRUD
+  const fetchOtherExpenses = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_other_expenses" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setOtherExpenses([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setOtherExpenses((data as any[]) || []);
+  };
+
+  const openCreateExpense = () => {
+    setEditingExpense(null);
+    setExpenseDesc("");
+    setExpenseAmount("");
+    setExpenseDate("");
+    setExpenseRefundable(false);
+    setShowExpenseDialog(true);
+  };
+
+  const openEditExpense = (exp: OtherExpense) => {
+    setEditingExpense(exp);
+    setExpenseDesc(exp.description);
+    setExpenseAmount(String(exp.amount));
+    setExpenseDate(exp.expense_date || "");
+    setExpenseRefundable(exp.is_refundable);
+    setShowExpenseDialog(true);
+  };
+
+  const saveExpense = async () => {
+    if (!user) return;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        description: expenseDesc.trim(),
+        amount: Number(expenseAmount),
+        expense_date: expenseDate || null,
+        is_refundable: expenseRefundable,
+        refund_status: expenseRefundable ? "pending" : "not_applicable",
+      };
+      if (editingExpense) {
+        await supabase.from("event_other_expenses" as any).update(payload).eq("id", editingExpense.id);
+        toast({ title: "อัปเดตค่าใช้จ่ายอื่นสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_other_expenses" as any).insert(payload);
+        toast({ title: "เพิ่มค่าใช้จ่ายอื่นสำเร็จ" });
+      }
+      setShowExpenseDialog(false);
+      fetchOtherExpenses();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteExpense = async (id: string) => {
+    await supabase.from("event_other_expenses" as any).delete().eq("id", id);
+    fetchOtherExpenses();
+    toast({ title: "ลบค่าใช้จ่ายอื่นสำเร็จ" });
+  };
+
+  const toggleRefundStatus = async (exp: OtherExpense) => {
+    const newStatus = exp.refund_status === "refunded" ? "pending" : "refunded";
+    await supabase.from("event_other_expenses" as any).update({
+      refund_status: newStatus,
+      refunded_at: newStatus === "refunded" ? new Date().toISOString() : null,
+    }).eq("id", exp.id);
+    fetchOtherExpenses();
+    toast({ title: newStatus === "refunded" ? "ทำเครื่องหมายว่าได้รับคืนแล้ว" : "ยกเลิกสถานะได้รับคืน" });
+  };
+
+  // Event Notes CRUD
+  const fetchEventNotes = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_notes" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setEventNotes([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setEventNotes((data as any[]) || []);
+  };
+
+  const openCreateNote = () => {
+    setEditingNote(null);
+    setNoteText("");
+    setNoteType("general");
+    setShowNoteDialog(true);
+  };
+
+  const openEditNote = (note: EventNote) => {
+    setEditingNote(note);
+    setNoteText(note.note_text);
+    setNoteType(note.note_type);
+    setShowNoteDialog(true);
+  };
+
+  const saveNote = async () => {
+    if (!user) return;
+    try {
+      const payload: any = {
+        user_id: user.id,
+        note_text: noteText.trim(),
+        note_type: noteType,
+      };
+      if (editingNote) {
+        await supabase.from("event_notes" as any).update(payload).eq("id", editingNote.id);
+        toast({ title: "อัปเดตหมายเหตุสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_notes" as any).insert(payload);
+        toast({ title: "เพิ่มหมายเหตุสำเร็จ" });
+      }
+      setShowNoteDialog(false);
+      fetchEventNotes();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteNote = async (id: string) => {
+    await supabase.from("event_notes" as any).delete().eq("id", id);
+    fetchEventNotes();
+    toast({ title: "ลบหมายเหตุสำเร็จ" });
+  };
+
+  const toggleNoteResolved = async (note: EventNote) => {
+    const newResolved = !note.is_resolved;
+    await supabase.from("event_notes" as any).update({
+      is_resolved: newResolved,
+      resolved_at: newResolved ? new Date().toISOString() : null,
+      note_type: newResolved ? "resolved" : "general",
+    }).eq("id", note.id);
+    fetchEventNotes();
+    toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" });
+  };
+
+
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
   };
