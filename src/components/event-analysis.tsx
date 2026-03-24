@@ -1,10 +1,37 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
+import { useToast } from "@/hooks/use-toast";
+
+const READYGO_CACHE_KEY = 'readygo_revenue_cache';
+const READYGO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface ReadyGoCache {
+  timestamp: number;
+  data: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>;
+}
+
+function getReadyGoCache(): ReadyGoCache | null {
+  try {
+    const raw = localStorage.getItem(READYGO_CACHE_KEY);
+    if (!raw) return null;
+    const cache: ReadyGoCache = JSON.parse(raw);
+    if (Date.now() - cache.timestamp > READYGO_CACHE_TTL) {
+      localStorage.removeItem(READYGO_CACHE_KEY);
+      return null;
+    }
+    return cache;
+  } catch { return null; }
+}
+
+function setReadyGoCache(data: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>) {
+  localStorage.setItem(READYGO_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
+}
 
 interface EventPLData {
   tag: string;
