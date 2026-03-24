@@ -112,6 +112,7 @@ export function getDefaultProjectTags(group: CategoryGroup | null): string[] {
     case 'EVENT': return DEFAULT_EVENT_TAGS;
     case 'PROGRAM': return DEFAULT_PROGRAM_TAGS;
     case 'ENTITY_BCC_NEXT': return DEFAULT_BCC_NEXT_TAGS;
+    case 'ENTITY_KUKANANG': return DEFAULT_KUKANANG_TAGS;
     default: return [];
   }
 }
