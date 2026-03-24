@@ -362,18 +362,21 @@ const EventPnL = () => {
   const stats = financialData?.registrationStats;
   const summary = financialData?.summary;
 
+  const localOtherIncomeTotal = otherIncomes.reduce((s, i) => s + Number(i.amount), 0);
+
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
     { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
     { name: "OTO2", value: Number(stats.oto2_revenue || 0) },
-    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น", value: Number(summary.totalOtherIncome) }] : []),
+    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
+    ...(localOtherIncomeTotal > 0 ? [{ name: "รายได้อื่น (บันทึกเอง)", value: localOtherIncomeTotal }] : []),
   ].filter(d => d.value > 0) : [];
 
   const categoryData = stats?.category_breakdown
     ? Object.entries(stats.category_breakdown).map(([name, value]) => ({ name, value: Number(value) }))
     : [];
 
-  const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0);
+  const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
   const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0);
   const combinedProfit = totalRevenue - totalCost;
 
