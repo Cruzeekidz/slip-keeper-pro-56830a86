@@ -286,7 +286,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const tagDateMap = new Map<string, string | null>();
       activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
 
-      // Merge Ready-go revenue into the map and collect festival dates
+      // Merge Ready-go revenue into the map — groups
       for (const group of groups) {
         const tag = group.project_tag;
         const current = map.get(tag) || { income: 0, expense: 0 };
@@ -312,6 +312,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
 
         map.set(tag, current);
+      }
+
+      // Merge Ready-go revenue for single registry entries (not in groups)
+      for (const reg of registryWithReadyGo) {
+        const tag = reg.project_tag;
+        const readyGo = readyGoRevenueMap.get(tag);
+        if (readyGo) {
+          const current = map.get(tag) || { income: 0, expense: 0 };
+          current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
+          map.set(tag, current);
+        }
       }
 
       // Filter and build result
