@@ -70,14 +70,18 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
    เช่น "staff Peca Bridge" → ENTITY_BCC_NEXT, project_tag: BCCNEXT-PecaBridge
 10. "venue คู่ขนาน" → ENTITY_KUKANANG
 
-#### C. ชื่อโครงการที่รู้จัก:
-- Terminal21 / T21 → project_tag: "EVT-Terminal21", event_name: "Terminal21"
-- KMT + เลข → EVT-KMT41
-- Rockstar + เลข → EVT-Rockstar3
+#### C. ชื่อโครงการที่รู้จัก (ใส่ปี ค.ศ. ต่อท้ายเสมอ!):
+- Terminal21 / T21 → project_tag: "EVT-Terminal21-2025", event_name: "Terminal21"
+- KMT + เลข → EVT-KMT41-2025
+- Rockstar + เลข → EVT-Rockstar3-2025
+- Westville → EVT-Westville2024 (ถ้าสลิปปี 2024), EVT-Westville2025 (ถ้าสลิปปี 2025)
+- Westgate → EVT-Westgate2024, EVT-Westgate2025 (แยกตามปีของสลิป)
 - Peca Bridge → BCCNEXT-PecaBridge (BCC Next)
 - EngineerX → BCCNEXT-EngineerX25-T1 หรือ T2
 - Play Box → BCCNEXT-PlayBox2026
-- ชื่ออื่นๆ → ใช้ชื่อเต็มเป็น project_tag
+- ชื่ออื่นๆ → ใช้ชื่อเต็ม + ปี เป็น project_tag เช่น EVT-ชื่องาน2025
+
+**สำคัญ**: อีเวนท์ที่ชื่อซ้ำกันแต่คนละปี ต้องแยก project_tag ตามปีเสมอ ดูจากวันที่ในสลิปเพื่อระบุปี
 
 ## กฎการจัดหมวดพิเศษ:
 - ถ้ามี "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
