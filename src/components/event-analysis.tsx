@@ -159,15 +159,33 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
       const cached = forceRefresh ? null : getReadyGoCache();
 
-      if (cached && (groupsWithIds.length > 0 || registryWithReadyGo.length > 0)) {
-        // Use cached data
+      // Detect new events not in cache — fetch only those fresh
+      const allExpectedTags = new Set([
+        ...groupsWithIds.map(g => g.project_tag),
+        ...registryWithReadyGo.map(r => r.project_tag),
+      ]);
+      const cachedTags = cached ? new Set(Object.keys(cached.data)) : new Set<string>();
+      const newGroupsToFetch = groupsWithIds.filter(g => !cachedTags.has(g.project_tag));
+      const newRegistryToFetch = registryWithReadyGo.filter(r => !cachedTags.has(r.project_tag));
+      const hasNewEvents = newGroupsToFetch.length > 0 || newRegistryToFetch.length > 0;
+
+      if (cached && !hasNewEvents && allExpectedTags.size > 0) {
+        // All events are in cache — use cached data
         for (const [tag, val] of Object.entries(cached.data)) {
           readyGoRevenueMap.set(tag, val);
         }
         setCacheTime(new Date(cached.timestamp).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
-      } else if (groupsWithIds.length > 0 || registryWithReadyGo.length > 0) {
+      } else if (allExpectedTags.size > 0) {
+        // Load cached data first, then fetch only missing ones
+        if (cached) {
+          for (const [tag, val] of Object.entries(cached.data)) {
+            readyGoRevenueMap.set(tag, val);
+          }
+        }
+        const groupsToFetch = cached ? newGroupsToFetch : groupsWithIds;
+        const registryToFetch = cached ? newRegistryToFetch : registryWithReadyGo;
         // Fetch fresh from API — groups (multi-event)
-        const fetchPromises = groupsWithIds.map(async (group) => {
+        const fetchPromises = groupsToFetch.map(async (group) => {
           try {
             const action = group.readygo_event_ids.length === 1 
               ? "event-financials" 
@@ -190,8 +208,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           }
         });
 
-        // Fetch fresh from API — single registry entries
-        const registryFetchPromises = registryWithReadyGo.map(async (reg) => {
+        const registryFetchPromises = registryToFetch.map(async (reg) => {
           try {
             const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
               body: { action: "event-financials", event_id: reg.readygo_event_id },
