@@ -889,6 +889,7 @@ export type Database = {
           bank_name: string | null
           created_at: string
           daily_rate: number
+          email: string | null
           id: string
           id_card_url: string | null
           is_active: boolean
@@ -906,6 +907,7 @@ export type Database = {
           bank_name?: string | null
           created_at?: string
           daily_rate?: number
+          email?: string | null
           id?: string
           id_card_url?: string | null
           is_active?: boolean
@@ -923,6 +925,7 @@ export type Database = {
           bank_name?: string | null
           created_at?: string
           daily_rate?: number
+          email?: string | null
           id?: string
           id_card_url?: string | null
           is_active?: boolean
