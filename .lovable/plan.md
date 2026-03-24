@@ -1,48 +1,46 @@
 
 
-# ปรับปรุง Bulk Upload: เลือกโฟลเดอร์แล้วระบบทำงานเองอัตโนมัติ
+# เพิ่มอีเวนท์ทั้งหมด (60+ งาน) เข้า event_registry
 
-## แนวคิด
+## ข้อมูลที่ได้รับ
 
-แทนที่จะจำกัด 100 ไฟล์ → เลือกโฟลเดอร์ทั้งหมด (300-500 สลิป) แล้วระบบจะ:
-1. อ่านไฟล์ทั้งหมดในโฟลเดอร์
-2. แบ่ง batch อัตโนมัติ (ทีละ 3 ไฟล์)
-3. แสดง progress แบบ real-time
-4. สรุปผลเมื่อเสร็จ — ไม่ต้องคอยกดอะไรเพิ่ม
+- ปี 2569 (2026): 7 งาน
+- ปี 2568 (2025): 22 งาน  
+- ปี 2567 (2024): 25 งาน
+- ปี 2566 (2023): 3 งาน
+- **รวม ~57 งาน**
 
-## สิ่งที่จะเปลี่ยน
+## แนวทาง Project Tag
 
-### 1. ยกเลิก limit 100 ไฟล์
-- รับไฟล์ไม่จำกัดจำนวนจากโฟลเดอร์
-- เก็บ limit 100 สำหรับ "เลือกไฟล์" ปกติ (กันเผื่อ browser ช้า)
+ใช้รูปแบบ: `EVT-{สถานที่ย่อ}-{YYYYMMDD}` เพื่อให้ทุกงานไม่ซ้ำกัน เช่น:
 
-### 2. Auto-start เมื่อเลือกโฟลเดอร์
-- เลือกโฟลเดอร์ → ระบบเริ่มประมวลผลทันทีโดยอัตโนมัติ
-- ไม่ต้องกดปุ่ม "เริ่มอัพโหลด"
-- แสดง progress bar รวม + สถิติ real-time (สำเร็จ/ซ้ำ/ผิดพลาด/รอตรวจ)
+```text
+EVT-Westville-20250607     → Westville Kids Balance Bike @ Central Westville (7 มิ.ย. 68)
+EVT-Westgate-20251011      → Cruzee Trick or Treat @ Central Westgate (11 ต.ค. 68)
+EVT-T21R3-20241031         → Terminal 21 Rama3 Tournament #4 (31 ต.ค. 67)
+EVT-CruzeeWarrior-20240630 → Cruzee Warrior The New Empire (30 มิ.ย. 67)
+```
 
-### 3. Background-style Queue UI
-- แสดง overall progress: "กำลังประมวลผล 45/320 ไฟล์..."
-- สถิติแบบ live: ✅ 30 สำเร็จ | ⚠️ 5 ซ้ำ | ❌ 2 ผิดพลาด | 🔍 8 รอตรวจ
-- รายการไฟล์แสดงเป็น collapsible list (ไม่แสดงทั้ง 500 ไฟล์พร้อมกัน)
-- ปุ่ม "หยุดชั่วคราว" / "ดำเนินการต่อ"
+## Aliases ของแต่ละงาน
 
-### 4. Smart Batch Processing
-- ประมวลผล 3 ไฟล์พร้อมกัน (เหมือนเดิม)
-- ถ้า rate limit (429) → รอ 10 วินาทีแล้วลองใหม่อัตโนมัติ
-- ถ้า error → ข้ามไปไฟล์ถัดไป ไม่หยุดทั้ง batch
+แต่ละงานจะมี aliases จากชื่อเต็ม + ชื่อสถานที่ + ชื่อย่อ เพื่อให้ AI จับคู่ได้ เช่น:
+- `["Westville Kids Balance Bike", "Central Westville 7 มิ.ย.", "westville jun 2025"]`
 
-## ไฟล์ที่แก้ไข
+## สิ่งที่จะทำ
 
-| ไฟล์ | การเปลี่ยนแปลง |
-|------|----------------|
-| `src/pages/BulkUpload.tsx` | ยกเลิก limit สำหรับ folder, auto-start, pause/resume, retry logic, collapsible file list |
+1. **ลบ event_registry เดิมที่ซ้ำซ้อน** — เช่น `EVT-Terminal21-2024`, `EVT-Westville2024`, `EVT-Westgate2024` ที่ไม่มีวันที่ชัดเจน → แทนที่ด้วยรายการแยกตามงานจริง
+2. **Insert 57 งาน** เข้า event_registry พร้อม event_date, aliases, project_tag ที่ถูกต้อง
+3. **อัปเดต AI prompt** ใน `analyze-receipt` ให้ใช้ format tag ใหม่ `EVT-{venue}-{YYYYMMDD}` และจับคู่จากวันที่สลิป ± 7 วัน กับ event_date
 
-## Technical Details
+## ข้อดี
 
-- Folder input ใช้ `webkitdirectory` attribute (มีอยู่แล้ว)
-- Auto-start: เรียก `uploadAll()` ทันทีหลัง `handleFolderSelect` set files
-- Pause/Resume: ใช้ `useRef` เก็บ flag `isPaused` เพื่อหยุด loop ระหว่าง batch
-- Rate limit retry: ตรวจจับ 429 response จาก edge function แล้ว `setTimeout` 10s
-- Collapsible list: แสดงเฉพาะ 20 รายการล่าสุด + ปุ่ม "แสดงทั้งหมด"
+- ค่าใช้จ่ายก่อน/หลังวันงานจะถูกจับคู่กับงานที่ใกล้เคียงที่สุด
+- งานที่จัดซ้ำสถานที่เดิม (เช่น Westgate หลายครั้งในปีเดียว) จะแยกกันชัดเจน
+- สรุป P&L ได้ต่องาน
+
+## รายละเอียดทางเทคนิค
+
+- ใช้ `supabase--insert` tool เพื่อ insert ข้อมูลทั้งหมด
+- แปลงวันที่จาก พ.ศ. → ค.ศ. (เช่น 2569 → 2026)
+- งานที่มีช่วงวันที่ (31 ต.ค. - 2 พ.ย.) ใช้วันแรกเป็น event_date
 
