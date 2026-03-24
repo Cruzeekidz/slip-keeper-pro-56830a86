@@ -1,10 +1,37 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, TrendingUp, TrendingDown, Loader2 } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
+import { useToast } from "@/hooks/use-toast";
+
+const READYGO_CACHE_KEY = 'readygo_revenue_cache';
+const READYGO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+interface ReadyGoCache {
+  timestamp: number;
+  data: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>;
+}
+
+function getReadyGoCache(): ReadyGoCache | null {
+  try {
+    const raw = localStorage.getItem(READYGO_CACHE_KEY);
+    if (!raw) return null;
+    const cache: ReadyGoCache = JSON.parse(raw);
+    if (Date.now() - cache.timestamp > READYGO_CACHE_TTL) {
+      localStorage.removeItem(READYGO_CACHE_KEY);
+      return null;
+    }
+    return cache;
+  } catch { return null; }
+}
+
+function setReadyGoCache(data: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>) {
+  localStorage.setItem(READYGO_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
+}
 
 interface EventPLData {
   tag: string;
@@ -40,13 +67,24 @@ interface EventAnalysisProps {
 export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const [eventPL, setEventPL] = useState<EventPLData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cacheTime, setCacheTime] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  useEffect(() => { fetchEventPL(); }, []);
-  useExpensesRealtime(useCallback(() => fetchEventPL(), []));
+  useEffect(() => { fetchEventPL(false); }, []);
+  useExpensesRealtime(useCallback(() => fetchEventPL(false), []));
+
+  const handleForceRefresh = async () => {
+    setRefreshing(true);
+    localStorage.removeItem(READYGO_CACHE_KEY);
+    await fetchEventPL(true);
+    setRefreshing(false);
+    toast({ title: "รีเฟรชสำเร็จ", description: "ดึงข้อมูลรายได้จาก Ready-go ใหม่แล้ว" });
+  };
 
   const normalizeForMatch = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
 
-  const fetchEventPL = async () => {
+  const fetchEventPL = async (forceRefresh = false) => {
     try {
       // Fetch registry, expenses, event groups, and other income in parallel
       const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes] = await Promise.all([
@@ -112,12 +150,20 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         map.set(finalTag, current);
       });
 
-      // Fetch Ready-go.fun revenue for groups that have readygo_event_ids
+      // Ready-go revenue: use cache unless forceRefresh
       const groupsWithIds = groups.filter(g => g.readygo_event_ids?.length > 0);
       const readyGoRevenueMap = new Map<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>();
 
-      if (groupsWithIds.length > 0) {
-        // Fetch all groups' financials in parallel
+      const cached = forceRefresh ? null : getReadyGoCache();
+
+      if (cached && groupsWithIds.length > 0) {
+        // Use cached data
+        for (const [tag, val] of Object.entries(cached.data)) {
+          readyGoRevenueMap.set(tag, val);
+        }
+        setCacheTime(new Date(cached.timestamp).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+      } else if (groupsWithIds.length > 0) {
+        // Fetch fresh from API
         const fetchPromises = groupsWithIds.map(async (group) => {
           try {
             const action = group.readygo_event_ids.length === 1 
@@ -142,6 +188,12 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         });
 
         await Promise.allSettled(fetchPromises);
+
+        // Save to cache
+        const cacheObj: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }> = {};
+        readyGoRevenueMap.forEach((v, k) => { cacheObj[k] = v; });
+        setReadyGoCache(cacheObj);
+        setCacheTime(new Date().toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
       }
 
       // Add other income from event_other_income table per group
@@ -251,12 +303,31 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">
-      <div className="flex items-center gap-2 mb-6">
-        <Calendar className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-bold text-foreground">
-          กำไร/ขาดทุน ตามอีเวนท์
-          {recentOnly && <span className="text-sm font-normal text-muted-foreground ml-2">(ล่าสุด)</span>}
-        </h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-bold text-foreground">
+            กำไร/ขาดทุน ตามอีเวนท์
+            {recentOnly && <span className="text-sm font-normal text-muted-foreground ml-2">(ล่าสุด)</span>}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {cacheTime && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              ข้อมูลรายได้ ณ {cacheTime}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleForceRefresh}
+            disabled={refreshing}
+            className="text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'กำลังดึง...' : 'ดึงรายได้ใหม่'}
+          </Button>
+        </div>
       </div>
 
       {/* P&L Summary Cards */}
