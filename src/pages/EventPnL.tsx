@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins, ShoppingBag } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -65,6 +65,16 @@ interface OtherIncome {
   event_id: string | null;
 }
 
+interface ProductCost {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--accent))",
@@ -107,6 +117,14 @@ const EventPnL = () => {
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDate, setIncomeDate] = useState("");
 
+  // Product cost management
+  const [productCosts, setProductCosts] = useState<ProductCost[]>([]);
+  const [showProductDialog, setShowProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductCost | null>(null);
+  const [productName, setProductName] = useState("");
+  const [productQty, setProductQty] = useState("");
+  const [productUnitCost, setProductUnitCost] = useState("");
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
@@ -122,6 +140,7 @@ const EventPnL = () => {
     if ((selectedEventId || selectedGroupId) && financialData) {
       fetchLocalExpenses();
       fetchOtherIncomes();
+      fetchProductCosts();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
@@ -285,7 +304,73 @@ const EventPnL = () => {
     toast({ title: "ลบรายได้อื่นสำเร็จ" });
   };
 
-  const handleEventSelect = (eventId: string) => {
+  // Product Cost CRUD
+  const fetchProductCosts = async () => {
+    if (!user) return;
+    let query = supabase.from("event_product_costs" as any).select("*").eq("user_id", user.id);
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setProductCosts([]);
+      return;
+    }
+    const { data } = await query.order("created_at", { ascending: false });
+    setProductCosts((data as any[]) || []);
+  };
+
+  const openCreateProduct = () => {
+    setEditingProduct(null);
+    setProductName("");
+    setProductQty("");
+    setProductUnitCost("");
+    setShowProductDialog(true);
+  };
+
+  const openEditProduct = (p: ProductCost) => {
+    setEditingProduct(p);
+    setProductName(p.product_name);
+    setProductQty(String(p.quantity));
+    setProductUnitCost(String(p.unit_cost));
+    setShowProductDialog(true);
+  };
+
+  const saveProduct = async () => {
+    if (!user || !productName.trim() || !productQty || !productUnitCost) {
+      toast({ title: "กรุณากรอกข้อมูลให้ครบ", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        product_name: productName.trim(),
+        quantity: Number(productQty),
+        unit_cost: Number(productUnitCost),
+      };
+      if (editingProduct) {
+        await supabase.from("event_product_costs" as any).update(payload).eq("id", editingProduct.id);
+        toast({ title: "อัปเดตต้นทุนสินค้าสำเร็จ" });
+      } else {
+        payload.user_id = user.id;
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_product_costs" as any).insert(payload);
+        toast({ title: "เพิ่มต้นทุนสินค้าสำเร็จ" });
+      }
+      setShowProductDialog(false);
+      fetchProductCosts();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    await supabase.from("event_product_costs" as any).delete().eq("id", id);
+    fetchProductCosts();
+    toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
+  };
+
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
   };
@@ -363,6 +448,7 @@ const EventPnL = () => {
   const summary = financialData?.summary;
 
   const localOtherIncomeTotal = otherIncomes.reduce((s, i) => s + Number(i.amount), 0);
+  const totalProductCost = productCosts.reduce((s, p) => s + Number(p.total_cost || p.quantity * p.unit_cost), 0);
 
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
@@ -377,7 +463,7 @@ const EventPnL = () => {
     : [];
 
   const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
-  const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0);
+  const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0) + totalProductCost;
   const combinedProfit = totalRevenue - totalCost;
 
   const pnlBarData = [
@@ -805,6 +891,12 @@ const EventPnL = () => {
                         <span className="font-medium text-red-600">฿{formatNumber(localExpenses)}</span>
                       </div>
                     )}
+                    {totalProductCost > 0 && (
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-sm">ต้นทุนสินค้า</span>
+                        <span className="font-medium text-red-600">฿{formatNumber(totalProductCost)}</span>
+                      </div>
+                    )}
                     {(financialData.financials || [])
                       .filter(f => f.category === "expense")
                       .map((f, i) => (
@@ -873,6 +965,55 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
+            {/* Product Cost Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <ShoppingBag className="h-5 w-5" />
+                    ต้นทุนสินค้า
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateProduct}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มสินค้า
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {productCosts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีรายการต้นทุนสินค้า เช่น เสื้อ สติกเกอร์ ของที่ระลึก
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {productCosts.map((p) => (
+                      <div key={p.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{p.product_name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {p.quantity} ชิ้น × ฿{formatNumber(p.unit_cost)} = ฿{formatNumber(p.quantity * p.unit_cost)}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <span className="font-semibold text-red-600">฿{formatNumber(p.quantity * p.unit_cost)}</span>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditProduct(p)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteProduct(p.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 font-bold border-t-2">
+                      <span>ต้นทุนสินค้ารวม</span>
+                      <span className="text-red-600">฿{formatNumber(totalProductCost)}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Other Income Dialog */}
             <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
               <DialogContent className="max-w-md">
@@ -897,6 +1038,43 @@ const EventPnL = () => {
                   <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>ยกเลิก</Button>
                   <Button onClick={saveIncome} disabled={!incomeDesc.trim() || !incomeAmount}>
                     {editingIncome ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Product Cost Dialog */}
+            <Dialog open={showProductDialog} onOpenChange={setShowProductDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingProduct ? "แก้ไขต้นทุนสินค้า" : "เพิ่มต้นทุนสินค้า"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">ชื่อสินค้า</label>
+                    <Input value={productName} onChange={e => setProductName(e.target.value)} placeholder="เช่น เสื้อวิ่ง, สติกเกอร์, เหรียญรางวัล" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">จำนวน (ชิ้น)</label>
+                    <Input type="number" value={productQty} onChange={e => setProductQty(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ต้นทุนต่อชิ้น (บาท)</label>
+                    <Input type="number" value={productUnitCost} onChange={e => setProductUnitCost(e.target.value)} placeholder="0" />
+                  </div>
+                  {productQty && productUnitCost && (
+                    <div className="p-3 rounded-lg bg-muted">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">ต้นทุนรวม:</span>
+                        <span className="font-bold">฿{formatNumber(Number(productQty) * Number(productUnitCost))}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowProductDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveProduct} disabled={!productName.trim() || !productQty || !productUnitCost}>
+                    {editingProduct ? "บันทึก" : "เพิ่ม"}
                   </Button>
                 </DialogFooter>
               </DialogContent>

@@ -49,7 +49,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const fetchEventPL = async () => {
     try {
       // Fetch registry, expenses, event groups, and other income in parallel
-      const [registryRes, expensesRes, groupsRes, otherIncomeRes] = await Promise.all([
+      const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
         supabase.from('expenses')
           .select('project_tag, event_name, amount, transaction_type, category_group, transaction_direction')
@@ -57,12 +57,14 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           .eq('category_group', 'EVENT'),
         supabase.from('event_groups').select('*'),
         supabase.from('event_other_income').select('*'),
+        supabase.from('event_product_costs' as any).select('*'),
       ]);
 
       const registry = (registryRes.data as EventRegistryItem[]) || [];
       const expenses = expensesRes.data || [];
       const groups = (groupsRes.data as EventGroup[]) || [];
       const otherIncomes = (otherIncomeRes.data as any[]) || [];
+      const productCostsData = (productCostsRes.data as any[]) || [];
 
       // Filter recent events if needed
       let activeRegistry = registry.filter(r => r.is_active);
@@ -152,6 +154,16 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
       }
 
+      // Aggregate product costs per group
+      const productCostByTag = new Map<string, number>();
+      for (const group of groups) {
+        const groupCosts = productCostsData.filter((c: any) => c.event_group_id === group.id);
+        const total = groupCosts.reduce((s: number, c: any) => s + Number(c.quantity || 0) * Number(c.unit_cost || 0), 0);
+        if (total > 0) {
+          productCostByTag.set(group.project_tag, (productCostByTag.get(group.project_tag) || 0) + total);
+        }
+      }
+
       // Build a date lookup from registry first
       const tagDateMap = new Map<string, string | null>();
       activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
@@ -162,11 +174,13 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         const current = map.get(tag) || { income: 0, expense: 0 };
         const readyGo = readyGoRevenueMap.get(tag);
         const manualOther = manualOtherIncomeByTag.get(tag) || 0;
+        const productCost = productCostByTag.get(tag) || 0;
 
         if (readyGo) {
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
         }
         current.income += manualOther;
+        current.expense += productCost;
 
         // Use festival_date from group if available (overrides registry date)
         if (group.festival_date) {

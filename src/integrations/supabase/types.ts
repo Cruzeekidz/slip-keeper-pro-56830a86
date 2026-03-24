@@ -181,6 +181,50 @@ export type Database = {
           },
         ]
       }
+      event_product_costs: {
+        Row: {
+          created_at: string
+          event_group_id: string | null
+          event_id: string | null
+          id: string
+          product_name: string
+          quantity: number
+          total_cost: number | null
+          unit_cost: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          product_name: string
+          quantity?: number
+          total_cost?: number | null
+          unit_cost?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          product_name?: string
+          quantity?: number
+          total_cost?: number | null
+          unit_cost?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_product_costs_event_group_id_fkey"
+            columns: ["event_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_registry: {
         Row: {
           aliases: string[]
