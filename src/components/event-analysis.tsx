@@ -84,7 +84,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
   const normalizeForMatch = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
 
-  const fetchEventPL = async () => {
+  const fetchEventPL = async (forceRefresh = false) => {
     try {
       // Fetch registry, expenses, event groups, and other income in parallel
       const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes] = await Promise.all([
@@ -150,12 +150,20 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         map.set(finalTag, current);
       });
 
-      // Fetch Ready-go.fun revenue for groups that have readygo_event_ids
+      // Ready-go revenue: use cache unless forceRefresh
       const groupsWithIds = groups.filter(g => g.readygo_event_ids?.length > 0);
       const readyGoRevenueMap = new Map<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>();
 
-      if (groupsWithIds.length > 0) {
-        // Fetch all groups' financials in parallel
+      const cached = forceRefresh ? null : getReadyGoCache();
+
+      if (cached && groupsWithIds.length > 0) {
+        // Use cached data
+        for (const [tag, val] of Object.entries(cached.data)) {
+          readyGoRevenueMap.set(tag, val);
+        }
+        setCacheTime(new Date(cached.timestamp).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
+      } else if (groupsWithIds.length > 0) {
+        // Fetch fresh from API
         const fetchPromises = groupsWithIds.map(async (group) => {
           try {
             const action = group.readygo_event_ids.length === 1 
@@ -180,6 +188,12 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         });
 
         await Promise.allSettled(fetchPromises);
+
+        // Save to cache
+        const cacheObj: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }> = {};
+        readyGoRevenueMap.forEach((v, k) => { cacheObj[k] = v; });
+        setReadyGoCache(cacheObj);
+        setCacheTime(new Date().toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
       }
 
       // Add other income from event_other_income table per group
