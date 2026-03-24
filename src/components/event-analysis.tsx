@@ -139,12 +139,25 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const map = new Map<string, { income: number; expense: number }>();
 
       expenses.forEach(exp => {
-        let resolvedTag = exp.project_tag || exp.event_name || null;
-        if (!resolvedTag) return;
+        // Try all text fields that might contain event info
+        const candidates = [exp.project_tag, exp.event_name, exp.project].filter(Boolean);
+        if (candidates.length === 0) return;
 
-        const normalized = normalizeForMatch(resolvedTag);
-        const registryTag = aliasMap.get(normalized);
-        const finalTag = registryTag || resolvedTag;
+        let finalTag: string | null = null;
+        for (const candidate of candidates) {
+          const normalized = normalizeForMatch(candidate!);
+          const registryTag = aliasMap.get(normalized);
+          if (registryTag) { finalTag = registryTag; break; }
+          // Also try partial matching against alias keys
+          for (const [aliasKey, tag] of aliasMap.entries()) {
+            if (normalized.includes(aliasKey) || aliasKey.includes(normalized)) {
+              finalTag = tag; break;
+            }
+          }
+          if (finalTag) break;
+        }
+        if (!finalTag) finalTag = exp.project_tag || exp.event_name || null;
+        if (!finalTag) return;
 
         const current = map.get(finalTag) || { income: 0, expense: 0 };
         if (exp.transaction_direction === 'INCOME') {
