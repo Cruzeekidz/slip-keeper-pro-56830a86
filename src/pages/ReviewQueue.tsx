@@ -1,15 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2 } from "lucide-react";
+import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2, PlayCircle, PauseCircle } from "lucide-react";
 import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TransactionType, CategoryGroup,
   getSubcategoriesForType, showProjectTag as shouldShowProjectTag,
@@ -44,6 +45,12 @@ export default function ReviewQueue() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
+
+  // Batch re-analyze state
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0, success: 0, failed: 0, updated: 0 });
+  const batchPausedRef = useRef(false);
+  const batchAbortRef = useRef(false);
 
   // Edit state
   const [transactionType, setTransactionType] = useState<TransactionType | "">("");
@@ -160,6 +167,91 @@ export default function ReviewQueue() {
     }
   };
 
+  const handleBatchReanalyze = async () => {
+    const withReceipt = items.filter(i => i.receipt_url);
+    if (withReceipt.length === 0) {
+      toast({ title: "ไม่มีรายการที่มีสลิป", variant: "destructive" });
+      return;
+    }
+
+    setBatchRunning(true);
+    batchPausedRef.current = false;
+    batchAbortRef.current = false;
+    setBatchProgress({ done: 0, total: withReceipt.length, success: 0, failed: 0, updated: 0 });
+
+    let success = 0, failed = 0, updated = 0;
+
+    for (let i = 0; i < withReceipt.length; i++) {
+      if (batchAbortRef.current) break;
+      while (batchPausedRef.current && !batchAbortRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (batchAbortRef.current) break;
+
+      const item = withReceipt[i];
+      try {
+        const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
+          body: {
+            storagePath: item.receipt_url,
+            isPDF: item.receipt_url!.endsWith('.pdf'),
+            memo: item.memo_text || undefined,
+          }
+        });
+
+        if (aiError) throw aiError;
+
+        if (aiData?.success && aiData.data) {
+          const d = aiData.data;
+          const newConfidence = d.confidence_score || 0;
+          const category = d.transaction_type === 'BUSINESS' && d.category_group
+            ? `${d.transaction_type}/${d.category_group}` : d.transaction_type || item.transaction_type || '';
+
+          const autoApprove = newConfidence >= 75;
+
+          const { error: updateError } = await supabase.from('expenses').update({
+            transaction_type: d.transaction_type || item.transaction_type,
+            category_group: d.category_group || null,
+            category,
+            subcategory: d.subcategory || null,
+            project_tag: d.project_tag || null,
+            amount: d.amount || item.amount,
+            confidence_score: newConfidence,
+            needs_review: !autoApprove,
+            event_name: d.event_name || item.event_name,
+            merchant: d.merchant || item.merchant,
+            description: d.description || item.description,
+          }).eq('id', item.id);
+
+          if (updateError) throw updateError;
+          success++;
+          if (autoApprove) updated++;
+        } else {
+          failed++;
+        }
+      } catch (err) {
+        console.error(`Batch re-analyze error for ${item.id}:`, err);
+        failed++;
+        if (err && typeof err === 'object' && 'status' in err && (err as any).status === 429) {
+          await new Promise(r => setTimeout(r, 10000));
+          i--;
+          continue;
+        }
+      }
+
+      setBatchProgress({ done: i + 1, total: withReceipt.length, success, failed, updated });
+      if (i < withReceipt.length - 1) {
+        await new Promise(r => setTimeout(r, 800));
+      }
+    }
+
+    setBatchRunning(false);
+    toast({
+      title: "Re-analyze ทั้งหมดเสร็จสิ้น",
+      description: `สำเร็จ ${success} | ผิดพลาด ${failed} | อนุมัติอัตโนมัติ ${updated} รายการ`,
+    });
+    fetchItems();
+  };
+
   const handleApprove = async () => {
     if (!current || !transactionType) return;
     setSaving(true);
@@ -206,7 +298,7 @@ export default function ReviewQueue() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-foreground">ตรวจสอบรายการ</h1>
             <p className="text-muted-foreground">
               {items.length > 0
@@ -214,7 +306,49 @@ export default function ReviewQueue() {
                 : 'ไม่มีรายการรอตรวจสอบ 🎉'}
             </p>
           </div>
+          {items.length > 0 && !batchRunning && (
+            <Button onClick={handleBatchReanalyze} variant="outline" className="shrink-0">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Re-analyze ทั้งหมด ({items.filter(i => i.receipt_url).length})
+            </Button>
+          )}
         </div>
+
+        {/* Batch progress */}
+        {batchRunning && (
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-medium">กำลัง Re-analyze ทั้งหมด...</span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { batchPausedRef.current = !batchPausedRef.current; setBatchProgress(p => ({ ...p })); }}
+                >
+                  {batchPausedRef.current ? <PlayCircle className="h-4 w-4 mr-1" /> : <PauseCircle className="h-4 w-4 mr-1" />}
+                  {batchPausedRef.current ? 'ดำเนินการต่อ' : 'หยุดชั่วคราว'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => { batchAbortRef.current = true; }}
+                >
+                  หยุด
+                </Button>
+              </div>
+            </div>
+            <Progress value={batchProgress.total > 0 ? (batchProgress.done / batchProgress.total) * 100 : 0} className="h-2" />
+            <div className="flex gap-4 text-sm">
+              <span>{batchProgress.done}/{batchProgress.total} ไฟล์</span>
+              <span className="text-green-600">✅ {batchProgress.success} สำเร็จ</span>
+              <span className="text-blue-600">🔄 {batchProgress.updated} อนุมัติอัตโนมัติ</span>
+              <span className="text-destructive">❌ {batchProgress.failed} ผิดพลาด</span>
+            </div>
+          </Card>
+        )}
 
         {items.length === 0 ? (
           <Card className="p-12 text-center">
