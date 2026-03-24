@@ -1417,6 +1417,78 @@ const EventPnL = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Other Expense Dialog */}
+            <Dialog open={showExpenseDialog} onOpenChange={setShowExpenseDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingExpense ? "แก้ไขค่าใช้จ่ายอื่น" : "เพิ่มค่าใช้จ่ายอื่น"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={expenseDesc} onChange={e => setExpenseDesc(e.target.value)} placeholder="เช่น ค่ามัดจำสถานที่ ค่าประกัน" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                    <Input type="number" value={expenseAmount} onChange={e => setExpenseAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">วันที่ (ไม่บังคับ)</label>
+                    <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={expenseRefundable}
+                      onCheckedChange={(v) => setExpenseRefundable(!!v)}
+                    />
+                    <label className="text-sm font-medium cursor-pointer" onClick={() => setExpenseRefundable(!expenseRefundable)}>
+                      เป็นค่ามัดจำ/ประกัน (ทวงคืนได้)
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowExpenseDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveExpense} disabled={!expenseDesc.trim() || !expenseAmount}>
+                    {editingExpense ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Event Note Dialog */}
+            <Dialog open={showNoteDialog} onOpenChange={setShowNoteDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingNote ? "แก้ไขหมายเหตุ" : "เพิ่มหมายเหตุ"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">ประเภท</label>
+                    <Select value={noteType} onValueChange={setNoteType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">📝 ทั่วไป</SelectItem>
+                        <SelectItem value="deposit">💰 มัดจำ/ประกัน</SelectItem>
+                        <SelectItem value="action_required">⚠️ ต้องดำเนินการ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="เช่น มัดจำสถานที่ 10,000 บาท ทวงคืนหลังจบงาน" />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowNoteDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveNote} disabled={!noteText.trim()}>
+                    {editingNote ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
 
