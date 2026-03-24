@@ -154,6 +154,16 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
       }
 
+      // Aggregate product costs per group
+      const productCostByTag = new Map<string, number>();
+      for (const group of groups) {
+        const groupCosts = productCostsData.filter((c: any) => c.event_group_id === group.id);
+        const total = groupCosts.reduce((s: number, c: any) => s + Number(c.quantity || 0) * Number(c.unit_cost || 0), 0);
+        if (total > 0) {
+          productCostByTag.set(group.project_tag, (productCostByTag.get(group.project_tag) || 0) + total);
+        }
+      }
+
       // Build a date lookup from registry first
       const tagDateMap = new Map<string, string | null>();
       activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
