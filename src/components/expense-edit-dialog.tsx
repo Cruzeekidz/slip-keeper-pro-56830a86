@@ -60,6 +60,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     needs_review: false,
     transaction_direction: "EXPENSE" as TransactionDirection,
     payee_group: "",
+    event_name: "",
   });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
