@@ -45,6 +45,7 @@ export default function ReviewQueue() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
+  const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
 
   // Batch re-analyze state
   const [batchRunning, setBatchRunning] = useState(false);
@@ -88,7 +89,17 @@ export default function ReviewQueue() {
     setEventOptions(data || []);
   }, [user]);
 
-  useEffect(() => { fetchItems(); fetchEventOptions(); }, [fetchItems, fetchEventOptions]);
+  const fetchExistingSubcategories = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('expenses')
+      .select('subcategory')
+      .eq('user_id', user.id)
+      .not('subcategory', 'is', null);
+    setExistingSubcategories([...new Set(data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
+  }, [user]);
+
+  useEffect(() => { fetchItems(); fetchEventOptions(); fetchExistingSubcategories(); }, [fetchItems, fetchEventOptions, fetchExistingSubcategories]);
 
   const current = items[currentIndex];
 
@@ -111,6 +122,7 @@ export default function ReviewQueue() {
   const showGroup = transactionType === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(categoryGroup as CategoryGroup || null);
   const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, 'EXPENSE');
+  const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
   // Build project tag options from event_registry
   const projectTagOptions = showTag ? eventOptions
@@ -469,10 +481,10 @@ export default function ReviewQueue() {
                   </div>
                 )}
 
-                {defaultSubcats.length > 0 && (
+                {(defaultSubcats.length > 0 || allSubcategories.length > 0) && (
                   <div className="space-y-2">
                     <Label>ประเภทย่อย</Label>
-                    <Combobox options={defaultSubcats} value={subcategory} onValueChange={setSubcategory} placeholder="เลือกประเภทย่อย" />
+                    <Combobox options={allSubcategories} value={subcategory} onValueChange={setSubcategory} placeholder="เลือกหรือพิมพ์ประเภทย่อย" />
                   </div>
                 )}
 
