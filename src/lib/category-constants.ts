@@ -79,6 +79,10 @@ export const DEFAULT_PROGRAM_TAGS = [
   'PROG-BikeClass', 'PROG-InlineSkate',
 ];
 
+export const DEFAULT_KUKANANG_TAGS = [
+  'KUKAN-BikeClass', 'KUKAN-InlineSkate',
+];
+
 export function getSubcategoriesForType(
   type: TransactionType | null,
   group: CategoryGroup | null,
