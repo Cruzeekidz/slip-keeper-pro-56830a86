@@ -75,6 +75,29 @@ interface ProductCost {
   event_id: string | null;
 }
 
+interface OtherExpense {
+  id: string;
+  description: string;
+  amount: number;
+  expense_date: string | null;
+  is_refundable: boolean;
+  refund_status: string;
+  refunded_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
+interface EventNote {
+  id: string;
+  note_text: string;
+  note_type: string;
+  is_resolved: boolean;
+  resolved_at: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+  created_at: string;
+}
+
 const CHART_COLORS = [
   "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
   "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
