@@ -13,6 +13,7 @@ interface EventPLData {
   expense: number;
   profit: number;
   hasReadyGoData: boolean;
+  eventDate: string | null;
 }
 
 interface EventRegistryItem {
@@ -182,6 +183,10 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
       const groupTagSet = new Set(groups.map(g => g.project_tag));
 
+      // Build a date lookup from registry
+      const tagDateMap = new Map<string, string | null>();
+      activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
+
       const result: EventPLData[] = Array.from(map.entries())
         .map(([tag, data]) => ({
           tag,
@@ -190,8 +195,15 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           expense: data.expense,
           profit: data.income - data.expense,
           hasReadyGoData: readyGoRevenueMap.has(tag) || groupTagSet.has(tag),
+          eventDate: tagDateMap.get(tag) || null,
         }))
-        .sort((a, b) => b.expense - a.expense);
+        .sort((a, b) => {
+          // Sort by event date descending (newest first), null dates go last
+          if (a.eventDate && b.eventDate) return b.eventDate.localeCompare(a.eventDate);
+          if (a.eventDate && !b.eventDate) return -1;
+          if (!a.eventDate && b.eventDate) return 1;
+          return b.expense - a.expense;
+        });
 
       setEventPL(result);
     } catch (error) {
