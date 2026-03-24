@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const READYGO_CACHE_KEY = 'readygo_revenue_cache';
 const READYGO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
