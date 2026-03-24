@@ -69,6 +69,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
   const [existingEventNames, setExistingEventNames] = useState<string[]>([]);
+  const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
