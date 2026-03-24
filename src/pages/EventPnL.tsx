@@ -65,6 +65,16 @@ interface OtherIncome {
   event_id: string | null;
 }
 
+interface ProductCost {
+  id: string;
+  product_name: string;
+  quantity: number;
+  unit_cost: number;
+  total_cost: number;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--accent))",
