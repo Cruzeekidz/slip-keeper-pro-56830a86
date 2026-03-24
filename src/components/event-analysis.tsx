@@ -67,9 +67,20 @@ interface EventAnalysisProps {
 export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const [eventPL, setEventPL] = useState<EventPLData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [cacheTime, setCacheTime] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  useEffect(() => { fetchEventPL(); }, []);
-  useExpensesRealtime(useCallback(() => fetchEventPL(), []));
+  useEffect(() => { fetchEventPL(false); }, []);
+  useExpensesRealtime(useCallback(() => fetchEventPL(false), []));
+
+  const handleForceRefresh = async () => {
+    setRefreshing(true);
+    localStorage.removeItem(READYGO_CACHE_KEY);
+    await fetchEventPL(true);
+    setRefreshing(false);
+    toast({ title: "รีเฟรชสำเร็จ", description: "ดึงข้อมูลรายได้จาก Ready-go ใหม่แล้ว" });
+  };
 
   const normalizeForMatch = (s: string) => s.toLowerCase().replace(/[\s\-_]/g, '');
 
