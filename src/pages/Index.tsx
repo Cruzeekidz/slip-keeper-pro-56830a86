@@ -161,11 +161,26 @@ const Index = () => {
                     เครื่องมือ
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-popover border-border">
-                  <DropdownMenuItem onClick={() => navigate('/link-line')}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    ผูกบัญชี LINE
+                <DropdownMenuContent className="bg-popover border-border w-56">
+                  {/* กลุ่ม: อีเวนท์ & รายได้ */}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">📅 อีเวนท์ & รายได้</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => navigate('/event-management')}>
+                    <Calendar className="h-4 w-4 mr-2" />
+                    จัดการอีเวนท์
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/event-pnl')}>
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    P&L อีเวนท์ (Ready-go)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/transaction-report')}>
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    รายงานธุรกรรม
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {/* กลุ่ม: สลิป & อัพโหลด */}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">🧾 สลิป & อัพโหลด</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/receipt-archive')}>
                     <FolderOpen className="h-4 w-4 mr-2" />
                     คลังสลิป
@@ -174,6 +189,15 @@ const Index = () => {
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Forward สลิป
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  {/* กลุ่ม: ตรวจสอบ & แก้ไข */}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">🔍 ตรวจสอบ & แก้ไข</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/review-queue')}>
                     <ClipboardCheck className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการ (Review)
@@ -186,39 +210,32 @@ const Index = () => {
                     <History className="h-4 w-4 mr-2" />
                     ประวัติการลบ
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/data-migration')}>
-                    <Database className="h-4 w-4 mr-2" />
-                    แปลงข้อมูล
+
+                  <DropdownMenuSeparator />
+
+                  {/* กลุ่ม: ตั้งค่า */}
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">⚙️ ตั้งค่า</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => navigate('/link-line')}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    ผูกบัญชี LINE
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/master-data')}>
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการข้อมูลหลัก
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/transaction-report')}>
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    รายงานธุรกรรม
-                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/payee-groups')}>
                     <Settings className="h-4 w-4 mr-2" />
                     จัดการกลุ่มผู้รับเงิน
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/event-management')}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    จัดการอีเวนท์
+                  <DropdownMenuItem onClick={() => navigate('/data-migration')}>
+                    <Database className="h-4 w-4 mr-2" />
+                    แปลงข้อมูล
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Forward สลิป
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/event-pnl')}>
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    P&L อีเวนท์ (Ready-go)
-                  </DropdownMenuItem>
+
                   {isSuperAdmin && (
                     <>
-                      <DropdownMenuItem className="text-muted-foreground text-xs pointer-events-none mt-2 border-t pt-2">
-                        🔧 ผู้ดูแลระบบ (Super Admin)
-                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">🔧 ผู้ดูแลระบบ</DropdownMenuLabel>
                       <DropdownMenuItem onClick={() => navigate('/system-admin')}>
                         <ServerCog className="h-4 w-4 mr-2" />
                         จัดการผู้ดูแลระบบ
