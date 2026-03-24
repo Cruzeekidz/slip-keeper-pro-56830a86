@@ -45,6 +45,7 @@ export default function ReviewQueue() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [reanalyzing, setReanalyzing] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
+  const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
 
   // Batch re-analyze state
   const [batchRunning, setBatchRunning] = useState(false);
