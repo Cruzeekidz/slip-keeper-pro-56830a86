@@ -758,6 +758,175 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_vouchers: {
+        Row: {
+          created_at: string
+          id: string
+          paid_date: string | null
+          pdf_url: string | null
+          signed_url: string | null
+          staff_invoice_id: string
+          user_id: string
+          voucher_number: string
+          wht_cert_url: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          paid_date?: string | null
+          pdf_url?: string | null
+          signed_url?: string | null
+          staff_invoice_id: string
+          user_id: string
+          voucher_number: string
+          wht_cert_url?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          paid_date?: string | null
+          pdf_url?: string | null
+          signed_url?: string | null
+          staff_invoice_id?: string
+          user_id?: string
+          voucher_number?: string
+          wht_cert_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_vouchers_staff_invoice_id_fkey"
+            columns: ["staff_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "staff_invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_invoices: {
+        Row: {
+          created_at: string
+          daily_rate: number
+          days_worked: number
+          event_id: string | null
+          event_name: string | null
+          gross_amount: number
+          id: string
+          invoice_number: string
+          net_amount: number
+          notes: string | null
+          paid_at: string | null
+          staff_id: string
+          status: string
+          submitted_at: string | null
+          submitted_via: string | null
+          user_id: string
+          wht_amount: number
+          wht_rate: number
+          work_end_date: string | null
+          work_start_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          daily_rate?: number
+          days_worked?: number
+          event_id?: string | null
+          event_name?: string | null
+          gross_amount?: number
+          id?: string
+          invoice_number: string
+          net_amount?: number
+          notes?: string | null
+          paid_at?: string | null
+          staff_id: string
+          status?: string
+          submitted_at?: string | null
+          submitted_via?: string | null
+          user_id: string
+          wht_amount?: number
+          wht_rate?: number
+          work_end_date?: string | null
+          work_start_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          daily_rate?: number
+          days_worked?: number
+          event_id?: string | null
+          event_name?: string | null
+          gross_amount?: number
+          id?: string
+          invoice_number?: string
+          net_amount?: number
+          notes?: string | null
+          paid_at?: string | null
+          staff_id?: string
+          status?: string
+          submitted_at?: string | null
+          submitted_via?: string | null
+          user_id?: string
+          wht_amount?: number
+          wht_rate?: number
+          work_end_date?: string | null
+          work_start_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_invoices_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_profiles: {
+        Row: {
+          address: string | null
+          bank_account: string | null
+          bank_name: string | null
+          created_at: string
+          daily_rate: number
+          id: string
+          is_active: boolean
+          line_user_id: string | null
+          nickname: string | null
+          phone: string | null
+          staff_name: string
+          tax_id: string | null
+          user_id: string
+        }
+        Insert: {
+          address?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          created_at?: string
+          daily_rate?: number
+          id?: string
+          is_active?: boolean
+          line_user_id?: string | null
+          nickname?: string | null
+          phone?: string | null
+          staff_name: string
+          tax_id?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string | null
+          bank_account?: string | null
+          bank_name?: string | null
+          created_at?: string
+          daily_rate?: number
+          id?: string
+          is_active?: boolean
+          line_user_id?: string | null
+          nickname?: string | null
+          phone?: string | null
+          staff_name?: string
+          tax_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
