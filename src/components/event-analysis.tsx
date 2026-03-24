@@ -42,6 +42,8 @@ interface EventPLData {
   profit: number;
   hasReadyGoData: boolean;
   eventDate: string | null;
+  readygoEventId: string | null;
+  groupId: string | null;
 }
 
 interface EventRegistryItem {
