@@ -70,18 +70,21 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
    เช่น "staff Peca Bridge" → ENTITY_BCC_NEXT, project_tag: BCCNEXT-PecaBridge
 10. "venue คู่ขนาน" → ENTITY_KUKANANG
 
-#### C. ชื่อโครงการที่รู้จัก (ใส่ปี ค.ศ. ต่อท้ายเสมอ!):
-- Terminal21 / T21 → project_tag: "EVT-Terminal21-2025", event_name: "Terminal21"
-- KMT + เลข → EVT-KMT41-2025
-- Rockstar + เลข → EVT-Rockstar3-2025
-- Westville → EVT-Westville2024 (ถ้าสลิปปี 2024), EVT-Westville2025 (ถ้าสลิปปี 2025)
-- Westgate → EVT-Westgate2024, EVT-Westgate2025 (แยกตามปีของสลิป)
+#### C. รูปแบบ Project Tag ใหม่: EVT-{สถานที่ย่อ}-{YYYYMMDD}
+ใช้วันที่จัดงานจริง (event_date) ในรูปแบบ YYYYMMDD เช่น:
+- Terminal21 Rama3 → EVT-T21R3-{YYYYMMDD} เช่น EVT-T21R3-20240323
+- Central Westville → EVT-Westville-{YYYYMMDD} เช่น EVT-Westville-20250607
+- Central Westgate → EVT-Westgate-{YYYYMMDD} เช่น EVT-Westgate-20251011
+- Rockstar → EVT-Rockstar3-{YYYYMMDD} หรือ EVT-Rockstar-{YYYYMMDD}
 - Peca Bridge → BCCNEXT-PecaBridge (BCC Next)
 - EngineerX → BCCNEXT-EngineerX25-T1 หรือ T2
 - Play Box → BCCNEXT-PlayBox2026
-- ชื่ออื่นๆ → ใช้ชื่อเต็ม + ปี เป็น project_tag เช่น EVT-ชื่องาน2025
 
-**สำคัญ**: อีเวนท์ที่ชื่อซ้ำกันแต่คนละปี ต้องแยก project_tag ตามปีเสมอ ดูจากวันที่ในสลิปเพื่อระบุปี
+**สำคัญมาก - การจับคู่อีเวนท์จากวันที่สลิป**:
+1. ดูวันที่ในสลิป แล้วจับคู่กับอีเวนท์ที่อยู่ใกล้ที่สุด (± 7 วัน จาก event_date)
+2. ถ้าสลิปมีชื่ออีเวนท์/สถานที่ → ใช้ชื่อนั้นจับคู่ก่อน แล้วดูวันที่ยืนยัน
+3. งานเดียวกันที่จัดซ้ำสถานที่ (เช่น Westgate หลายครั้งในปีเดียว) → แยกตามวันที่เสมอ
+4. ถ้าไม่แน่ใจงานไหน → ใส่ project_tag เป็น null และ confidence_score ต่ำ
 
 ## กฎการจัดหมวดพิเศษ:
 - ถ้ามี "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
