@@ -355,6 +355,77 @@ export type Database = {
         }
         Relationships: []
       }
+      event_reminders: {
+        Row: {
+          amount: number | null
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          due_date: string
+          event_group_id: string | null
+          event_id: string | null
+          gcal_event_id: string | null
+          id: string
+          is_completed: boolean
+          line_notified_at: string | null
+          notify_gcal: boolean
+          notify_line: boolean
+          related_expense_id: string | null
+          remind_before_days: number
+          reminder_type: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date: string
+          event_group_id?: string | null
+          event_id?: string | null
+          gcal_event_id?: string | null
+          id?: string
+          is_completed?: boolean
+          line_notified_at?: string | null
+          notify_gcal?: boolean
+          notify_line?: boolean
+          related_expense_id?: string | null
+          remind_before_days?: number
+          reminder_type?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          amount?: number | null
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          due_date?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          gcal_event_id?: string | null
+          id?: string
+          is_completed?: boolean
+          line_notified_at?: string | null
+          notify_gcal?: boolean
+          notify_line?: boolean
+          related_expense_id?: string | null
+          remind_before_days?: number
+          reminder_type?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminders_event_group_id_fkey"
+            columns: ["event_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       expenses: {
         Row: {
           amount: number
