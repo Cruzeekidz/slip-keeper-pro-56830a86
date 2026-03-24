@@ -1,10 +1,10 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, X, CheckCircle, AlertCircle, ArrowLeft, Download, FileSpreadsheet, FolderOpen, AlertTriangle } from "lucide-react";
+import { Upload, X, CheckCircle, AlertCircle, ArrowLeft, Download, FileSpreadsheet, FolderOpen, AlertTriangle, Pause, Play, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CSVPreviewDialog, type CSVRow } from "@/components/csv-preview-dialog";
@@ -18,8 +18,9 @@ interface UploadedFile {
   confidence?: number;
 }
 
-const MAX_FILES = 100;
+const MAX_FILES_MANUAL = 100;
 const CONCURRENCY = 3;
+const RATE_LIMIT_WAIT = 10000;
 
 export default function BulkUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
@@ -27,11 +28,25 @@ export default function BulkUpload() {
   const [showPreview, setShowPreview] = useState(false);
   const [previewRows, setPreviewRows] = useState<CSVRow[]>([]);
   const [processedCount, setProcessedCount] = useState(0);
+  const [showAllFiles, setShowAllFiles] = useState(false);
+  const [stats, setStats] = useState({ success: 0, duplicate: 0, error: 0, review: 0 });
+  const isPausedRef = useRef(false);
+  const [isPausedState, setIsPausedState] = useState(false);
+  const isAutoStartRef = useRef(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-start when folder files are added
+  useEffect(() => {
+    if (isAutoStartRef.current && files.length > 0 && !uploading && files.some(f => f.status === 'pending')) {
+      isAutoStartRef.current = false;
+      uploadAll();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [files]);
 
   const downloadCSVTemplate = () => {
     const headers = ['id','expense_date','amount','category','project','subcategory','merchant','description','sender','receiver','transaction_id'];
@@ -158,35 +173,50 @@ export default function BulkUpload() {
     setTimeout(() => navigate('/'), 1500);
   };
 
-  const addFiles = useCallback((newFiles: File[]) => {
+  const addFiles = useCallback((newFiles: File[], isFolder: boolean = false) => {
     const validFiles = newFiles.filter(f => f.type.startsWith('image/') || f.type === 'application/pdf');
     if (validFiles.length !== newFiles.length) {
-      toast({ title: "คำเตือน", description: "รองรับเฉพาะรูปภาพและ PDF", variant: "destructive" });
+      const skipped = newFiles.length - validFiles.length;
+      toast({ title: "ข้ามไฟล์ที่ไม่รองรับ", description: `ข้าม ${skipped} ไฟล์ (รองรับเฉพาะรูปภาพและ PDF)` });
     }
 
-    setFiles(prev => {
-      const total = prev.length + validFiles.length;
-      if (total > MAX_FILES) {
-        toast({ title: "จำกัดจำนวนไฟล์", description: `สูงสุด ${MAX_FILES} ไฟล์ต่อครั้ง (เลือกแล้ว ${prev.length}, ใหม่ ${validFiles.length})`, variant: "destructive" });
-        return prev;
-      }
-      return [...prev, ...validFiles.map(file => ({ file, status: 'pending' as const }))];
-    });
+    if (!isFolder && validFiles.length > MAX_FILES_MANUAL) {
+      toast({ title: "จำกัดจำนวนไฟล์", description: `เลือกไฟล์ได้สูงสุด ${MAX_FILES_MANUAL} ไฟล์ต่อครั้ง (ใช้โฟลเดอร์สำหรับจำนวนมากกว่า)`, variant: "destructive" });
+      return;
+    }
+
+    setFiles(prev => [...prev, ...validFiles.map(file => ({ file, status: 'pending' as const }))]);
   }, [toast]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
+    addFiles(Array.from(e.target.files || []), false);
     e.target.value = '';
   };
 
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    addFiles(Array.from(e.target.files || []));
+    const folderFiles = Array.from(e.target.files || []);
+    if (folderFiles.length === 0) return;
+    isAutoStartRef.current = true;
+    addFiles(folderFiles, true);
     e.target.value = '';
   };
 
   const removeFile = (index: number) => setFiles(prev => prev.filter((_, i) => i !== index));
 
-  const processFile = async (fileObj: UploadedFile, index: number, updatedFiles: UploadedFile[]) => {
+  const togglePause = () => {
+    isPausedRef.current = !isPausedRef.current;
+    setIsPausedState(isPausedRef.current);
+  };
+
+  const waitForResume = () => new Promise<void>((resolve) => {
+    const check = () => {
+      if (!isPausedRef.current) resolve();
+      else setTimeout(check, 500);
+    };
+    check();
+  });
+
+  const processFile = async (fileObj: UploadedFile, index: number, updatedFiles: UploadedFile[], retryCount = 0): Promise<void> => {
     if (!user) return;
 
     updatedFiles[index].status = 'uploading';
@@ -217,6 +247,15 @@ export default function BulkUpload() {
           body: { storagePath: fileName, isPDF }
         });
 
+        // Rate limit detection
+        if (aiError && (aiError as any)?.status === 429) {
+          if (retryCount < 3) {
+            console.log(`[BulkUpload] Rate limited, waiting ${RATE_LIMIT_WAIT / 1000}s before retry...`);
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_WAIT));
+            return processFile(fileObj, index, updatedFiles, retryCount + 1);
+          }
+        }
+
         if (!aiError && aiData?.success && aiData.data) {
           const d = aiData.data;
 
@@ -227,6 +266,7 @@ export default function BulkUpload() {
               updatedFiles[index].status = 'duplicate';
               updatedFiles[index].error = `สลิปซ้ำ (ID: ${d.transaction_id})`;
               setFiles([...updatedFiles]);
+              setStats(prev => ({ ...prev, duplicate: prev.duplicate + 1 }));
               return;
             }
           }
@@ -240,6 +280,7 @@ export default function BulkUpload() {
               updatedFiles[index].status = 'duplicate';
               updatedFiles[index].error = `สลิปซ้ำ (${d.amount} บาท, ${d.date}${d.time ? ' ' + d.time : ''})`;
               setFiles([...updatedFiles]);
+              setStats(prev => ({ ...prev, duplicate: prev.duplicate + 1 }));
               return;
             }
           }
@@ -283,9 +324,15 @@ export default function BulkUpload() {
       updatedFiles[index].status = 'success';
       updatedFiles[index].id = data.id;
       updatedFiles[index].confidence = confidence ?? undefined;
+      setStats(prev => ({
+        ...prev,
+        success: prev.success + 1,
+        review: isLowConfidence ? prev.review + 1 : prev.review,
+      }));
     } catch (error) {
       updatedFiles[index].status = 'error';
       updatedFiles[index].error = error instanceof Error ? error.message : 'เกิดข้อผิดพลาด';
+      setStats(prev => ({ ...prev, error: prev.error + 1 }));
     }
 
     setFiles([...updatedFiles]);
@@ -297,11 +344,19 @@ export default function BulkUpload() {
 
     setUploading(true);
     setProcessedCount(0);
+    setStats({ success: 0, duplicate: 0, error: 0, review: 0 });
+    isPausedRef.current = false;
+    setIsPausedState(false);
+
     const updatedFiles = [...files];
     const pendingIndices = updatedFiles.map((f, i) => f.status === 'pending' ? i : -1).filter(i => i !== -1);
 
-    // Process in batches of CONCURRENCY
     for (let i = 0; i < pendingIndices.length; i += CONCURRENCY) {
+      // Check pause
+      if (isPausedRef.current) {
+        await waitForResume();
+      }
+
       const batch = pendingIndices.slice(i, i + CONCURRENCY);
       await Promise.all(batch.map(idx => processFile(updatedFiles[idx], idx, updatedFiles)));
     }
@@ -344,6 +399,8 @@ export default function BulkUpload() {
   const pendingCount = files.filter(f => f.status === 'pending').length;
   const totalToProcess = files.length;
   const progressPercent = totalToProcess > 0 ? Math.round((processedCount / totalToProcess) * 100) : 0;
+  const VISIBLE_LIMIT = 20;
+  const visibleFiles = showAllFiles ? files : files.slice(-VISIBLE_LIMIT);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-4 md:p-8">
@@ -355,7 +412,7 @@ export default function BulkUpload() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-foreground">อัพโหลดหลายรายการ</h1>
-            <p className="text-muted-foreground">อัพโหลดใบเสร็จสูงสุด {MAX_FILES} ไฟล์ หรือเลือกทั้งโฟลเดอร์ พร้อม AI วิเคราะห์และตรวจซ้ำอัตโนมัติ</p>
+            <p className="text-muted-foreground">เลือกโฟลเดอร์สลิปทั้งหมด — ระบบจะอ่าน วิเคราะห์ ตรวจซ้ำ และบันทึกอัตโนมัติ</p>
           </div>
         </div>
 
@@ -388,15 +445,13 @@ export default function BulkUpload() {
           <Card className="p-8">
             <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
               <Upload className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-lg font-semibold mb-2">เลือกไฟล์ใบเสร็จ</h3>
+              <h3 className="text-lg font-semibold mb-2">เลือกไฟล์หรือโฟลเดอร์</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                รองรับ JPG, PNG, WEBP, PDF — สูงสุด {MAX_FILES} ไฟล์ต่อครั้ง — ประมวลผลพร้อมกัน {CONCURRENCY} ไฟล์
+                📁 <strong>โฟลเดอร์</strong>: ไม่จำกัดจำนวน — ระบบเริ่มทำงานอัตโนมัติทันที<br />
+                📄 <strong>เลือกไฟล์</strong>: สูงสุด {MAX_FILES_MANUAL} ไฟล์ต่อครั้ง — กดอัพโหลดเอง<br />
+                ประมวลผลพร้อมกัน {CONCURRENCY} ไฟล์ | ตรวจซ้ำ 2 ระดับ | Rate limit auto-retry
               </p>
               <div className="flex flex-wrap justify-center gap-3">
-                <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf" onChange={handleFileSelect} className="hidden" id="file-upload" disabled={uploading} />
-                <Button asChild disabled={uploading}>
-                  <label htmlFor="file-upload" className="cursor-pointer"><Upload className="h-4 w-4 mr-2" />เลือกไฟล์</label>
-                </Button>
                 <input
                   ref={folderInputRef}
                   type="file"
@@ -410,26 +465,60 @@ export default function BulkUpload() {
                   id="folder-upload"
                   disabled={uploading}
                 />
+                <Button asChild disabled={uploading} size="lg">
+                  <label htmlFor="folder-upload" className="cursor-pointer"><FolderOpen className="h-5 w-5 mr-2" />เลือกโฟลเดอร์ (แนะนำ)</label>
+                </Button>
+                <input ref={fileInputRef} type="file" multiple accept="image/*,application/pdf" onChange={handleFileSelect} className="hidden" id="file-upload" disabled={uploading} />
                 <Button asChild variant="outline" disabled={uploading}>
-                  <label htmlFor="folder-upload" className="cursor-pointer"><FolderOpen className="h-4 w-4 mr-2" />เลือกโฟลเดอร์</label>
+                  <label htmlFor="file-upload" className="cursor-pointer"><Upload className="h-4 w-4 mr-2" />เลือกไฟล์</label>
                 </Button>
               </div>
             </div>
           </Card>
         </div>
 
-        {/* Progress Bar */}
-        {uploading && (
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-foreground">กำลังประมวลผล...</span>
-              <span className="text-sm text-muted-foreground">{processedCount}/{totalToProcess} ({progressPercent}%)</span>
+        {/* Live Stats & Progress */}
+        {(uploading || processedCount > 0) && (
+          <Card className="p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-foreground">
+                {uploading ? `กำลังประมวลผล ${processedCount}/${totalToProcess} ไฟล์...` : `ประมวลผลเสร็จแล้ว ${processedCount}/${totalToProcess} ไฟล์`}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">{progressPercent}%</span>
+                {uploading && (
+                  <Button variant="outline" size="sm" onClick={togglePause}>
+                    {isPausedState ? <><Play className="h-4 w-4 mr-1" />ดำเนินการต่อ</> : <><Pause className="h-4 w-4 mr-1" />หยุดชั่วคราว</>}
+                  </Button>
+                )}
+              </div>
             </div>
-            <Progress value={progressPercent} className="h-3" />
+            <Progress value={progressPercent} className="h-3 mb-3" />
+            {isPausedState && (
+              <p className="text-sm text-yellow-600 font-medium mb-3">⏸ หยุดชั่วคราว — กดดำเนินการต่อเพื่อทำงานต่อ</p>
+            )}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="text-center p-2 rounded-lg bg-green-50 dark:bg-green-950/30">
+                <p className="text-lg font-bold text-green-600">{stats.success}</p>
+                <p className="text-xs text-muted-foreground">✅ สำเร็จ</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-yellow-50 dark:bg-yellow-950/30">
+                <p className="text-lg font-bold text-yellow-600">{stats.duplicate}</p>
+                <p className="text-xs text-muted-foreground">⚠️ ซ้ำ</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-red-50 dark:bg-red-950/30">
+                <p className="text-lg font-bold text-destructive">{stats.error}</p>
+                <p className="text-xs text-muted-foreground">❌ ผิดพลาด</p>
+              </div>
+              <div className="text-center p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
+                <p className="text-lg font-bold text-blue-600">{stats.review}</p>
+                <p className="text-xs text-muted-foreground">🔍 รอตรวจ</p>
+              </div>
+            </div>
           </Card>
         )}
 
-        {/* File List */}
+        {/* File List (collapsible) */}
         {files.length > 0 && (
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
@@ -437,36 +526,47 @@ export default function BulkUpload() {
               <div className="flex gap-2">
                 {!uploading && files.some(f => f.status === 'success' && f.confidence != null && f.confidence < 75) && (
                   <Button variant="outline" onClick={() => navigate('/review-queue')}>
-                    <AlertTriangle className="h-4 w-4 mr-2" />รอตรวจสอบ
+                    <Search className="h-4 w-4 mr-2" />รอตรวจสอบ ({stats.review})
                   </Button>
                 )}
-                <Button onClick={uploadAll} disabled={uploading || pendingCount === 0}>
-                  {uploading ? 'กำลังอัพโหลด...' : `อัพโหลดทั้งหมด (${pendingCount})`}
-                </Button>
+                {!uploading && pendingCount > 0 && (
+                  <Button onClick={uploadAll} disabled={uploading}>
+                    อัพโหลดทั้งหมด ({pendingCount})
+                  </Button>
+                )}
               </div>
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
-              {files.map((fileObj, index) => (
-                <div key={index} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                  <div className="flex-shrink-0">{getStatusIcon(fileObj.status)}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{fileObj.file.name}</p>
-                    <p className="text-xs text-muted-foreground">{(fileObj.file.size / 1024).toFixed(1)} KB</p>
-                    {getStatusLabel(fileObj) && (
-                      <p className={`text-xs mt-1 ${fileObj.status === 'error' ? 'text-destructive' : fileObj.status === 'duplicate' ? 'text-yellow-600' : 'text-warning'}`}>
-                        {getStatusLabel(fileObj)}
-                      </p>
+              {visibleFiles.map((fileObj, i) => {
+                const realIndex = showAllFiles ? i : files.length - VISIBLE_LIMIT + i;
+                return (
+                  <div key={realIndex} className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
+                    <div className="flex-shrink-0">{getStatusIcon(fileObj.status)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{fileObj.file.name}</p>
+                      <p className="text-xs text-muted-foreground">{(fileObj.file.size / 1024).toFixed(1)} KB</p>
+                      {getStatusLabel(fileObj) && (
+                        <p className={`text-xs mt-1 ${fileObj.status === 'error' ? 'text-destructive' : fileObj.status === 'duplicate' ? 'text-yellow-600' : 'text-warning'}`}>
+                          {getStatusLabel(fileObj)}
+                        </p>
+                      )}
+                    </div>
+                    {fileObj.status === 'pending' && !uploading && (
+                      <Button variant="ghost" size="icon" onClick={() => removeFile(realIndex)} className="flex-shrink-0">
+                        <X className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
-                  {fileObj.status === 'pending' && (
-                    <Button variant="ghost" size="icon" onClick={() => removeFile(index)} className="flex-shrink-0">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
+
+            {files.length > VISIBLE_LIMIT && (
+              <Button variant="ghost" className="w-full mt-2" onClick={() => setShowAllFiles(!showAllFiles)}>
+                {showAllFiles ? <><ChevronUp className="h-4 w-4 mr-1" />แสดงเฉพาะล่าสุด</> : <><ChevronDown className="h-4 w-4 mr-1" />แสดงทั้งหมด ({files.length} ไฟล์)</>}
+              </Button>
+            )}
           </Card>
         )}
 
@@ -486,11 +586,12 @@ export default function BulkUpload() {
             <div>
               <p className="font-medium text-sm text-blue-900 dark:text-blue-100 mb-1">สำหรับใบเสร็จ:</p>
               <ul className="space-y-1 text-sm text-blue-800 dark:text-blue-200">
-                <li>• อัพโหลดได้สูงสุด {MAX_FILES} ไฟล์ หรือเลือกทั้งโฟลเดอร์</li>
-                <li>• ประมวลผลพร้อมกัน {CONCURRENCY} ไฟล์ พร้อมแถบ Progress</li>
+                <li>• 📁 <strong>เลือกโฟลเดอร์</strong>: ไม่จำกัดจำนวน ระบบเริ่มอัตโนมัติ</li>
+                <li>• 📄 <strong>เลือกไฟล์</strong>: สูงสุด {MAX_FILES_MANUAL} ไฟล์</li>
+                <li>• ประมวลผลพร้อมกัน {CONCURRENCY} ไฟล์ + หยุดชั่วคราว/ดำเนินต่อได้</li>
                 <li>• ตรวจซ้ำ 2 ระดับ: Transaction ID และ ยอดเงิน+วันที่+เวลา</li>
-                <li>• AI จัดหมวดหมู่อัตโนมัติ (BUSINESS/PERSONAL/TRANSFER)</li>
-                <li>• รายการที่ AI ไม่มั่นใจ ({"<"}75%) จะถูกติดธง "รอตรวจสอบ"</li>
+                <li>• Rate limit → รอ 10 วินาทีแล้วลองใหม่อัตโนมัติ (สูงสุด 3 ครั้ง)</li>
+                <li>• รายการที่ AI ไม่มั่นใจ ({"<"}75%) จะถูกส่งเข้า Review Queue</li>
               </ul>
             </div>
           </div>
