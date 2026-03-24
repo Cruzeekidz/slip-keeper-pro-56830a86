@@ -76,14 +76,14 @@ interface ProductCost {
 }
 
 const CHART_COLORS = [
-  "hsl(var(--primary))",
-  "hsl(var(--accent))",
-  "hsl(210, 70%, 50%)",
-  "hsl(150, 60%, 45%)",
-  "hsl(30, 80%, 55%)",
-  "hsl(280, 60%, 55%)",
-  "hsl(0, 70%, 55%)",
-  "hsl(180, 50%, 45%)",
+  "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
+  "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
+  "hsl(280, 65%, 55%)",   // OTO2 - ม่วง
+  "hsl(340, 80%, 55%)",   // รายได้อื่น Ready-go - ชมพูเข้ม
+  "hsl(45, 95%, 50%)",    // รายได้อื่น บันทึกเอง - เหลืองทอง
+  "hsl(150, 60%, 45%)",   // สำรอง - เขียว
+  "hsl(0, 70%, 55%)",     // สำรอง - แดง
+  "hsl(210, 70%, 50%)",   // สำรอง - น้ำเงิน
 ];
 
 const formatNumber = (n: number) => n.toLocaleString("th-TH", { minimumFractionDigits: 0 });
