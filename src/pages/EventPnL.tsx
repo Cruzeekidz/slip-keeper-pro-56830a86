@@ -99,6 +99,14 @@ const EventPnL = () => {
   const [groupTag, setGroupTag] = useState("");
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
 
+  // Other income management
+  const [otherIncomes, setOtherIncomes] = useState<OtherIncome[]>([]);
+  const [showIncomeDialog, setShowIncomeDialog] = useState(false);
+  const [editingIncome, setEditingIncome] = useState<OtherIncome | null>(null);
+  const [incomeDesc, setIncomeDesc] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeDate, setIncomeDate] = useState("");
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
