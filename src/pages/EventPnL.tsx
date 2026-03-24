@@ -821,6 +821,86 @@ const EventPnL = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Other Income Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <HandCoins className="h-5 w-5" />
+                    รายได้อื่นๆ (บันทึกเอง)
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateIncome}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มรายได้
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {otherIncomes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีรายได้อื่นๆ เช่น ค่าสปอนเซอร์ ค่าเช่าบูธ ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {otherIncomes.map((income) => (
+                      <div key={income.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{income.description}</p>
+                          {income.income_date && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(income.income_date).toLocaleDateString("th-TH")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <span className="font-semibold text-green-600">฿{formatNumber(income.amount)}</span>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditIncome(income)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteIncome(income.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 font-bold border-t-2">
+                      <span>รายได้อื่นรวม</span>
+                      <span className="text-green-600">฿{formatNumber(localOtherIncomeTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Other Income Dialog */}
+            <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingIncome ? "แก้ไขรายได้อื่น" : "เพิ่มรายได้อื่น"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={incomeDesc} onChange={e => setIncomeDesc(e.target.value)} placeholder="เช่น ค่าสปอนเซอร์ บริษัท ABC" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                    <Input type="number" value={incomeAmount} onChange={e => setIncomeAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">วันที่ (ไม่บังคับ)</label>
+                    <Input type="date" value={incomeDate} onChange={e => setIncomeDate(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveIncome} disabled={!incomeDesc.trim() || !incomeAmount}>
+                    {editingIncome ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
 
