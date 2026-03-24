@@ -336,15 +336,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         map.set(tag, current);
       }
 
-      // Merge Ready-go revenue for single registry entries (not in groups)
+      // Merge Ready-go revenue + manual costs for single registry entries (not in groups)
       for (const reg of registryWithReadyGo) {
         const tag = reg.project_tag;
+        const current = map.get(tag) || { income: 0, expense: 0 };
         const readyGo = readyGoRevenueMap.get(tag);
         if (readyGo) {
-          const current = map.get(tag) || { income: 0, expense: 0 };
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
-          map.set(tag, current);
         }
+        current.income += manualOtherIncomeByTag.get(tag) || 0;
+        current.expense += (productCostByTag.get(tag) || 0) + (otherExpenseByTag.get(tag) || 0);
+        map.set(tag, current);
       }
 
       // Filter and build result
