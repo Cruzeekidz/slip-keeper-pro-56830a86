@@ -1267,9 +1267,33 @@ const EventPnL = () => {
                   <div className="space-y-2">
                     {/* Local expenses from slips */}
                     {localExpenses > 0 && (
-                      <div className="flex justify-between py-2 border-b">
-                        <span className="text-sm font-medium">จากสลิป (ระบบนี้)</span>
-                        <span className="font-medium text-red-600">฿{formatNumber(localExpenses)}</span>
+                      <div className="border-b pb-2">
+                        <button 
+                          onClick={() => setShowExpenseBreakdown(!showExpenseBreakdown)}
+                          className="flex justify-between w-full py-2 hover:bg-muted/50 rounded px-1 transition-colors"
+                        >
+                          <span className="text-sm font-medium flex items-center gap-1">
+                            จากสลิป (ระบบนี้) 
+                            <span className="text-xs text-muted-foreground">({localExpenseItems.length} รายการ)</span>
+                            <span className="text-xs">{showExpenseBreakdown ? '▲' : '▼'}</span>
+                          </span>
+                          <span className="font-medium text-red-600">฿{formatNumber(localExpenses)}</span>
+                        </button>
+                        {showExpenseBreakdown && (
+                          <div className="ml-2 mt-1 space-y-1 border-l-2 border-muted pl-3">
+                            {localExpenseItems.map((item, i) => (
+                              <div key={i} className="flex justify-between py-0.5 text-xs">
+                                <div className="flex-1 min-w-0 pr-2">
+                                  <span className="text-foreground">{item.description}</span>
+                                  <span className="text-muted-foreground ml-1">
+                                    ({new Date(item.expense_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })})
+                                  </span>
+                                </div>
+                                <span className="text-red-600 whitespace-nowrap">฿{formatNumber(item.amount)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     {totalProductCost > 0 && (
