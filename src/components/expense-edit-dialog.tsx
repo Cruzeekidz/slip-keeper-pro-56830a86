@@ -34,6 +34,7 @@ interface Expense {
   needs_review?: boolean;
   transaction_direction?: string | null;
   payee_group?: string | null;
+  event_name?: string | null;
 }
 
 interface ExpenseEditDialogProps {
@@ -60,12 +61,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     needs_review: false,
     transaction_direction: "EXPENSE" as TransactionDirection,
     payee_group: "",
+    event_name: "",
   });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
   const [merchants, setMerchants] = useState<string[]>([]);
   const [existingTags, setExistingTags] = useState<string[]>([]);
   const [existingSubcategories, setExistingSubcategories] = useState<string[]>([]);
+  const [existingEventNames, setExistingEventNames] = useState<string[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -88,6 +91,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         needs_review: expense.needs_review || false,
         transaction_direction: (expense.transaction_direction as TransactionDirection) || "EXPENSE",
         payee_group: expense.payee_group || "",
+        event_name: expense.event_name || "",
       });
     }
   }, [expense]);
@@ -96,13 +100,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
         supabase.from('expenses').select('project_tag').not('project_tag', 'is', null),
         supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
         supabase.from('payee_groups').select('payee_pattern, group_name'),
+        supabase.from('expenses').select('event_name').not('event_name', 'is', null),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
@@ -110,6 +115,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setExistingTags([...new Set(tagRes.data?.map(i => i.project_tag).filter(Boolean) || [])] as string[]);
       setExistingSubcategories([...new Set(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
+      setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
@@ -142,6 +148,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
+  const showEventName = showGroup && formData.category_group === 'EVENT';
   const showDirection = true;
 
   const existingPayeeGroupNames = [...new Set(payeeGroups.map(p => p.name))];
@@ -170,6 +177,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           needs_review: false,
           transaction_direction: formData.transaction_direction,
           payee_group: formData.payee_group || null,
+          event_name: formData.event_name || null,
         })
         .eq('id', expense.id);
 
@@ -243,7 +251,10 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             <Label>ประเภทธุรกรรม</Label>
             <Select
               value={formData.transaction_type}
-              onValueChange={(v) => setFormData({ ...formData, transaction_type: v as TransactionType, category_group: "", subcategory: "", project_tag: "", transaction_direction: "EXPENSE" })}
+              onValueChange={(v) => {
+                const typeLabel = v === 'BUSINESS' ? 'ธุรกิจ' : v === 'PERSONAL' ? 'ส่วนตัว' : v === 'TRANSFER' ? 'โอนเงิน' : '';
+                setFormData({ ...formData, transaction_type: v as TransactionType, category: typeLabel, category_group: "", subcategory: "", project_tag: "", event_name: "", transaction_direction: "EXPENSE" });
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="เลือกประเภท" />
@@ -285,6 +296,19 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
                 value={formData.project_tag}
                 onValueChange={(v) => setFormData({ ...formData, project_tag: v })}
                 placeholder="เลือกหรือพิมพ์แท็ก"
+              />
+            </div>
+          )}
+
+          {/* Event Name - Combobox */}
+          {showEventName && (
+            <div>
+              <Label>ชื่ออีเวนท์</Label>
+              <Combobox
+                options={existingEventNames}
+                value={formData.event_name}
+                onValueChange={(v) => setFormData({ ...formData, event_name: v })}
+                placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
               />
             </div>
           )}
