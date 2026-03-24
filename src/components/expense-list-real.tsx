@@ -44,6 +44,7 @@ interface Expense {
   needs_review: boolean | null;
   transaction_direction: string | null;
   payee_group: string | null;
+  event_name: string | null;
 }
 
 export function ExpenseListReal() {
