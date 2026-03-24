@@ -679,8 +679,14 @@ const EventPnL = () => {
                   </div>
                   {summary.totalOtherIncome > 0 && (
                     <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm">รายได้อื่นๆ</span>
+                      <span className="text-sm">รายได้อื่นๆ (Ready-go)</span>
                       <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
+                    </div>
+                  )}
+                  {localOtherIncomeTotal > 0 && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-sm">รายได้อื่นๆ (บันทึกเอง)</span>
+                      <span className="font-medium">฿{formatNumber(localOtherIncomeTotal)}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-3 font-bold text-lg border-t-2">
