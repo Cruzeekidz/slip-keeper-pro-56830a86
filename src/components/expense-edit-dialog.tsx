@@ -144,10 +144,18 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   // Merge with existing custom subcategories
   const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
-  const projectTags = [
-    ...getDefaultProjectTags(formData.category_group as CategoryGroup || null),
-    ...existingTags.filter(t => !getDefaultProjectTags(formData.category_group as CategoryGroup || null).includes(t)),
-  ];
+  // Build project tags from event_registry first, then merge with existing
+  const registryTagsForGroup = registryTags
+    .filter(e => {
+      const group = formData.category_group;
+      if (group === 'EVENT') return e.project_tag.startsWith('EVT-');
+      if (group === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
+      if (group === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      return true;
+    })
+    .map(e => e.project_tag);
+  const defaultTags = getDefaultProjectTags(formData.category_group as CategoryGroup || null);
+  const projectTags = [...new Set([...registryTagsForGroup, ...defaultTags, ...existingTags])];
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
