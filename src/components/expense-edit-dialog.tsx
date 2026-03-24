@@ -101,7 +101,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
@@ -109,6 +109,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
         supabase.from('payee_groups').select('payee_pattern, group_name'),
         supabase.from('expenses').select('event_name').not('event_name', 'is', null),
+        supabase.from('event_registry').select('project_tag, event_name, event_date').eq('is_active', true).order('event_date', { ascending: false, nullsFirst: false }),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
@@ -117,6 +118,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setExistingSubcategories([...new Set(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
       setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
+      setRegistryTags(registryRes.data || []);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
