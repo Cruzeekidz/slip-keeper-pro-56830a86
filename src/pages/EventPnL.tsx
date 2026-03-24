@@ -148,6 +148,22 @@ const EventPnL = () => {
   const [productQty, setProductQty] = useState("");
   const [productUnitCost, setProductUnitCost] = useState("");
 
+  // Other expenses management
+  const [otherExpenses, setOtherExpenses] = useState<OtherExpense[]>([]);
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<OtherExpense | null>(null);
+  const [expenseDesc, setExpenseDesc] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState("");
+  const [expenseRefundable, setExpenseRefundable] = useState(false);
+
+  // Event notes management
+  const [eventNotes, setEventNotes] = useState<EventNote[]>([]);
+  const [showNoteDialog, setShowNoteDialog] = useState(false);
+  const [editingNote, setEditingNote] = useState<EventNote | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [noteType, setNoteType] = useState("general");
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
