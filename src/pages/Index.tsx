@@ -180,10 +180,10 @@ const Index = () => {
 
                   <DropdownMenuSeparator />
 
-                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 สตาฟ & ค่าแรง</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 ทีมงาน & คู่ค้า</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/staff-management')}>
                     <Users className="h-4 w-4 mr-2" />
-                    จัดการทะเบียนสตาฟ
+                    จัดการทะเบียนทีมงาน
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/staff-payments')}>
                     <CreditCard className="h-4 w-4 mr-2" />
@@ -192,6 +192,14 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/payment-queue')}>
                     <DollarSign className="h-4 w-4 mr-2" />
                     รายการรอจ่ายเงิน
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "นำไปวางในเมนู LINE ได้เลย" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์พอร์ทัล
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
