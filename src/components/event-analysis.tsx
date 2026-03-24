@@ -49,7 +49,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const fetchEventPL = async () => {
     try {
       // Fetch registry, expenses, event groups, and other income in parallel
-      const [registryRes, expensesRes, groupsRes, otherIncomeRes] = await Promise.all([
+      const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
         supabase.from('expenses')
           .select('project_tag, event_name, amount, transaction_type, category_group, transaction_direction')
@@ -57,6 +57,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           .eq('category_group', 'EVENT'),
         supabase.from('event_groups').select('*'),
         supabase.from('event_other_income').select('*'),
+        supabase.from('event_product_costs' as any).select('*'),
       ]);
 
       const registry = (registryRes.data as EventRegistryItem[]) || [];
