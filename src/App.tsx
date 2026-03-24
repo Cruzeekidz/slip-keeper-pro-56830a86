@@ -25,6 +25,9 @@ import ReceiptArchive from "./pages/ReceiptArchive";
 import SystemDocs from "./pages/SystemDocs";
 import ReviewQueue from "./pages/ReviewQueue";
 import EventPnL from "./pages/EventPnL";
+import StaffManagement from "./pages/StaffManagement";
+import StaffInvoiceForm from "./pages/StaffInvoiceForm";
+import StaffPayments from "./pages/StaffPayments";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +61,9 @@ const App = () => (
             <Route path="/system-docs" element={<SystemDocs />} />
             <Route path="/review-queue" element={<ReviewQueue />} />
             <Route path="/event-pnl" element={<EventPnL />} />
+            <Route path="/staff-management" element={<StaffManagement />} />
+            <Route path="/staff-invoice" element={<StaffInvoiceForm />} />
+            <Route path="/staff-payments" element={<StaffPayments />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
