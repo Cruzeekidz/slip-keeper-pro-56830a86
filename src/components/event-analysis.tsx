@@ -238,6 +238,16 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
       }
 
+      // Aggregate other expenses per group
+      const otherExpenseByTag = new Map<string, number>();
+      for (const group of groups) {
+        const groupExpenses = otherExpensesData.filter((e: any) => e.event_group_id === group.id);
+        const total = groupExpenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+        if (total > 0) {
+          otherExpenseByTag.set(group.project_tag, (otherExpenseByTag.get(group.project_tag) || 0) + total);
+        }
+      }
+
       // Build a date lookup from registry first
       const tagDateMap = new Map<string, string | null>();
       activeRegistry.forEach(r => tagDateMap.set(r.project_tag, r.event_date));
@@ -249,12 +259,13 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         const readyGo = readyGoRevenueMap.get(tag);
         const manualOther = manualOtherIncomeByTag.get(tag) || 0;
         const productCost = productCostByTag.get(tag) || 0;
+        const otherExpense = otherExpenseByTag.get(tag) || 0;
 
         if (readyGo) {
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
         }
         current.income += manualOther;
-        current.expense += productCost;
+        current.expense += productCost + otherExpense;
 
         // Use festival_date from group if available (overrides registry date)
         if (group.festival_date) {
