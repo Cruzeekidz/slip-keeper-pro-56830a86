@@ -98,13 +98,16 @@ export function ExpenseListReal() {
   }, [expenses]);
 
   const inlineUpdate = useCallback(async (id: string, field: string, value: string | null, extraFields?: Record<string, any>) => {
+    const updateData: Record<string, any> = { [field]: value || null, ...extraFields };
+    // Optimistic update - update UI immediately
+    setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updateData } : e));
+    setEditingCell(null);
     try {
-      const updateData: Record<string, any> = { [field]: value || null, ...extraFields };
       const { error } = await supabase.from('expenses').update(updateData).eq('id', id);
       if (error) throw error;
-      setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updateData } : e));
-      setEditingCell(null);
     } catch {
+      // Revert on failure
+      fetchExpenses();
       toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
     }
   }, [toast]);
@@ -594,6 +597,9 @@ export function ExpenseListReal() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         {expense.needs_review && <AlertTriangle className="h-3 w-3 text-warning" />}
+                        {expense.receipt_url && (
+                          <Button variant="ghost" size="sm" onClick={() => viewReceipt(expense.id)} className="h-7 w-7 p-0" title="ดูสลิป"><Eye className="h-3 w-3" /></Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-7 w-7 p-0"><Edit3 className="h-3 w-3" /></Button>
                         <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
                       </div>
