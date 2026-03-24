@@ -180,6 +180,8 @@ const EventPnL = () => {
       fetchLocalExpenses();
       fetchOtherIncomes();
       fetchProductCosts();
+      fetchOtherExpenses();
+      fetchEventNotes();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
