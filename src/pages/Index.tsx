@@ -205,6 +205,10 @@ const Index = () => {
                     <Building2 className="h-4 w-4 mr-2" />
                     จัดการคู่ค้า & บิล
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/wht-report')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    รายงานภาษีหัก ณ ที่จ่าย
+                  </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
 

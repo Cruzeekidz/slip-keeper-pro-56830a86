@@ -31,6 +31,7 @@ import StaffPayments from "./pages/StaffPayments";
 import PaymentQueue from "./pages/PaymentQueue";
 import PublicPortal from "./pages/PublicPortal";
 import VendorManagement from "./pages/VendorManagement";
+import WhtReport from "./pages/WhtReport";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/payment-queue" element={<PaymentQueue />} />
             <Route path="/portal" element={<PublicPortal />} />
             <Route path="/vendor-management" element={<VendorManagement />} />
+            <Route path="/wht-report" element={<WhtReport />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
