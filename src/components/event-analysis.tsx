@@ -50,6 +50,7 @@ interface EventRegistryItem {
   event_date: string | null;
   project_tag: string;
   is_active: boolean;
+  readygo_event_id: string | null;
 }
 
 interface EventGroup {
@@ -152,18 +153,20 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
       // Ready-go revenue: use cache unless forceRefresh
       const groupsWithIds = groups.filter(g => g.readygo_event_ids?.length > 0);
+      // Also collect registry entries with readygo_event_id (single events without a group)
+      const registryWithReadyGo = activeRegistry.filter(r => r.readygo_event_id && !groups.some(g => g.project_tag === r.project_tag));
       const readyGoRevenueMap = new Map<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }>();
 
       const cached = forceRefresh ? null : getReadyGoCache();
 
-      if (cached && groupsWithIds.length > 0) {
+      if (cached && (groupsWithIds.length > 0 || registryWithReadyGo.length > 0)) {
         // Use cached data
         for (const [tag, val] of Object.entries(cached.data)) {
           readyGoRevenueMap.set(tag, val);
         }
         setCacheTime(new Date(cached.timestamp).toLocaleString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }));
-      } else if (groupsWithIds.length > 0) {
-        // Fetch fresh from API
+      } else if (groupsWithIds.length > 0 || registryWithReadyGo.length > 0) {
+        // Fetch fresh from API — groups (multi-event)
         const fetchPromises = groupsWithIds.map(async (group) => {
           try {
             const action = group.readygo_event_ids.length === 1 
@@ -187,7 +190,26 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           }
         });
 
-        await Promise.allSettled(fetchPromises);
+        // Fetch fresh from API — single registry entries
+        const registryFetchPromises = registryWithReadyGo.map(async (reg) => {
+          try {
+            const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
+              body: { action: "event-financials", event_id: reg.readygo_event_id },
+            });
+            if (error) throw error;
+
+            const stats = data?.registrationStats || {};
+            readyGoRevenueMap.set(reg.project_tag, {
+              registrationRevenue: Number(stats.actual_revenue || 0),
+              otoRevenue: Number(stats.total_oto_revenue || 0),
+              readyGoOtherIncome: Number(data?.summary?.totalOtherIncome || 0),
+            });
+          } catch (err) {
+            console.error(`Failed to fetch Ready-go data for ${reg.event_name}:`, err);
+          }
+        });
+
+        await Promise.allSettled([...fetchPromises, ...registryFetchPromises]);
 
         // Save to cache
         const cacheObj: Record<string, { registrationRevenue: number; otoRevenue: number; readyGoOtherIncome: number }> = {};

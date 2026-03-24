@@ -1,0 +1,1 @@
+ALTER TABLE public.event_registry ADD COLUMN readygo_event_id text DEFAULT NULL;
