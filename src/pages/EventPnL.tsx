@@ -147,6 +147,8 @@ const EventPnL = () => {
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [financialData, setFinancialData] = useState<EventFinancialData | null>(null);
   const [localExpenses, setLocalExpenses] = useState<number>(0);
+  const [localExpenseItems, setLocalExpenseItems] = useState<{description: string; amount: number; expense_date: string; category: string; event_name: string | null; project_tag: string | null}[]>([]);
+  const [showExpenseBreakdown, setShowExpenseBreakdown] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
 
