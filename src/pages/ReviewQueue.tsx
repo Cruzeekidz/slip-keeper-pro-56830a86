@@ -481,10 +481,10 @@ export default function ReviewQueue() {
                   </div>
                 )}
 
-                {defaultSubcats.length > 0 && (
+                {(defaultSubcats.length > 0 || allSubcategories.length > 0) && (
                   <div className="space-y-2">
                     <Label>ประเภทย่อย</Label>
-                    <Combobox options={defaultSubcats} value={subcategory} onValueChange={setSubcategory} placeholder="เลือกประเภทย่อย" />
+                    <Combobox options={allSubcategories} value={subcategory} onValueChange={setSubcategory} placeholder="เลือกหรือพิมพ์ประเภทย่อย" />
                   </div>
                 )}
 
