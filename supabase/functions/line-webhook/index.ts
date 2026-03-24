@@ -56,11 +56,14 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 9. "[subcategory] BCC" → ENTITY_BCC (เช่น staff BCC, expense BCC)
 10. "[subcategory] คู่ขนาง" → ENTITY_KUKANANG (เช่น venue คู่ขนาน)
 
-#### C. ชื่ออีเวนท์ที่รู้จัก:
-- Terminal21 / T21 → EVT-T21, event_name: Terminal21
+#### C. ชื่ออีเวนท์ที่รู้จัก (ระบบจะ normalize อัตโนมัติจาก event_registry):
+- Terminal21 / T21 → project_tag: EVT-Terminal21, event_name: Terminal21
 - KMT + เลข → EVT-KMT41
 - Rockstar + เลข → EVT-Rockstar3
-- TNV2 / Tooniverse2 → EVT-TNV2, event_name: Tooniverse2
+- TNV2 / Tooniverse2 → EVT-TNV2
+- Westville / WestVille → EVT-Westville, event_name: Westville
+- Promenade / พรอมมานาด → EVT-Promenade, event_name: Promenade
+- Peca Bridge → EVT-Peca Bridge, event_name: Peca Bridge
 
 ## กฎพิเศษ:
 - "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
