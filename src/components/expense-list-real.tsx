@@ -65,7 +65,49 @@ export function ExpenseListReal() {
   const [viewingReceipt, setViewingReceipt] = useState<number>(-1);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+  const [eventNames, setEventNames] = useState<string[]>([]);
   const { toast } = useToast();
+
+  // Fetch event names for dropdown
+  useEffect(() => {
+    const fetchEventNames = async () => {
+      const { data } = await supabase.from('event_registry').select('event_name').order('event_date', { ascending: false });
+      if (data) {
+        const unique = Array.from(new Set(data.map(e => e.event_name))).filter(Boolean);
+        setEventNames(unique);
+      }
+    };
+    fetchEventNames();
+  }, []);
+
+  // Dynamic options from existing data
+  const dynamicSubcategories = useMemo(() => {
+    const existing = new Set(expenses.map(e => e.subcategory).filter(Boolean) as string[]);
+    return Array.from(existing).sort();
+  }, [expenses]);
+
+  const dynamicProjectTags = useMemo(() => {
+    const existing = new Set(expenses.map(e => e.project_tag).filter(Boolean) as string[]);
+    return Array.from(existing).sort();
+  }, [expenses]);
+
+  const dynamicPayeeGroups = useMemo(() => {
+    const existing = new Set(expenses.map(e => e.payee_group).filter(Boolean) as string[]);
+    return Array.from(existing).sort();
+  }, [expenses]);
+
+  const inlineUpdate = useCallback(async (id: string, field: string, value: string | null, extraFields?: Record<string, any>) => {
+    try {
+      const updateData: Record<string, any> = { [field]: value || null, ...extraFields };
+      const { error } = await supabase.from('expenses').update(updateData).eq('id', id);
+      if (error) throw error;
+      setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updateData } : e));
+      setEditingCell(null);
+    } catch {
+      toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
+    }
+  }, [toast]);
 
   useEffect(() => { fetchExpenses(); }, []);
   useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
