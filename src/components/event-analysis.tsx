@@ -103,6 +103,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const groups = (groupsRes.data as EventGroup[]) || [];
       const otherIncomes = (otherIncomeRes.data as any[]) || [];
       const productCostsData = (productCostsRes.data as any[]) || [];
+      const otherExpensesData = (otherExpensesRes.data as any[]) || [];
 
       // Filter recent events if needed
       let activeRegistry = registry.filter(r => r.is_active);
