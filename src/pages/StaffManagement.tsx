@@ -28,6 +28,7 @@ interface StaffProfile {
   bank_account: string | null;
   address: string | null;
   id_card_url: string | null;
+  email: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -39,6 +40,7 @@ const emptyForm = {
   tax_id: "",
   daily_rate: 0,
   phone: "",
+  email: "",
   bank_name: "",
   bank_account: "",
   address: "",
@@ -104,6 +106,7 @@ const StaffManagement = () => {
           tax_id: values.tax_id || null,
           daily_rate: Number(values.daily_rate),
           phone: values.phone || null,
+          email: values.email || null,
           bank_name: values.bank_name || null,
           bank_account: values.bank_account || null,
           address: values.address || null,
@@ -150,6 +153,7 @@ const StaffManagement = () => {
       tax_id: staff.tax_id || "",
       daily_rate: staff.daily_rate,
       phone: staff.phone || "",
+      email: staff.email || "",
       bank_name: staff.bank_name || "",
       bank_account: staff.bank_account || "",
       address: staff.address || "",
@@ -222,9 +226,13 @@ const StaffManagement = () => {
                     <Input value={form.tax_id} onChange={(e) => setForm({ ...form, tax_id: e.target.value })} maxLength={13} placeholder="13 หลัก" />
                   </div>
                   <div>
-                    <Label>เบอร์โทร</Label>
-                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                    <Label>อีเมล</Label>
+                    <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
                   </div>
+                </div>
+                <div>
+                  <Label>เบอร์โทร</Label>
+                  <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
                 </div>
                 <div>
                   <Label>อัปโหลดหน้าบัตรประชาชน</Label>
