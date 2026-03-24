@@ -1169,9 +1169,35 @@ const EventPnL = () => {
                     <span className="font-medium">฿{formatNumber(stats.oto2_revenue)}</span>
                   </div>
                   {summary.totalOtherIncome > 0 && (
-                    <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm">รายได้อื่น (ค่าสินค้า/บริการ Ready-go)</span>
-                      <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
+                    <div>
+                      <div 
+                        className="flex justify-between py-2 border-b cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1"
+                        onClick={() => setShowReadyGoIncomeBreakdown(!showReadyGoIncomeBreakdown)}
+                      >
+                        <span className="text-sm flex items-center gap-1">
+                          รายได้อื่น (ค่าสินค้า/บริการ Ready-go)
+                          <span className="text-xs text-muted-foreground">{showReadyGoIncomeBreakdown ? '▲' : '▼'}</span>
+                        </span>
+                        <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
+                      </div>
+                      {showReadyGoIncomeBreakdown && financialData?.financials && (
+                        <div className="ml-4 border-l-2 border-primary/20 pl-3 py-1 space-y-1">
+                          {financialData.financials
+                            .filter(f => f.category === 'income' && f.type !== 'registration')
+                            .map((f: any, i: number) => (
+                              <div key={i} className="flex justify-between text-xs py-1">
+                                <span className="text-muted-foreground truncate mr-2">
+                                  {f.description || f.type}
+                                  {f.notes && <span className="text-muted-foreground/60 ml-1">({f.notes})</span>}
+                                </span>
+                                <span className="font-medium shrink-0">฿{formatNumber(Number(f.amount))}</span>
+                              </div>
+                            ))}
+                          {financialData.financials.filter(f => f.category === 'income' && f.type !== 'registration').length === 0 && (
+                            <p className="text-xs text-muted-foreground py-1">ไม่มีรายละเอียด</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                   {localOtherIncomeTotal > 0 && (
