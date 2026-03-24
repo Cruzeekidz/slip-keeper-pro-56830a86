@@ -58,6 +58,7 @@ export default function ReviewQueue() {
   const [categoryGroup, setCategoryGroup] = useState<CategoryGroup | "">("");
   const [subcategory, setSubcategory] = useState("");
   const [projectTag, setProjectTag] = useState("");
+  const [eventName, setEventName] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -109,6 +110,7 @@ export default function ReviewQueue() {
     setCategoryGroup((current.category_group as CategoryGroup) || "");
     setSubcategory(current.subcategory || "");
     setProjectTag(current.project_tag || "");
+    setEventName(current.event_name || "");
     setAmount(String(current.amount));
 
     if (current.receipt_url) {
@@ -277,6 +279,7 @@ export default function ReviewQueue() {
       category,
       subcategory: subcategory || null,
       project_tag: projectTag || null,
+      event_name: eventName || null,
       amount: parseFloat(amount),
       needs_review: false,
       confidence_score: 100,
@@ -488,6 +491,16 @@ export default function ReviewQueue() {
                     <Combobox options={allSubcategories} value={subcategory} onValueChange={setSubcategory} placeholder="เลือกหรือพิมพ์ประเภทย่อย" />
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <Label>ชื่ออีเวนท์</Label>
+                  <Combobox
+                    options={[...new Set(eventOptions.map(e => e.event_name))]}
+                    value={eventName}
+                    onValueChange={setEventName}
+                    placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
+                  />
+                </div>
 
                 <div className="flex gap-3 pt-4">
                   <Button onClick={handleApprove} disabled={!transactionType || saving} className="flex-1">
