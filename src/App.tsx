@@ -24,6 +24,7 @@ import SystemAdmin from "./pages/SystemAdmin";
 import ReceiptArchive from "./pages/ReceiptArchive";
 import SystemDocs from "./pages/SystemDocs";
 import ReviewQueue from "./pages/ReviewQueue";
+import EventPnL from "./pages/EventPnL";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/receipt-archive" element={<ReceiptArchive />} />
             <Route path="/system-docs" element={<SystemDocs />} />
             <Route path="/review-queue" element={<ReviewQueue />} />
+            <Route path="/event-pnl" element={<EventPnL />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
