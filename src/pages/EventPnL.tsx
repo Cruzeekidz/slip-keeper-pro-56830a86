@@ -56,6 +56,15 @@ interface EventGroup {
   readygo_event_ids: string[];
 }
 
+interface OtherIncome {
+  id: string;
+  description: string;
+  amount: number;
+  income_date: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--accent))",
