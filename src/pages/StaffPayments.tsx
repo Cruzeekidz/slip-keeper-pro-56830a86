@@ -141,7 +141,7 @@ const StaffPayments = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>เลขที่</TableHead>
-                      <TableHead>สตาฟ</TableHead>
+                      <TableHead>ทีมงาน</TableHead>
                       <TableHead>อีเวนท์</TableHead>
                       <TableHead className="text-right">วัน</TableHead>
                       <TableHead className="text-right">ค่าแรง/วัน</TableHead>
