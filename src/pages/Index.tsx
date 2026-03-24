@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -174,6 +174,10 @@ const Index = () => {
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/review-queue')}>
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    ตรวจสอบรายการ (Review)
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/duplicate-checker')}>
                     <AlertTriangle className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการซ้ำ
@@ -218,6 +222,10 @@ const Index = () => {
                       <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
                         <Shield className="h-4 w-4 mr-2" />
                         LINE User Roles
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => navigate('/system-docs')}>
+                        <BookOpen className="h-4 w-4 mr-2" />
+                        เอกสารระบบ
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
                         <MessageSquare className="h-4 w-4 mr-2" />
