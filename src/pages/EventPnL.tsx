@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +38,8 @@ interface RegistrationStats {
 }
 
 interface EventFinancialData {
-  event: ReadyGoEvent;
+  event?: ReadyGoEvent;
+  events?: ReadyGoEvent[];
   registrationStats: RegistrationStats;
   financials: any[];
   summary: {
@@ -42,6 +47,13 @@ interface EventFinancialData {
     totalOtherIncome: number;
     netProfit: number;
   };
+}
+
+interface EventGroup {
+  id: string;
+  group_name: string;
+  project_tag: string;
+  readygo_event_ids: string[];
 }
 
 const CHART_COLORS = [
@@ -64,22 +76,34 @@ const EventPnL = () => {
 
   const [events, setEvents] = useState<ReadyGoEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [selectedGroupId, setSelectedGroupId] = useState<string>("");
   const [financialData, setFinancialData] = useState<EventFinancialData | null>(null);
   const [localExpenses, setLocalExpenses] = useState<number>(0);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
+
+  // Group management
+  const [groups, setGroups] = useState<EventGroup[]>([]);
+  const [showGroupDialog, setShowGroupDialog] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<EventGroup | null>(null);
+  const [groupName, setGroupName] = useState("");
+  const [groupTag, setGroupTag] = useState("");
+  const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
 
   useEffect(() => {
-    if (user) fetchEvents();
+    if (user) {
+      fetchEvents();
+      fetchGroups();
+    }
   }, [user]);
 
   useEffect(() => {
-    if (selectedEventId && financialData) fetchLocalExpenses();
-  }, [selectedEventId, financialData]);
+    if ((selectedEventId || selectedGroupId) && financialData) fetchLocalExpenses();
+  }, [selectedEventId, selectedGroupId, financialData]);
 
   const fetchEvents = async () => {
     setLoadingEvents(true);
@@ -97,8 +121,19 @@ const EventPnL = () => {
     }
   };
 
+  const fetchGroups = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("event_groups")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
+    setGroups((data as any[]) || []);
+  };
+
   const fetchFinancials = async (eventId: string) => {
     setLoadingData(true);
+    setSelectedGroupId("");
     try {
       const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
         body: { action: "event-financials", event_id: eventId },
@@ -113,15 +148,47 @@ const EventPnL = () => {
     }
   };
 
+  const fetchGroupFinancials = async (group: EventGroup) => {
+    setLoadingData(true);
+    setSelectedEventId("");
+    setSelectedGroupId(group.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
+        body: { action: "multi-event-financials", event_ids: group.readygo_event_ids },
+      });
+      if (error) throw error;
+      setFinancialData(data);
+    } catch (err) {
+      console.error(err);
+      toast({ title: "ไม่สามารถดึงข้อมูลกลุ่มอีเวนท์ได้", variant: "destructive" });
+    } finally {
+      setLoadingData(false);
+    }
+  };
+
   const fetchLocalExpenses = async () => {
-    if (!financialData?.event || !user) return;
-    const eventTitle = financialData.event.title;
+    if (!user) return;
+    let searchTerms: string[] = [];
+
+    if (selectedGroupId) {
+      const group = groups.find(g => g.id === selectedGroupId);
+      if (group) searchTerms = [group.project_tag, group.group_name];
+    } else if (financialData?.event) {
+      searchTerms = [financialData.event.title];
+    }
+
+    if (searchTerms.length === 0) return;
+
+    const orClauses = searchTerms
+      .flatMap(t => [`event_name.ilike.%${t}%`, `project.ilike.%${t}%`, `project_tag.ilike.%${t}%`])
+      .join(",");
+
     const { data } = await supabase
       .from("expenses")
       .select("amount")
       .eq("user_id", user.id)
-      .or(`event_name.ilike.%${eventTitle}%,project.ilike.%${eventTitle}%`);
-    
+      .or(orClauses);
+
     const total = (data || []).reduce((s, e) => s + Number(e.amount), 0);
     setLocalExpenses(total);
   };
@@ -131,12 +198,78 @@ const EventPnL = () => {
     fetchFinancials(eventId);
   };
 
+  // Group CRUD
+  const openCreateGroup = () => {
+    setEditingGroup(null);
+    setGroupName("");
+    setGroupTag("");
+    setSelectedEventIds([]);
+    setShowGroupDialog(true);
+  };
+
+  const openEditGroup = (group: EventGroup) => {
+    setEditingGroup(group);
+    setGroupName(group.group_name);
+    setGroupTag(group.project_tag);
+    setSelectedEventIds(group.readygo_event_ids);
+    setShowGroupDialog(true);
+  };
+
+  const saveGroup = async () => {
+    if (!user || !groupName.trim() || selectedEventIds.length === 0) {
+      toast({ title: "กรุณากรอกชื่อกลุ่มและเลือกอีเวนท์อย่างน้อย 1 รายการ", variant: "destructive" });
+      return;
+    }
+
+    try {
+      if (editingGroup) {
+        await supabase
+          .from("event_groups")
+          .update({
+            group_name: groupName.trim(),
+            project_tag: groupTag.trim() || groupName.trim(),
+            readygo_event_ids: selectedEventIds,
+          })
+          .eq("id", editingGroup.id);
+        toast({ title: "อัปเดตกลุ่มสำเร็จ" });
+      } else {
+        await supabase.from("event_groups").insert({
+          user_id: user.id,
+          group_name: groupName.trim(),
+          project_tag: groupTag.trim() || groupName.trim(),
+          readygo_event_ids: selectedEventIds,
+        });
+        toast({ title: "สร้างกลุ่มสำเร็จ" });
+      }
+      setShowGroupDialog(false);
+      fetchGroups();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteGroup = async (groupId: string) => {
+    await supabase.from("event_groups").delete().eq("id", groupId);
+    if (selectedGroupId === groupId) {
+      setSelectedGroupId("");
+      setFinancialData(null);
+    }
+    fetchGroups();
+    toast({ title: "ลบกลุ่มสำเร็จ" });
+  };
+
+  const toggleEventInGroup = (eventId: string) => {
+    setSelectedEventIds(prev =>
+      prev.includes(eventId) ? prev.filter(id => id !== eventId) : [...prev, eventId]
+    );
+  };
+
   if (authLoading || !user) return null;
 
   const stats = financialData?.registrationStats;
   const summary = financialData?.summary;
 
-  // Chart data
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
     { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
@@ -158,6 +291,10 @@ const EventPnL = () => {
     { name: "กำไร/ขาดทุน", รายได้: 0, ค่าใช้จ่าย: 0, กำไร: combinedProfit > 0 ? combinedProfit : 0, ขาดทุน: combinedProfit < 0 ? Math.abs(combinedProfit) : 0 },
   ];
 
+  const displayTitle = selectedGroupId
+    ? groups.find(g => g.id === selectedGroupId)?.group_name
+    : financialData?.event?.title;
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
@@ -178,7 +315,7 @@ const EventPnL = () => {
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-4 items-end">
               <div className="flex-1 w-full">
-                <label className="text-sm font-medium text-muted-foreground mb-2 block">เลือกอีเวนท์</label>
+                <label className="text-sm font-medium text-muted-foreground mb-2 block">เลือกอีเวนท์เดี่ยว</label>
                 <Select value={selectedEventId} onValueChange={handleEventSelect} disabled={loadingEvents}>
                   <SelectTrigger>
                     <SelectValue placeholder={loadingEvents ? "กำลังโหลด..." : "เลือกอีเวนท์จาก Ready-go.fun"} />
@@ -192,12 +329,128 @@ const EventPnL = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" size="icon" onClick={() => selectedEventId && fetchFinancials(selectedEventId)} disabled={!selectedEventId || loadingData}>
+              <Button variant="outline" size="icon" onClick={() => {
+                if (selectedGroupId) {
+                  const g = groups.find(g => g.id === selectedGroupId);
+                  if (g) fetchGroupFinancials(g);
+                } else if (selectedEventId) {
+                  fetchFinancials(selectedEventId);
+                }
+              }} disabled={(!selectedEventId && !selectedGroupId) || loadingData}>
                 <RefreshCw className={`h-4 w-4 ${loadingData ? "animate-spin" : ""}`} />
               </Button>
             </div>
           </CardContent>
         </Card>
+
+        {/* Festival / Group Section */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                กลุ่มอีเวนท์ (Festival)
+              </CardTitle>
+              <Button size="sm" variant="outline" onClick={openCreateGroup} disabled={events.length === 0}>
+                <FolderPlus className="h-4 w-4 mr-1" />
+                สร้างกลุ่ม
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {groups.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                ยังไม่มีกลุ่มอีเวนท์ — สร้างกลุ่มเพื่อรวม P&L หลายอีเวนท์เข้าด้วยกัน
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {groups.map((group) => {
+                  const memberEvents = events.filter(e => group.readygo_event_ids.includes(e.id));
+                  const isSelected = selectedGroupId === group.id;
+                  return (
+                    <div
+                      key={group.id}
+                      className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isSelected ? "bg-primary/10 border-primary" : "hover:bg-muted/50"
+                      }`}
+                      onClick={() => fetchGroupFinancials(group)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{group.group_name}</span>
+                          <Badge variant="secondary" className="text-xs">{group.readygo_event_ids.length} อีเวนท์</Badge>
+                          {group.project_tag && (
+                            <Badge variant="outline" className="text-xs font-mono">{group.project_tag}</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate">
+                          {memberEvents.map(e => e.title).join(", ") || "ยังไม่โหลดรายชื่ออีเวนท์"}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 ml-2" onClick={e => e.stopPropagation()}>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditGroup(group)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteGroup(group.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Group Create/Edit Dialog */}
+        <Dialog open={showGroupDialog} onOpenChange={setShowGroupDialog}>
+          <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{editingGroup ? "แก้ไขกลุ่มอีเวนท์" : "สร้างกลุ่มอีเวนท์ใหม่"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">ชื่อกลุ่ม (Festival)</label>
+                <Input value={groupName} onChange={e => setGroupName(e.target.value)} placeholder="เช่น Terminal21 Festival" />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Project Tag (สำหรับจับคู่ค่าใช้จ่าย)</label>
+                <Input value={groupTag} onChange={e => setGroupTag(e.target.value)} placeholder="เช่น EVT-Terminal21" />
+                <p className="text-xs text-muted-foreground mt-1">ใช้จับคู่กับ project_tag ในรายการค่าใช้จ่าย</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-2 block">เลือกอีเวนท์ที่อยู่ในกลุ่ม ({selectedEventIds.length} เลือกแล้ว)</label>
+                <div className="border rounded-lg max-h-60 overflow-y-auto">
+                  {events.map((ev) => (
+                    <div
+                      key={ev.id}
+                      className={`flex items-center gap-3 px-3 py-2 border-b last:border-0 cursor-pointer hover:bg-muted/50 ${
+                        selectedEventIds.includes(ev.id) ? "bg-primary/5" : ""
+                      }`}
+                      onClick={() => toggleEventInGroup(ev.id)}
+                    >
+                      <Checkbox checked={selectedEventIds.includes(ev.id)} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{ev.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {ev.event_date ? new Date(ev.event_date).toLocaleDateString("th-TH") : "ไม่มีวันที่"}
+                          {ev.location ? ` · ${ev.location}` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowGroupDialog(false)}>ยกเลิก</Button>
+              <Button onClick={saveGroup} disabled={!groupName.trim() || selectedEventIds.length === 0}>
+                {editingGroup ? "บันทึก" : "สร้างกลุ่ม"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {loadingData && (
           <div className="flex justify-center py-12">
@@ -207,6 +460,17 @@ const EventPnL = () => {
 
         {financialData && stats && summary && !loadingData && (
           <>
+            {/* Display title */}
+            {displayTitle && (
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold">{displayTitle}</h2>
+                {selectedGroupId && <Badge variant="secondary">กลุ่มรวม</Badge>}
+                {financialData.events && financialData.events.length > 1 && (
+                  <span className="text-sm text-muted-foreground">({financialData.events.length} อีเวนท์)</span>
+                )}
+              </div>
+            )}
+
             {/* Summary Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-0">
@@ -338,7 +602,7 @@ const EventPnL = () => {
                 </CardHeader>
                 <CardContent>
                   {revenueBreakdown.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={280} className="text-[#c258c6] bg-destructive-foreground">
+                    <ResponsiveContainer width="100%" height={280}>
                       <PieChart>
                         <Pie
                           data={revenueBreakdown}
@@ -387,7 +651,6 @@ const EventPnL = () => {
 
             {/* Category Breakdown & Expenses */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Participant Category */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -420,7 +683,6 @@ const EventPnL = () => {
                 </CardContent>
               </Card>
 
-              {/* Expense Breakdown */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -461,11 +723,11 @@ const EventPnL = () => {
           </>
         )}
 
-        {!selectedEventId && !loadingEvents && (
+        {!selectedEventId && !selectedGroupId && !loadingEvents && (
           <Card>
             <CardContent className="py-16 text-center">
               <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground/40 mb-4" />
-              <p className="text-muted-foreground">เลือกอีเวนท์ด้านบนเพื่อดูสรุป P&L</p>
+              <p className="text-muted-foreground">เลือกอีเวนท์หรือกลุ่มด้านบนเพื่อดูสรุป P&L</p>
             </CardContent>
           </Card>
         )}
