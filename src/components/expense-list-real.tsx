@@ -427,49 +427,180 @@ export function ExpenseListReal() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>วันที่</TableHead>
+                <TableHead className="w-[90px]">วันที่</TableHead>
                 <TableHead>รายละเอียด</TableHead>
-                <TableHead>ประเภท</TableHead>
-                <TableHead>ประเภทย่อย</TableHead>
-                <TableHead>แท็ก</TableHead>
-                <TableHead>กลุ่มผู้รับ</TableHead>
-                <TableHead className="text-right">จำนวนเงิน</TableHead>
-                <TableHead>สถานะ</TableHead>
-                <TableHead></TableHead>
+                <TableHead className="w-[140px]">ประเภท</TableHead>
+                <TableHead className="w-[130px]">กลุ่ม</TableHead>
+                <TableHead className="w-[140px]">ประเภทย่อย</TableHead>
+                <TableHead className="w-[160px]">แท็ก/อีเวนท์</TableHead>
+                <TableHead className="w-[140px]">ชื่ออีเวนท์</TableHead>
+                <TableHead className="w-[130px]">กลุ่มผู้รับ</TableHead>
+                <TableHead className="text-right w-[110px]">จำนวนเงิน</TableHead>
+                <TableHead className="w-[70px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredExpenses.map((expense) => (
-                <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
-                  <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
-                  <TableCell className="font-medium">{expense.description || expense.merchant || "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={cn("text-xs", getTypeBadgeClass(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup))}>
-                      {expense.transaction_type || '-'}
-                      {expense.category_group ? `/${expense.category_group}` : ''}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm">{expense.subcategory || "-"}</TableCell>
-                  <TableCell className="text-sm">{expense.project_tag || "-"}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{expense.payee_group || "-"}</TableCell>
-                  <TableCell className={cn("text-right font-semibold",
-                    expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
-                    isIncome(expense) ? 'text-success' : 'text-expense'
-                  )}>
-                    {isIncome(expense) ? '+' : expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
-                  </TableCell>
-                  <TableCell>
-                    {expense.needs_review && <AlertTriangle className="h-4 w-4 text-warning" />}
-                    {isIncome(expense) && <ArrowDownLeft className="h-4 w-4 text-success" />}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-8 w-8 p-0"><Edit3 className="h-3 w-3" /></Button>
-                      <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-8 w-8 p-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filteredExpenses.map((expense) => {
+                const isEditing = (field: string) => editingCell?.id === expense.id && editingCell?.field === field;
+                const subcatOptions = [
+                  ...getSubcategoriesForType(
+                    expense.transaction_type as TransactionType,
+                    expense.category_group as CategoryGroup,
+                    (expense.transaction_direction as TransactionDirection) || 'EXPENSE'
+                  ),
+                  ...dynamicSubcategories.filter(s => !getSubcategoriesForType(
+                    expense.transaction_type as TransactionType,
+                    expense.category_group as CategoryGroup
+                  ).includes(s))
+                ];
+                const tagOptions = [
+                  ...getDefaultProjectTags(expense.category_group as CategoryGroup),
+                  ...dynamicProjectTags.filter(t => !getDefaultProjectTags(expense.category_group as CategoryGroup).includes(t))
+                ];
+
+                return (
+                  <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
+                    <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
+                    <TableCell className="font-medium text-sm">{expense.description || expense.merchant || "-"}</TableCell>
+                    
+                    {/* ประเภท */}
+                    <TableCell>
+                      {isEditing('transaction_type') ? (
+                        <Select
+                          defaultValue={expense.transaction_type || ''}
+                          onValueChange={(v) => inlineUpdate(expense.id, 'transaction_type', v, v !== 'BUSINESS' ? { category_group: null } : {})}
+                          open
+                          onOpenChange={(o) => !o && setEditingCell(null)}
+                        >
+                          <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-background">
+                            {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <button onClick={() => setEditingCell({ id: expense.id, field: 'transaction_type' })} className="w-full text-left">
+                          <Badge variant="outline" className={cn("text-xs cursor-pointer hover:opacity-80", getTypeBadgeClass(expense.transaction_type as TransactionType, expense.category_group as CategoryGroup))}>
+                            {TRANSACTION_TYPES.find(t => t.value === expense.transaction_type)?.label || '-'}
+                          </Badge>
+                        </button>
+                      )}
+                    </TableCell>
+
+                    {/* กลุ่ม */}
+                    <TableCell>
+                      {expense.transaction_type === 'BUSINESS' ? (
+                        isEditing('category_group') ? (
+                          <Select
+                            defaultValue={expense.category_group || ''}
+                            onValueChange={(v) => inlineUpdate(expense.id, 'category_group', v)}
+                            open
+                            onOpenChange={(o) => !o && setEditingCell(null)}
+                          >
+                            <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent className="bg-background">
+                              {CATEGORY_GROUPS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <button onClick={() => setEditingCell({ id: expense.id, field: 'category_group' })} className="w-full text-left">
+                            <Badge variant="secondary" className="text-xs cursor-pointer hover:opacity-80">
+                              {CATEGORY_GROUPS.find(g => g.value === expense.category_group)?.label || '-'}
+                            </Badge>
+                          </button>
+                        )
+                      ) : (
+                        <span className="text-xs text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+
+                    {/* ประเภทย่อย */}
+                    <TableCell>
+                      {isEditing('subcategory') ? (
+                        <div className="min-w-[120px]">
+                          <Combobox
+                            options={subcatOptions}
+                            value={expense.subcategory || ''}
+                            onValueChange={(v) => inlineUpdate(expense.id, 'subcategory', v)}
+                            placeholder="เลือก..."
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => setEditingCell({ id: expense.id, field: 'subcategory' })} className="w-full text-left text-sm hover:text-primary cursor-pointer">
+                          {expense.subcategory || <span className="text-muted-foreground">-</span>}
+                        </button>
+                      )}
+                    </TableCell>
+
+                    {/* แท็ก/อีเวนท์ */}
+                    <TableCell>
+                      {isEditing('project_tag') ? (
+                        <div className="min-w-[140px]">
+                          <Combobox
+                            options={tagOptions}
+                            value={expense.project_tag || ''}
+                            onValueChange={(v) => inlineUpdate(expense.id, 'project_tag', v)}
+                            placeholder="เลือกแท็ก..."
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => setEditingCell({ id: expense.id, field: 'project_tag' })} className="w-full text-left text-sm hover:text-primary cursor-pointer truncate max-w-[150px]">
+                          {expense.project_tag || <span className="text-muted-foreground">-</span>}
+                        </button>
+                      )}
+                    </TableCell>
+
+                    {/* ชื่ออีเวนท์ */}
+                    <TableCell>
+                      {isEditing('event_name') ? (
+                        <div className="min-w-[130px]">
+                          <Combobox
+                            options={eventNames}
+                            value={expense.event_name || ''}
+                            onValueChange={(v) => inlineUpdate(expense.id, 'event_name', v)}
+                            placeholder="เลือกอีเวนท์..."
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => setEditingCell({ id: expense.id, field: 'event_name' })} className="w-full text-left text-sm hover:text-primary cursor-pointer truncate max-w-[130px]">
+                          {expense.event_name || <span className="text-muted-foreground">-</span>}
+                        </button>
+                      )}
+                    </TableCell>
+
+                    {/* กลุ่มผู้รับ */}
+                    <TableCell>
+                      {isEditing('payee_group') ? (
+                        <div className="min-w-[120px]">
+                          <Combobox
+                            options={dynamicPayeeGroups}
+                            value={expense.payee_group || ''}
+                            onValueChange={(v) => inlineUpdate(expense.id, 'payee_group', v)}
+                            placeholder="เลือกกลุ่ม..."
+                          />
+                        </div>
+                      ) : (
+                        <button onClick={() => setEditingCell({ id: expense.id, field: 'payee_group' })} className="w-full text-left text-sm text-muted-foreground hover:text-primary cursor-pointer">
+                          {expense.payee_group || <span>-</span>}
+                        </button>
+                      )}
+                    </TableCell>
+
+                    <TableCell className={cn("text-right font-semibold",
+                      expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
+                      isIncome(expense) ? 'text-success' : 'text-expense'
+                    )}>
+                      {isIncome(expense) ? '+' : expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {expense.needs_review && <AlertTriangle className="h-3 w-3 text-warning" />}
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-7 w-7 p-0"><Edit3 className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>
