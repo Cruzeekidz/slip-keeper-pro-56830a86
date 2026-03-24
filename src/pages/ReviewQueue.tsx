@@ -46,6 +46,12 @@ export default function ReviewQueue() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [eventOptions, setEventOptions] = useState<EventOption[]>([]);
 
+  // Batch re-analyze state
+  const [batchRunning, setBatchRunning] = useState(false);
+  const [batchProgress, setBatchProgress] = useState({ done: 0, total: 0, success: 0, failed: 0, updated: 0 });
+  const batchPausedRef = useRef(false);
+  const batchAbortRef = useRef(false);
+
   // Edit state
   const [transactionType, setTransactionType] = useState<TransactionType | "">("");
   const [categoryGroup, setCategoryGroup] = useState<CategoryGroup | "">("");
