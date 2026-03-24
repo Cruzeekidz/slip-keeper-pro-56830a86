@@ -83,7 +83,7 @@ const StaffPayments = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <CreditCard className="h-6 w-6" />
-          <h1 className="text-xl font-bold">จัดการจ่ายเงินสตาฟ</h1>
+          <h1 className="text-xl font-bold">จัดการจ่ายเงินทีมงาน</h1>
         </div>
       </header>
 
