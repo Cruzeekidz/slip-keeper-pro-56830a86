@@ -304,7 +304,73 @@ const EventPnL = () => {
     toast({ title: "ลบรายได้อื่นสำเร็จ" });
   };
 
-  const handleEventSelect = (eventId: string) => {
+  // Product Cost CRUD
+  const fetchProductCosts = async () => {
+    if (!user) return;
+    let query = supabase.from("event_product_costs" as any).select("*").eq("user_id", user.id);
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setProductCosts([]);
+      return;
+    }
+    const { data } = await query.order("created_at", { ascending: false });
+    setProductCosts((data as any[]) || []);
+  };
+
+  const openCreateProduct = () => {
+    setEditingProduct(null);
+    setProductName("");
+    setProductQty("");
+    setProductUnitCost("");
+    setShowProductDialog(true);
+  };
+
+  const openEditProduct = (p: ProductCost) => {
+    setEditingProduct(p);
+    setProductName(p.product_name);
+    setProductQty(String(p.quantity));
+    setProductUnitCost(String(p.unit_cost));
+    setShowProductDialog(true);
+  };
+
+  const saveProduct = async () => {
+    if (!user || !productName.trim() || !productQty || !productUnitCost) {
+      toast({ title: "กรุณากรอกข้อมูลให้ครบ", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        product_name: productName.trim(),
+        quantity: Number(productQty),
+        unit_cost: Number(productUnitCost),
+      };
+      if (editingProduct) {
+        await supabase.from("event_product_costs" as any).update(payload).eq("id", editingProduct.id);
+        toast({ title: "อัปเดตต้นทุนสินค้าสำเร็จ" });
+      } else {
+        payload.user_id = user.id;
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_product_costs" as any).insert(payload);
+        toast({ title: "เพิ่มต้นทุนสินค้าสำเร็จ" });
+      }
+      setShowProductDialog(false);
+      fetchProductCosts();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteProduct = async (id: string) => {
+    await supabase.from("event_product_costs" as any).delete().eq("id", id);
+    fetchProductCosts();
+    toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
+  };
+
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
   };
