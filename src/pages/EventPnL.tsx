@@ -1101,6 +1101,18 @@ const EventPnL = () => {
                         <span className="font-medium text-red-600">฿{formatNumber(totalProductCost)}</span>
                       </div>
                     )}
+                    {totalOtherExpenses > 0 && (
+                      <div className="flex justify-between py-2 border-b">
+                        <span className="text-sm">ค่าใช้จ่ายอื่นๆ</span>
+                        <span className="font-medium text-red-600">฿{formatNumber(totalOtherExpenses)}</span>
+                      </div>
+                    )}
+                    {refundableTotal > 0 && (
+                      <div className="flex justify-between py-1 text-xs">
+                        <span className="text-amber-500">⏳ รอทวงคืน (มัดจำ/ประกัน)</span>
+                        <span className="text-amber-500">฿{formatNumber(refundableTotal)}</span>
+                      </div>
+                    )}
                     {(financialData.financials || [])
                       .filter(f => f.category === "expense")
                       .map((f, i) => (
