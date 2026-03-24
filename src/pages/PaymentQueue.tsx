@@ -1,0 +1,261 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { ArrowLeft, Copy, Check, Banknote } from "lucide-react";
+
+interface PaymentItem {
+  id: string;
+  invoice_number: string;
+  event_name: string | null;
+  days_worked: number;
+  daily_rate: number;
+  gross_amount: number;
+  bonus_amount: number;
+  wht_rate: number;
+  status: string;
+  staff_profiles: {
+    staff_name: string;
+    nickname: string | null;
+    bank_name: string | null;
+    bank_account: string | null;
+    tax_id: string | null;
+  } | null;
+}
+
+const cleanAccountNumber = (account: string | null | undefined): string => {
+  if (!account) return "";
+  return account.replace(/[-\s]/g, "");
+};
+
+const PaymentQueue = () => {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [whtEnabled, setWhtEnabled] = useState<Record<string, boolean>>({});
+  const [vatEnabled, setVatEnabled] = useState<Record<string, boolean>>({});
+
+  const { data: pendingInvoices = [], isLoading } = useQuery({
+    queryKey: ["payment-queue"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_invoices")
+        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account, tax_id)")
+        .in("status", ["submitted", "approved"])
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as PaymentItem[];
+    },
+    enabled: !!user,
+  });
+
+  const copyAccount = (id: string, account: string) => {
+    const clean = cleanAccountNumber(account);
+    navigator.clipboard.writeText(clean);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
+  };
+
+  const calcPayment = (inv: PaymentItem) => {
+    const baseAmount = Number(inv.days_worked) * Number(inv.daily_rate) + Number(inv.bonus_amount || 0);
+    const hasVat = vatEnabled[inv.id] || false;
+    const hasWht = whtEnabled[inv.id] || false;
+
+    const vatAmount = hasVat ? Math.round(baseAmount * 0.07 * 100) / 100 : 0;
+    const totalBeforeWht = baseAmount + vatAmount;
+
+    // WHT 3% คิดจากยอดก่อน VAT เสมอ
+    const whtAmount = hasWht ? Math.round(baseAmount * 0.03 * 100) / 100 : 0;
+
+    const netPayable = totalBeforeWht - whtAmount;
+
+    return { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable };
+  };
+
+  const totalPayable = pendingInvoices.reduce((sum, inv) => {
+    return sum + calcPayment(inv).netPayable;
+  }, 0);
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="bg-gradient-primary text-primary-foreground p-4 shadow-elevated">
+        <div className="max-w-3xl mx-auto flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="text-primary-foreground hover:bg-white/20">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <Banknote className="h-6 w-6" />
+          <h1 className="text-xl font-bold">รายการรอจ่ายเงิน</h1>
+        </div>
+      </header>
+
+      <main className="max-w-3xl mx-auto p-4 space-y-4">
+        {/* Summary */}
+        <Card>
+          <CardContent className="pt-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">รวมยอดที่ต้องจ่าย</p>
+              <p className="text-2xl font-bold text-primary">{totalPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</p>
+            </div>
+            <Badge variant="secondary">{pendingInvoices.length} รายการ</Badge>
+          </CardContent>
+        </Card>
+
+        {isLoading ? (
+          <p className="text-muted-foreground text-center py-8">กำลังโหลด...</p>
+        ) : pendingInvoices.length === 0 ? (
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <p className="text-muted-foreground">ไม่มีรายการรอจ่ายเงิน</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-3">
+            {pendingInvoices.map((inv) => {
+              const { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable } = calcPayment(inv);
+              const cleanAcct = cleanAccountNumber(inv.staff_profiles?.bank_account);
+              const hasWht = whtEnabled[inv.id] || false;
+              const hasVat = vatEnabled[inv.id] || false;
+
+              return (
+                <Card key={inv.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <CardTitle className="text-base">
+                          {inv.staff_profiles?.staff_name}
+                          {inv.staff_profiles?.nickname && (
+                            <span className="text-muted-foreground font-normal text-sm ml-1">({inv.staff_profiles.nickname})</span>
+                          )}
+                        </CardTitle>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {inv.event_name || "ไม่ระบุอีเวนท์"} • {inv.invoice_number}
+                        </p>
+                      </div>
+                      <Badge variant={inv.status === "approved" ? "default" : "secondary"}>
+                        {inv.status === "approved" ? "อนุมัติแล้ว" : "ส่งแล้ว"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {/* Bank account with copy */}
+                    {inv.staff_profiles?.bank_name && cleanAcct && (
+                      <div className="flex items-center justify-between bg-muted rounded-lg p-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">{inv.staff_profiles.bank_name}</p>
+                          <p className="font-mono text-lg font-bold tracking-wider">{cleanAcct}</p>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => copyAccount(inv.id, inv.staff_profiles?.bank_account || "")}
+                        >
+                          {copiedId === inv.id ? (
+                            <><Check className="h-4 w-4 mr-1 text-green-500" />คัดลอกแล้ว</>
+                          ) : (
+                            <><Copy className="h-4 w-4 mr-1" />คัดลอก</>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Amount breakdown */}
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>{inv.days_worked} วัน × {Number(inv.daily_rate).toLocaleString()}</span>
+                        <span>{(Number(inv.days_worked) * Number(inv.daily_rate)).toLocaleString()}</span>
+                      </div>
+                      {Number(inv.bonus_amount || 0) > 0 && (
+                        <div className="flex justify-between text-primary">
+                          <span>โบนัส</span>
+                          <span>+{Number(inv.bonus_amount).toLocaleString()}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-medium">
+                        <span>ยอดค่าแรง</span>
+                        <span>{baseAmount.toLocaleString()}</span>
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {/* VAT & WHT toggles */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`vat-${inv.id}`} className="text-sm cursor-pointer">
+                          VAT 7%
+                        </Label>
+                        <Switch
+                          id={`vat-${inv.id}`}
+                          checked={hasVat}
+                          onCheckedChange={(v) => setVatEnabled((prev) => ({ ...prev, [inv.id]: v }))}
+                        />
+                      </div>
+                      {hasVat && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">ภาษีมูลค่าเพิ่ม 7%</span>
+                          <span>+{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor={`wht-${inv.id}`} className="text-sm cursor-pointer">
+                          หัก ณ ที่จ่าย 3% {hasVat && <span className="text-muted-foreground">(คิดจากยอดก่อน VAT)</span>}
+                        </Label>
+                        <Switch
+                          id={`wht-${inv.id}`}
+                          checked={hasWht}
+                          onCheckedChange={(v) => setWhtEnabled((prev) => ({ ...prev, [inv.id]: v }))}
+                        />
+                      </div>
+                      {hasWht && (
+                        <div className="flex justify-between text-sm text-destructive">
+                          <span>หัก ณ ที่จ่าย 3% (จาก {baseAmount.toLocaleString()})</span>
+                          <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    {/* Net payable */}
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-lg">ยอดที่ต้องโอน</span>
+                      <span className="font-bold text-lg text-primary">
+                        {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                      </span>
+                    </div>
+
+                    {/* Copy amount */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full"
+                      onClick={() => {
+                        navigator.clipboard.writeText(netPayable.toFixed(2));
+                        toast({ title: "คัดลอกยอดเงินแล้ว", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
+                      }}
+                    >
+                      <Copy className="h-4 w-4 mr-1" />คัดลอกยอดเงิน
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+export default PaymentQueue;
