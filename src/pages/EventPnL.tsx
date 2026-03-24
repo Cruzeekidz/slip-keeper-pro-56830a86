@@ -1230,7 +1230,129 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
-            {/* Other Income Dialog */}
+            {/* Other Expenses Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    ค่าใช้จ่ายอื่นๆ (บันทึกเอง)
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateExpense}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มรายจ่าย
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {otherExpenses.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีค่าใช้จ่ายอื่นๆ เช่น ค่ามัดจำสถานที่ ค่าประกัน ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {otherExpenses.map((exp) => (
+                      <div key={exp.id} className={`flex items-center justify-between p-3 rounded-lg border ${exp.is_refundable && exp.refund_status === 'refunded' ? 'bg-muted/50 opacity-60' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium text-sm">{exp.description}</p>
+                            {exp.is_refundable && (
+                              <Badge variant={exp.refund_status === 'refunded' ? 'secondary' : 'outline'} className="text-xs">
+                                {exp.refund_status === 'refunded' ? '✅ ได้คืนแล้ว' : '⏳ รอทวงคืน'}
+                              </Badge>
+                            )}
+                          </div>
+                          {exp.expense_date && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(exp.expense_date).toLocaleDateString("th-TH")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 ml-2">
+                          <span className={`font-semibold ${exp.is_refundable && exp.refund_status === 'refunded' ? 'text-muted-foreground line-through' : 'text-red-600'}`}>
+                            ฿{formatNumber(exp.amount)}
+                          </span>
+                          {exp.is_refundable && (
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleRefundStatus(exp)} title={exp.refund_status === 'refunded' ? 'ยกเลิกสถานะ' : 'ทำเครื่องหมายว่าได้คืน'}>
+                              {exp.refund_status === 'refunded' ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5 text-amber-500" />}
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditExpense(exp)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteExpense(exp.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 font-bold border-t-2">
+                      <span>ค่าใช้จ่ายอื่นรวม</span>
+                      <span className="text-red-600">฿{formatNumber(totalOtherExpenses)}</span>
+                    </div>
+                    {refundableTotal > 0 && (
+                      <div className="flex justify-between text-sm text-amber-500">
+                        <span>⏳ รอทวงคืน</span>
+                        <span>฿{formatNumber(refundableTotal)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Event Notes */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5" />
+                    หมายเหตุ
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateNote}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มหมายเหตุ
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {eventNotes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีหมายเหตุ เช่น สิ่งที่ต้องติดตาม การทวงคืนมัดจำ ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {eventNotes.map((note) => (
+                      <div key={note.id} className={`flex items-start justify-between p-3 rounded-lg border ${note.is_resolved ? 'bg-muted/50 opacity-60' : ''}`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant={note.is_resolved ? 'secondary' : note.note_type === 'deposit' ? 'outline' : note.note_type === 'action_required' ? 'destructive' : 'default'} className="text-xs">
+                              {note.is_resolved ? '✅ เรียบร้อย' : note.note_type === 'deposit' ? '💰 มัดจำ/ประกัน' : note.note_type === 'action_required' ? '⚠️ ต้องดำเนินการ' : '📝 ทั่วไป'}
+                            </Badge>
+                          </div>
+                          <p className={`text-sm ${note.is_resolved ? 'line-through text-muted-foreground' : ''}`}>{note.note_text}</p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(note.created_at).toLocaleDateString("th-TH", { day: 'numeric', month: 'short', year: '2-digit' })}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 ml-2 shrink-0">
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleNoteResolved(note)} title={note.is_resolved ? 'ยกเลิก' : 'เรียบร้อยแล้ว'}>
+                            {note.is_resolved ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5" />}
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditNote(note)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteNote(note.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
               <DialogContent className="max-w-md">
                 <DialogHeader>
