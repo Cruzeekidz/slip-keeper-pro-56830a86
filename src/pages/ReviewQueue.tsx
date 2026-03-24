@@ -110,6 +110,7 @@ export default function ReviewQueue() {
     setCategoryGroup((current.category_group as CategoryGroup) || "");
     setSubcategory(current.subcategory || "");
     setProjectTag(current.project_tag || "");
+    setEventName(current.event_name || "");
     setAmount(String(current.amount));
 
     if (current.receipt_url) {
