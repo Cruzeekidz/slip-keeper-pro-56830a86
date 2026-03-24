@@ -30,6 +30,7 @@ interface EventGroup {
   group_name: string;
   project_tag: string;
   readygo_event_ids: string[];
+  festival_date: string | null;
 }
 
 interface EventAnalysisProps {
@@ -151,7 +152,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         }
       }
 
-      // Merge Ready-go revenue into the map
+      // Merge Ready-go revenue into the map and collect festival dates
       for (const group of groups) {
         const tag = group.project_tag;
         const current = map.get(tag) || { income: 0, expense: 0 };
@@ -162,6 +163,11 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
         }
         current.income += manualOther;
+
+        // Use festival_date from group if available
+        if (group.festival_date) {
+          tagDateMap.set(tag, group.festival_date);
+        }
 
         // Also set display name from group if not in registry
         if (!tagDisplayName.has(tag)) {
