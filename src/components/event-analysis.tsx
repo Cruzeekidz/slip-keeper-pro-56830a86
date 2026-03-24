@@ -74,6 +74,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [cacheTime, setCacheTime] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => { fetchEventPL(false); }, []);
   useExpensesRealtime(useCallback(() => fetchEventPL(false), []));
