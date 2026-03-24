@@ -174,11 +174,13 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
         const current = map.get(tag) || { income: 0, expense: 0 };
         const readyGo = readyGoRevenueMap.get(tag);
         const manualOther = manualOtherIncomeByTag.get(tag) || 0;
+        const productCost = productCostByTag.get(tag) || 0;
 
         if (readyGo) {
           current.income += readyGo.registrationRevenue + readyGo.otoRevenue + readyGo.readyGoOtherIncome;
         }
         current.income += manualOther;
+        current.expense += productCost;
 
         // Use festival_date from group if available (overrides registry date)
         if (group.festival_date) {
