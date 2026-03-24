@@ -251,7 +251,10 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             <Label>ประเภทธุรกรรม</Label>
             <Select
               value={formData.transaction_type}
-              onValueChange={(v) => setFormData({ ...formData, transaction_type: v as TransactionType, category_group: "", subcategory: "", project_tag: "", transaction_direction: "EXPENSE" })}
+              onValueChange={(v) => {
+                const typeLabel = v === 'BUSINESS' ? 'ธุรกิจ' : v === 'PERSONAL' ? 'ส่วนตัว' : v === 'TRANSFER' ? 'โอนเงิน' : '';
+                setFormData({ ...formData, transaction_type: v as TransactionType, category: typeLabel, category_group: "", subcategory: "", project_tag: "", event_name: "", transaction_direction: "EXPENSE" });
+              }}
             >
               <SelectTrigger>
                 <SelectValue placeholder="เลือกประเภท" />
