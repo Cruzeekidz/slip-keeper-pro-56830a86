@@ -810,7 +810,7 @@ const EventPnL = () => {
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
     { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
     { name: "OTO2", value: Number(stats.oto2_revenue || 0) },
-    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
+    ...(summary?.totalOtherIncome ? [{ name: "สินค้า/บริการ (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
     ...(localOtherIncomeTotal > 0 ? [{ name: "รายได้อื่น (บันทึกเอง)", value: localOtherIncomeTotal }] : []),
   ].filter(d => d.value > 0) : [];
 
@@ -1121,7 +1121,7 @@ const EventPnL = () => {
                   </div>
                   {summary.totalOtherIncome > 0 && (
                     <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm">รายได้อื่นๆ (Ready-go)</span>
+                      <span className="text-sm">รายได้อื่น (ค่าสินค้า/บริการ Ready-go)</span>
                       <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
                     </div>
                   )}
