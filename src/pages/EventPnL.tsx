@@ -1505,7 +1505,98 @@ const EventPnL = () => {
               </CardContent>
             </Card>
 
-            <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
+            {/* Reminders */}
+            <Card className="border-primary/30">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Bell className="h-5 w-5 text-primary" />
+                    <span className="text-primary">แจ้งเตือน / นัดหมาย</span>
+                    {reminders.filter(r => !r.is_completed).length > 0 && (
+                      <Badge variant="destructive" className="text-xs">{reminders.filter(r => !r.is_completed).length}</Badge>
+                    )}
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={() => openCreateReminder()}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มแจ้งเตือน
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {reminders.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีแจ้งเตือน — เพิ่มเพื่อติดตามการวางบิล ทวงคืนมัดจำ หรือเช็คยอดโอน
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {reminders.map((r) => {
+                      const typeInfo = REMINDER_TYPES.find(t => t.value === r.reminder_type);
+                      const dueDate = new Date(r.due_date);
+                      const today = new Date();
+                      today.setHours(0,0,0,0);
+                      const isOverdue = dueDate < today && !r.is_completed;
+                      const isDueSoon = !isOverdue && !r.is_completed && dueDate <= new Date(today.getTime() + r.remind_before_days * 86400000);
+                      return (
+                        <div key={r.id} className={`flex items-start justify-between p-3 rounded-lg border ${r.is_completed ? 'bg-muted/50 opacity-60' : isOverdue ? 'border-red-400 bg-red-50 dark:bg-red-950/20' : isDueSoon ? 'border-amber-400 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <Badge variant={r.is_completed ? 'secondary' : isOverdue ? 'destructive' : 'outline'} className="text-xs">
+                                {typeInfo?.label || r.reminder_type}
+                              </Badge>
+                              {isOverdue && <Badge variant="destructive" className="text-xs">เลยกำหนด!</Badge>}
+                              {isDueSoon && !isOverdue && <Badge className="text-xs bg-amber-500">ใกล้ถึงกำหนด</Badge>}
+                              {r.notify_line && <Badge variant="outline" className="text-xs">🔔 LINE</Badge>}
+                              {r.line_notified_at && <Badge variant="secondary" className="text-xs">✅ แจ้งแล้ว</Badge>}
+                            </div>
+                            <p className={`text-sm font-medium ${r.is_completed ? 'line-through text-muted-foreground' : ''}`}>{r.title}</p>
+                            {r.description && <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>}
+                            <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                ครบ {new Date(r.due_date).toLocaleDateString("th-TH", { day: 'numeric', month: 'short', year: '2-digit' })}
+                              </span>
+                              {r.amount > 0 && <span className="font-semibold text-foreground">฿{formatNumber(r.amount)}</span>}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 ml-2 shrink-0">
+                            {r.notify_line && !r.is_completed && (
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => sendReminderNow(r)} disabled={sendingReminder === r.id} title="ส่งแจ้งเตือน LINE ตอนนี้">
+                                <Send className={`h-3.5 w-3.5 text-green-600 ${sendingReminder === r.id ? 'animate-pulse' : ''}`} />
+                              </Button>
+                            )}
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleReminderCompleted(r)} title={r.is_completed ? 'ยกเลิก' : 'เสร็จแล้ว'}>
+                              {r.is_completed ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : <CircleDot className="h-3.5 w-3.5" />}
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditReminder(r)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteReminder(r.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Quick create from refundable expenses */}
+                {otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-xs text-muted-foreground mb-2">สร้างแจ้งเตือนอัตโนมัติจากค่ามัดจำ:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {otherExpenses.filter(e => e.is_refundable && e.refund_status === 'pending').map(exp => (
+                        <Button key={exp.id} size="sm" variant="outline" className="text-xs" onClick={() => openCreateReminder('deposit_refund', `ทวงคืน: ${exp.description}`, exp.amount)}>
+                          <Bell className="h-3 w-3 mr-1" />
+                          {exp.description} ฿{formatNumber(exp.amount)}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>{editingIncome ? "แก้ไขรายได้อื่น" : "เพิ่มรายได้อื่น"}</DialogTitle>
