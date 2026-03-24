@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 serve(async (req) => {
@@ -75,101 +75,48 @@ serve(async (req) => {
         });
       }
 
-      // Fetch event
-      const { data: event, error: eventError } = await readygo
-        .from("events")
-        .select("id, title, short_code, event_date, location")
-        .eq("id", eventId)
-        .single();
+      const financialsResponse = await fetch(
+        `${readygoUrl}/functions/v1/get-event-financials?event_id=${encodeURIComponent(eventId)}`,
+        {
+          method: "GET",
+          headers: {
+            apikey: readygoKey,
+            Authorization: `Bearer ${readygoKey}`,
+          },
+        }
+      );
 
-      if (eventError) throw eventError;
+      const financialsPayload = await financialsResponse.json();
 
-      // Fetch completed registrations
-      const { data: completedRegs } = await readygo
-        .from("event_registrations")
-        .select("id, registration_fee, multi_day_discount_applied, discount_amount, oto1_booked, oto2_accepted, oto1_amount, oto2_amount, cruzee_discount_amount, payment_status, selected_age_category")
-        .eq("event_id", eventId)
-        .in("payment_status", ["completed", "sponsored"])
-        .is("deleted_at", null);
+      if (!financialsResponse.ok) {
+        return new Response(JSON.stringify({
+          error: financialsPayload?.error || "Failed to fetch Ready-go financials",
+          details: financialsPayload,
+        }), {
+          status: financialsResponse.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
-      // Fetch OTO purchases
-      const { data: otoPurchases } = await readygo
-        .from("oto_purchases")
-        .select("oto_type, price, fulfillment_status")
-        .eq("event_id", eventId);
-
-      // Fetch event financials (manual entries)
-      const { data: financials } = await readygo
-        .from("event_financials")
-        .select("*")
-        .eq("event_id", eventId)
-        .order("created_at", { ascending: false });
-
-      const regs = (completedRegs || []).filter(r => r.payment_status === "completed");
-      const sponsored = (completedRegs || []).filter(r => r.payment_status === "sponsored");
-      const otos = otoPurchases || [];
-
-      // OTO from registrations
-      const oto1RevenueFromRegs = regs.reduce((sum, r) => sum + (r.oto1_amount || 0), 0);
-      const oto2RevenueFromRegs = regs.reduce((sum, r) => sum + (r.oto2_amount || 0), 0);
-      const oto1CountFromRegs = regs.filter(r => r.oto1_booked && (r.oto1_amount || 0) > 0).length;
-      const oto2CountFromRegs = regs.filter(r => r.oto2_accepted && (r.oto2_amount || 0) > 0).length;
-
-      // OTO from purchases
-      const oto1RevenueFromPurchases = otos.filter(o => o.oto_type === "oto1").reduce((sum, o) => sum + (o.price || 0), 0);
-      const oto2RevenueFromPurchases = otos.filter(o => o.oto_type === "oto2").reduce((sum, o) => sum + (o.price || 0), 0);
-      const oto1CountFromPurchases = otos.filter(o => o.oto_type === "oto1").length;
-      const oto2CountFromPurchases = otos.filter(o => o.oto_type === "oto2").length;
-
-      const oto1Revenue = oto1RevenueFromRegs > 0 ? oto1RevenueFromRegs : oto1RevenueFromPurchases;
-      const oto2Revenue = oto2RevenueFromRegs > 0 ? oto2RevenueFromRegs : oto2RevenueFromPurchases;
-      const oto1Count = oto1CountFromRegs > 0 ? oto1CountFromRegs : oto1CountFromPurchases;
-      const oto2Count = oto2CountFromRegs > 0 ? oto2CountFromRegs : oto2CountFromPurchases;
-
-      // Category breakdown
       const categoryBreakdown: Record<string, number> = {};
-      regs.forEach(r => {
-        const cat = r.selected_age_category || "ไม่ระบุ";
-        categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
-      });
-
-      const totalRegFee = regs.reduce((s, r) => s + (r.registration_fee || 0), 0);
-      const totalDiscount = regs.reduce((s, r) => s + (r.multi_day_discount_applied || 0) + (r.discount_amount || 0), 0);
-      const totalCruzeeDiscount = regs.reduce((s, r) => s + (r.cruzee_discount_amount || 0), 0);
-      const actualRevenue = totalRegFee - totalDiscount;
-
-      const totalExpenses = (financials || [])
-        .filter(f => f.category === "expense")
-        .reduce((s, f) => s + f.amount, 0);
-
-      const totalOtherIncome = (financials || [])
-        .filter(f => f.category === "income")
-        .reduce((s, f) => s + f.amount, 0);
-
-      const netProfit = actualRevenue + oto1Revenue + oto2Revenue + totalOtherIncome - totalExpenses;
 
       return new Response(JSON.stringify({
-        event,
+        event: financialsPayload.event,
         registrationStats: {
-          total_registrations: regs.length + sponsored.length,
-          completed_count: regs.length,
-          sponsored_count: sponsored.length,
-          total_registration_fee: totalRegFee,
-          total_discount: totalDiscount,
-          total_cruzee_discount: totalCruzeeDiscount,
-          actual_revenue: actualRevenue,
-          oto1_revenue: oto1Revenue,
-          oto1_count: oto1Count,
-          oto2_revenue: oto2Revenue,
-          oto2_count: oto2Count,
-          total_oto_revenue: oto1Revenue + oto2Revenue,
-          category_breakdown: categoryBreakdown,
+          ...financialsPayload.registrationStats,
+          completed_count:
+            (financialsPayload.registrationStats?.total_registrations || 0) -
+            (financialsPayload.registrationStats?.sponsored_count || 0),
+          total_discount:
+            (financialsPayload.registrationStats?.total_multi_day_discount || 0) +
+            (financialsPayload.registrationStats?.total_other_discounts || 0),
+          category_breakdown: financialsPayload.registrationStats?.category_breakdown || categoryBreakdown,
         },
-        financials: financials || [],
+        financials: financialsPayload.financials || [],
         summary: {
-          totalExpenses,
-          totalOtherIncome,
-          netProfit,
+          totalExpenses: financialsPayload.summary?.totalExpenses || 0,
+          totalOtherIncome: financialsPayload.summary?.totalOtherIncome || 0,
+          netProfit: financialsPayload.summary?.netProfit || 0,
         },
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

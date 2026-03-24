@@ -138,24 +138,24 @@ const EventPnL = () => {
 
   // Chart data
   const revenueBreakdown = stats ? [
-    { name: "ค่าสมัคร", value: stats.actual_revenue },
-    { name: "OTO1", value: stats.oto1_revenue },
-    { name: "OTO2", value: stats.oto2_revenue },
-    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น", value: summary.totalOtherIncome }] : []),
+    { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
+    { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
+    { name: "OTO2", value: Number(stats.oto2_revenue || 0) },
+    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น", value: Number(summary.totalOtherIncome) }] : []),
   ].filter(d => d.value > 0) : [];
 
-  const categoryData = stats
-    ? Object.entries(stats.category_breakdown).map(([name, value]) => ({ name, value }))
+  const categoryData = stats?.category_breakdown
+    ? Object.entries(stats.category_breakdown).map(([name, value]) => ({ name, value: Number(value) }))
     : [];
 
-  const totalRevenue = (stats?.actual_revenue || 0) + (stats?.total_oto_revenue || 0) + (summary?.totalOtherIncome || 0);
-  const totalCost = (summary?.totalExpenses || 0) + localExpenses;
+  const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0);
+  const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0);
   const combinedProfit = totalRevenue - totalCost;
 
   const pnlBarData = [
-    { name: "รายได้", รายได้: totalRevenue, ค่าใช้จ่าย: 0 },
-    { name: "ค่าใช้จ่าย", รายได้: 0, ค่าใช้จ่าย: totalCost },
-    { name: "กำไร/ขาดทุน", กำไร: combinedProfit > 0 ? combinedProfit : 0, ขาดทุน: combinedProfit < 0 ? Math.abs(combinedProfit) : 0 },
+    { name: "รายได้", รายได้: totalRevenue, ค่าใช้จ่าย: 0, กำไร: 0, ขาดทุน: 0 },
+    { name: "ค่าใช้จ่าย", รายได้: 0, ค่าใช้จ่าย: totalCost, กำไร: 0, ขาดทุน: 0 },
+    { name: "กำไร/ขาดทุน", รายได้: 0, ค่าใช้จ่าย: 0, กำไร: combinedProfit > 0 ? combinedProfit : 0, ขาดทุน: combinedProfit < 0 ? Math.abs(combinedProfit) : 0 },
   ];
 
   return (
