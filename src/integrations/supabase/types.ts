@@ -137,6 +137,47 @@ export type Database = {
         }
         Relationships: []
       }
+      event_other_income: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string
+          event_group_id: string | null
+          event_id: string | null
+          id: string
+          income_date: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          income_date?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string
+          event_group_id?: string | null
+          event_id?: string | null
+          id?: string
+          income_date?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_other_income_event_group_id_fkey"
+            columns: ["event_group_id"]
+            isOneToOne: false
+            referencedRelation: "event_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_registry: {
         Row: {
           aliases: string[]

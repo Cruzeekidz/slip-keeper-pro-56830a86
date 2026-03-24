@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, RefreshCw, BarChart3, FolderPlus, Pencil, Trash2, Layers, Plus, HandCoins } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +56,15 @@ interface EventGroup {
   readygo_event_ids: string[];
 }
 
+interface OtherIncome {
+  id: string;
+  description: string;
+  amount: number;
+  income_date: string | null;
+  event_group_id: string | null;
+  event_id: string | null;
+}
+
 const CHART_COLORS = [
   "hsl(var(--primary))",
   "hsl(var(--accent))",
@@ -90,6 +99,14 @@ const EventPnL = () => {
   const [groupTag, setGroupTag] = useState("");
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
 
+  // Other income management
+  const [otherIncomes, setOtherIncomes] = useState<OtherIncome[]>([]);
+  const [showIncomeDialog, setShowIncomeDialog] = useState(false);
+  const [editingIncome, setEditingIncome] = useState<OtherIncome | null>(null);
+  const [incomeDesc, setIncomeDesc] = useState("");
+  const [incomeAmount, setIncomeAmount] = useState("");
+  const [incomeDate, setIncomeDate] = useState("");
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
@@ -102,7 +119,10 @@ const EventPnL = () => {
   }, [user]);
 
   useEffect(() => {
-    if ((selectedEventId || selectedGroupId) && financialData) fetchLocalExpenses();
+    if ((selectedEventId || selectedGroupId) && financialData) {
+      fetchLocalExpenses();
+      fetchOtherIncomes();
+    }
   }, [selectedEventId, selectedGroupId, financialData]);
 
   const fetchEvents = async () => {
@@ -193,6 +213,78 @@ const EventPnL = () => {
     setLocalExpenses(total);
   };
 
+  // Other Income CRUD
+  const fetchOtherIncomes = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_other_income" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setOtherIncomes([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setOtherIncomes((data as any[]) || []);
+  };
+
+  const openCreateIncome = () => {
+    setEditingIncome(null);
+    setIncomeDesc("");
+    setIncomeAmount("");
+    setIncomeDate("");
+    setShowIncomeDialog(true);
+  };
+
+  const openEditIncome = (income: OtherIncome) => {
+    setEditingIncome(income);
+    setIncomeDesc(income.description);
+    setIncomeAmount(String(income.amount));
+    setIncomeDate(income.income_date || "");
+    setShowIncomeDialog(true);
+  };
+
+  const saveIncome = async () => {
+    if (!user || !incomeDesc.trim() || !incomeAmount) {
+      toast({ title: "กรุณากรอกรายละเอียดและจำนวนเงิน", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        description: incomeDesc.trim(),
+        amount: Number(incomeAmount),
+        income_date: incomeDate || null,
+      };
+      if (editingIncome) {
+        await supabase.from("event_other_income" as any).update(payload).eq("id", editingIncome.id);
+        toast({ title: "อัปเดตรายได้อื่นสำเร็จ" });
+      } else {
+        payload.user_id = user.id;
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_other_income" as any).insert(payload);
+        toast({ title: "เพิ่มรายได้อื่นสำเร็จ" });
+      }
+      setShowIncomeDialog(false);
+      fetchOtherIncomes();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteIncome = async (id: string) => {
+    await supabase.from("event_other_income" as any).delete().eq("id", id);
+    fetchOtherIncomes();
+    toast({ title: "ลบรายได้อื่นสำเร็จ" });
+  };
+
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
@@ -270,18 +362,21 @@ const EventPnL = () => {
   const stats = financialData?.registrationStats;
   const summary = financialData?.summary;
 
+  const localOtherIncomeTotal = otherIncomes.reduce((s, i) => s + Number(i.amount), 0);
+
   const revenueBreakdown = stats ? [
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
     { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
     { name: "OTO2", value: Number(stats.oto2_revenue || 0) },
-    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น", value: Number(summary.totalOtherIncome) }] : []),
+    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
+    ...(localOtherIncomeTotal > 0 ? [{ name: "รายได้อื่น (บันทึกเอง)", value: localOtherIncomeTotal }] : []),
   ].filter(d => d.value > 0) : [];
 
   const categoryData = stats?.category_breakdown
     ? Object.entries(stats.category_breakdown).map(([name, value]) => ({ name, value: Number(value) }))
     : [];
 
-  const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0);
+  const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
   const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0);
   const combinedProfit = totalRevenue - totalCost;
 
@@ -584,8 +679,14 @@ const EventPnL = () => {
                   </div>
                   {summary.totalOtherIncome > 0 && (
                     <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm">รายได้อื่นๆ</span>
+                      <span className="text-sm">รายได้อื่นๆ (Ready-go)</span>
                       <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
+                    </div>
+                  )}
+                  {localOtherIncomeTotal > 0 && (
+                    <div className="flex justify-between py-2 border-b">
+                      <span className="text-sm">รายได้อื่นๆ (บันทึกเอง)</span>
+                      <span className="font-medium">฿{formatNumber(localOtherIncomeTotal)}</span>
                     </div>
                   )}
                   <div className="flex justify-between py-3 font-bold text-lg border-t-2">
@@ -720,6 +821,86 @@ const EventPnL = () => {
                 </CardContent>
               </Card>
             </div>
+
+            {/* Other Income Management */}
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <HandCoins className="h-5 w-5" />
+                    รายได้อื่นๆ (บันทึกเอง)
+                  </CardTitle>
+                  <Button size="sm" variant="outline" onClick={openCreateIncome}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    เพิ่มรายได้
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {otherIncomes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    ยังไม่มีรายได้อื่นๆ เช่น ค่าสปอนเซอร์ ค่าเช่าบูธ ฯลฯ
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {otherIncomes.map((income) => (
+                      <div key={income.id} className="flex items-center justify-between p-3 rounded-lg border">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm">{income.description}</p>
+                          {income.income_date && (
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(income.income_date).toLocaleDateString("th-TH")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <span className="font-semibold text-green-600">฿{formatNumber(income.amount)}</span>
+                          <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => openEditIncome(income)}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => deleteIncome(income.id)}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex justify-between pt-3 font-bold border-t-2">
+                      <span>รายได้อื่นรวม</span>
+                      <span className="text-green-600">฿{formatNumber(localOtherIncomeTotal)}</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Other Income Dialog */}
+            <Dialog open={showIncomeDialog} onOpenChange={setShowIncomeDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingIncome ? "แก้ไขรายได้อื่น" : "เพิ่มรายได้อื่น"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">รายละเอียด</label>
+                    <Input value={incomeDesc} onChange={e => setIncomeDesc(e.target.value)} placeholder="เช่น ค่าสปอนเซอร์ บริษัท ABC" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                    <Input type="number" value={incomeAmount} onChange={e => setIncomeAmount(e.target.value)} placeholder="0" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">วันที่ (ไม่บังคับ)</label>
+                    <Input type="date" value={incomeDate} onChange={e => setIncomeDate(e.target.value)} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowIncomeDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveIncome} disabled={!incomeDesc.trim() || !incomeAmount}>
+                    {editingIncome ? "บันทึก" : "เพิ่ม"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
 
