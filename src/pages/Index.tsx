@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -209,6 +209,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/forward-management')}>
                     <Send className="h-4 w-4 mr-2" />
                     Forward สลิป
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/event-pnl')}>
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    P&L อีเวนท์ (Ready-go)
                   </DropdownMenuItem>
                   {isSuperAdmin && (
                     <>
