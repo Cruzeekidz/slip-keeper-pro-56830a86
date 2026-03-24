@@ -54,6 +54,7 @@ export const GENERAL_SUBCATEGORIES = [
 ];
 
 export const ENTITY_SUBCATEGORIES = [
+  'ค่าจ้างครู', 'ค่าเช่าสถานที่', 'ค่าอุปกรณ์', 'ค่ายิงแอด',
   'Staff', 'Venue', 'Equipment', 'Marketing', 'Utilities', 'Other',
 ];
 
