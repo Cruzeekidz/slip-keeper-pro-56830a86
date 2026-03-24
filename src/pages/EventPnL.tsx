@@ -190,6 +190,19 @@ const EventPnL = () => {
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("general");
 
+  // Reminders management
+  const [reminders, setReminders] = useState<EventReminder[]>([]);
+  const [showReminderDialog, setShowReminderDialog] = useState(false);
+  const [editingReminder, setEditingReminder] = useState<EventReminder | null>(null);
+  const [reminderType, setReminderType] = useState("billing");
+  const [reminderTitle, setReminderTitle] = useState("");
+  const [reminderDesc, setReminderDesc] = useState("");
+  const [reminderAmount, setReminderAmount] = useState("");
+  const [reminderDueDate, setReminderDueDate] = useState("");
+  const [reminderBeforeDays, setReminderBeforeDays] = useState("1");
+  const [reminderNotifyLine, setReminderNotifyLine] = useState(true);
+  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
+
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
