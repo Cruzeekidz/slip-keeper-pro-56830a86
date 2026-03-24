@@ -1733,6 +1733,64 @@ const EventPnL = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {/* Reminder Dialog */}
+            <Dialog open={showReminderDialog} onOpenChange={setShowReminderDialog}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingReminder ? "แก้ไขแจ้งเตือน" : "สร้างแจ้งเตือน"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-sm font-medium">ประเภท</label>
+                    <Select value={reminderType} onValueChange={setReminderType}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REMINDER_TYPES.map(t => (
+                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">ชื่อ/รายละเอียดหลัก</label>
+                    <Input value={reminderTitle} onChange={e => setReminderTitle(e.target.value)} placeholder="เช่น วางบิลค่าสถานที่ Mahanakhon" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">หมายเหตุเพิ่มเติม</label>
+                    <Textarea value={reminderDesc} onChange={e => setReminderDesc(e.target.value)} placeholder="รายละเอียดเพิ่มเติม..." rows={2} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-sm font-medium">จำนวนเงิน (บาท)</label>
+                      <Input type="number" value={reminderAmount} onChange={e => setReminderAmount(e.target.value)} placeholder="0" />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium">วันครบกำหนด</label>
+                      <Input type="date" value={reminderDueDate} onChange={e => setReminderDueDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium">แจ้งเตือนก่อน (วัน)</label>
+                    <Input type="number" value={reminderBeforeDays} onChange={e => setReminderBeforeDays(e.target.value)} min="0" max="30" />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox checked={reminderNotifyLine} onCheckedChange={(v) => setReminderNotifyLine(!!v)} />
+                    <label className="text-sm font-medium cursor-pointer" onClick={() => setReminderNotifyLine(!reminderNotifyLine)}>
+                      🔔 แจ้งเตือนผ่าน LINE (ส่งหา admin)
+                    </label>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowReminderDialog(false)}>ยกเลิก</Button>
+                  <Button onClick={saveReminder} disabled={!reminderTitle.trim() || !reminderDueDate}>
+                    {editingReminder ? "บันทึก" : "สร้าง"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
 
