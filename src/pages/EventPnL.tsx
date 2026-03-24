@@ -213,6 +213,78 @@ const EventPnL = () => {
     setLocalExpenses(total);
   };
 
+  // Other Income CRUD
+  const fetchOtherIncomes = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_other_income" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setOtherIncomes([]);
+      return;
+    }
+
+    const { data } = await query.order("created_at", { ascending: false });
+    setOtherIncomes((data as any[]) || []);
+  };
+
+  const openCreateIncome = () => {
+    setEditingIncome(null);
+    setIncomeDesc("");
+    setIncomeAmount("");
+    setIncomeDate("");
+    setShowIncomeDialog(true);
+  };
+
+  const openEditIncome = (income: OtherIncome) => {
+    setEditingIncome(income);
+    setIncomeDesc(income.description);
+    setIncomeAmount(String(income.amount));
+    setIncomeDate(income.income_date || "");
+    setShowIncomeDialog(true);
+  };
+
+  const saveIncome = async () => {
+    if (!user || !incomeDesc.trim() || !incomeAmount) {
+      toast({ title: "กรุณากรอกรายละเอียดและจำนวนเงิน", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        description: incomeDesc.trim(),
+        amount: Number(incomeAmount),
+        income_date: incomeDate || null,
+      };
+      if (editingIncome) {
+        await supabase.from("event_other_income" as any).update(payload).eq("id", editingIncome.id);
+        toast({ title: "อัปเดตรายได้อื่นสำเร็จ" });
+      } else {
+        payload.user_id = user.id;
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_other_income" as any).insert(payload);
+        toast({ title: "เพิ่มรายได้อื่นสำเร็จ" });
+      }
+      setShowIncomeDialog(false);
+      fetchOtherIncomes();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteIncome = async (id: string) => {
+    await supabase.from("event_other_income" as any).delete().eq("id", id);
+    fetchOtherIncomes();
+    toast({ title: "ลบรายได้อื่นสำเร็จ" });
+  };
+
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
