@@ -23,6 +23,7 @@ import ResetPassword from "./pages/ResetPassword";
 import SystemAdmin from "./pages/SystemAdmin";
 import ReceiptArchive from "./pages/ReceiptArchive";
 import SystemDocs from "./pages/SystemDocs";
+import ReviewQueue from "./pages/ReviewQueue";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
