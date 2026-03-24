@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Legend } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw } from "lucide-react";
+import { Calendar, TrendingUp, TrendingDown, Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 import { useToast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 const READYGO_CACHE_KEY = 'readygo_revenue_cache';
 const READYGO_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
@@ -41,6 +42,8 @@ interface EventPLData {
   profit: number;
   hasReadyGoData: boolean;
   eventDate: string | null;
+  readygoEventId: string | null;
+  groupId: string | null;
 }
 
 interface EventRegistryItem {
@@ -71,6 +74,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
   const [refreshing, setRefreshing] = useState(false);
   const [cacheTime, setCacheTime] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   useEffect(() => { fetchEventPL(false); }, []);
   useExpensesRealtime(useCallback(() => fetchEventPL(false), []));
@@ -91,7 +95,7 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const [registryRes, expensesRes, groupsRes, otherIncomeRes, productCostsRes, otherExpensesRes] = await Promise.all([
         supabase.from('event_registry').select('*'),
         supabase.from('expenses')
-          .select('project_tag, event_name, amount, transaction_type, category_group, transaction_direction'),
+          .select('project_tag, event_name, project, amount, transaction_type, category_group, transaction_direction'),
         supabase.from('event_groups').select('*'),
         supabase.from('event_other_income').select('*'),
         supabase.from('event_product_costs' as any).select('*'),
@@ -135,12 +139,25 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       const map = new Map<string, { income: number; expense: number }>();
 
       expenses.forEach(exp => {
-        let resolvedTag = exp.project_tag || exp.event_name || null;
-        if (!resolvedTag) return;
+        // Try all text fields that might contain event info
+        const candidates = [exp.project_tag, exp.event_name, exp.project].filter(Boolean);
+        if (candidates.length === 0) return;
 
-        const normalized = normalizeForMatch(resolvedTag);
-        const registryTag = aliasMap.get(normalized);
-        const finalTag = registryTag || resolvedTag;
+        let finalTag: string | null = null;
+        for (const candidate of candidates) {
+          const normalized = normalizeForMatch(candidate!);
+          const registryTag = aliasMap.get(normalized);
+          if (registryTag) { finalTag = registryTag; break; }
+          // Also try partial matching against alias keys
+          for (const [aliasKey, tag] of aliasMap.entries()) {
+            if (normalized.includes(aliasKey) || aliasKey.includes(normalized)) {
+              finalTag = tag; break;
+            }
+          }
+          if (finalTag) break;
+        }
+        if (!finalTag) finalTag = exp.project_tag || exp.event_name || null;
+        if (!finalTag) return;
 
         const current = map.get(finalTag) || { income: 0, expense: 0 };
         if (exp.transaction_direction === 'INCOME') {
@@ -309,6 +326,14 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
       const groupTagSet = new Set(groups.map(g => g.project_tag));
 
+      // Build lookup maps for navigation
+      const tagToReadygoId = new Map<string, string>();
+      const tagToGroupId = new Map<string, string>();
+      activeRegistry.forEach(r => {
+        if (r.readygo_event_id) tagToReadygoId.set(r.project_tag, r.readygo_event_id);
+      });
+      groups.forEach(g => tagToGroupId.set(g.project_tag, g.id));
+
       const result: EventPLData[] = Array.from(map.entries())
         .map(([tag, data]) => ({
           tag,
@@ -318,9 +343,10 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           profit: data.income - data.expense,
           hasReadyGoData: readyGoRevenueMap.has(tag) || groupTagSet.has(tag),
           eventDate: tagDateMap.get(tag) || null,
+          readygoEventId: tagToReadygoId.get(tag) || null,
+          groupId: tagToGroupId.get(tag) || null,
         }))
         .sort((a, b) => {
-          // Sort by event date descending (newest first), null dates go last
           if (a.eventDate && b.eventDate) return b.eventDate.localeCompare(a.eventDate);
           if (a.eventDate && !b.eventDate) return -1;
           if (!a.eventDate && b.eventDate) return 1;
@@ -383,7 +409,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       {/* P&L Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {eventPL.map(event => (
-          <Card key={event.tag} className="p-4 border">
+          <Card 
+            key={event.tag} 
+            className="p-4 border cursor-pointer hover:shadow-md hover:border-primary/30 transition-all"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (event.groupId) params.set('group', event.groupId);
+              else if (event.readygoEventId) params.set('event', event.readygoEventId);
+              else params.set('tag', event.tag);
+              navigate(`/event-pnl?${params.toString()}`);
+            }}
+          >
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold text-foreground">{event.displayName}</span>
               {event.hasReadyGoData && (
