@@ -36,7 +36,8 @@ serve(async (req) => {
       });
     }
 
-    const { action } = await req.json();
+    const body = await req.json();
+    const action = body?.action;
 
     // Connect to Ready-go.fun Supabase
     const readygoUrl = Deno.env.get("READYGO_SUPABASE_URL");
@@ -65,9 +66,7 @@ serve(async (req) => {
     }
 
     if (action === "event-financials") {
-      const url = new URL(req.url);
-      const body = await req.clone().json();
-      const eventId = body.event_id;
+      const eventId = body?.event_id;
 
       if (!eventId) {
         return new Response(JSON.stringify({ error: "event_id required" }), {
