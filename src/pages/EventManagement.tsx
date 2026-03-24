@@ -28,6 +28,7 @@ interface EventRegistryItem {
   project_tag: string;
   is_active: boolean;
   created_at: string;
+  readygo_event_id: string | null;
 }
 
 const EventManagement = () => {
@@ -44,6 +45,7 @@ const EventManagement = () => {
   const [eventDate, setEventDate] = useState("");
   const [aliasInput, setAliasInput] = useState("");
   const [aliases, setAliases] = useState<string[]>([]);
+  const [readygoEventId, setReadygoEventId] = useState("");
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
@@ -63,7 +65,7 @@ const EventManagement = () => {
   };
 
   const resetForm = () => {
-    setEventName(""); setProjectTag(""); setEventDate(""); setAliases([]); setAliasInput(""); setEditingId(null);
+    setEventName(""); setProjectTag(""); setEventDate(""); setAliases([]); setAliasInput(""); setEditingId(null); setReadygoEventId("");
   };
 
   const openCreate = () => { resetForm(); setDialogOpen(true); };
@@ -74,6 +76,7 @@ const EventManagement = () => {
     setProjectTag(ev.project_tag);
     setEventDate(ev.event_date || "");
     setAliases(ev.aliases || []);
+    setReadygoEventId(ev.readygo_event_id || "");
     setDialogOpen(true);
   };
 
@@ -95,6 +98,7 @@ const EventManagement = () => {
       project_tag: projectTag,
       event_date: eventDate || null,
       aliases,
+      readygo_event_id: readygoEventId.trim() || null,
       user_id: user.id,
     };
 
