@@ -325,11 +325,21 @@ const EventPnL = () => {
 
     const { data } = await supabase
       .from("expenses")
-      .select("amount")
+      .select("amount, description, expense_date, category, event_name, project_tag, merchant")
       .eq("user_id", user.id)
-      .or(orClauses);
+      .or(orClauses)
+      .order("expense_date", { ascending: false });
 
-    const total = (data || []).reduce((s, e) => s + Number(e.amount), 0);
+    const items = (data || []).map(e => ({
+      description: e.description || e.merchant || e.category || "รายจ่าย",
+      amount: Number(e.amount),
+      expense_date: e.expense_date,
+      category: e.category,
+      event_name: e.event_name,
+      project_tag: e.project_tag,
+    }));
+    setLocalExpenseItems(items);
+    const total = items.reduce((s, e) => s + e.amount, 0);
     setLocalExpenses(total);
   };
 
