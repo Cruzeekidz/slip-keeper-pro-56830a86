@@ -303,12 +303,31 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">
-      <div className="flex items-center gap-2 mb-6">
-        <Calendar className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-bold text-foreground">
-          กำไร/ขาดทุน ตามอีเวนท์
-          {recentOnly && <span className="text-sm font-normal text-muted-foreground ml-2">(ล่าสุด)</span>}
-        </h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <Calendar className="h-5 w-5 text-primary" />
+          <h2 className="text-xl font-bold text-foreground">
+            กำไร/ขาดทุน ตามอีเวนท์
+            {recentOnly && <span className="text-sm font-normal text-muted-foreground ml-2">(ล่าสุด)</span>}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          {cacheTime && (
+            <span className="text-xs text-muted-foreground hidden sm:inline">
+              ข้อมูลรายได้ ณ {cacheTime}
+            </span>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleForceRefresh}
+            disabled={refreshing}
+            className="text-xs"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'กำลังดึง...' : 'ดึงรายได้ใหม่'}
+          </Button>
+        </div>
       </div>
 
       {/* P&L Summary Cards */}
