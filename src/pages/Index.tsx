@@ -201,6 +201,10 @@ const Index = () => {
                     <Link2 className="h-4 w-4 mr-2" />
                     คัดลอกลิงก์พอร์ทัล
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/vendor-management')}>
+                    <Building2 className="h-4 w-4 mr-2" />
+                    จัดการคู่ค้า & บิล
+                  </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
 
