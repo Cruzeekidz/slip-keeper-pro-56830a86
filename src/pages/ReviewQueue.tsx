@@ -130,6 +130,7 @@ export default function ReviewQueue() {
       if (categoryGroup === 'EVENT') return e.project_tag.startsWith('EVT-');
       if (categoryGroup === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
       if (categoryGroup === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      if (categoryGroup === 'ENTITY_KUKANANG') return e.project_tag.startsWith('KUKAN-');
       return true;
     })
     .map(e => {

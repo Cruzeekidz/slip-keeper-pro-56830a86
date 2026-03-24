@@ -54,6 +54,7 @@ export const GENERAL_SUBCATEGORIES = [
 ];
 
 export const ENTITY_SUBCATEGORIES = [
+  'ค่าจ้างครู', 'ค่าเช่าสถานที่', 'ค่าอุปกรณ์', 'ค่ายิงแอด',
   'Staff', 'Venue', 'Equipment', 'Marketing', 'Utilities', 'Other',
 ];
 
@@ -76,6 +77,10 @@ export const DEFAULT_EVENT_TAGS = [
 
 export const DEFAULT_PROGRAM_TAGS = [
   'PROG-BikeClass', 'PROG-InlineSkate',
+];
+
+export const DEFAULT_KUKANANG_TAGS = [
+  'KUKAN-BikeClass', 'KUKAN-InlineSkate',
 ];
 
 export function getSubcategoriesForType(
@@ -107,6 +112,7 @@ export function getDefaultProjectTags(group: CategoryGroup | null): string[] {
     case 'EVENT': return DEFAULT_EVENT_TAGS;
     case 'PROGRAM': return DEFAULT_PROGRAM_TAGS;
     case 'ENTITY_BCC_NEXT': return DEFAULT_BCC_NEXT_TAGS;
+    case 'ENTITY_KUKANANG': return DEFAULT_KUKANANG_TAGS;
     default: return [];
   }
 }
@@ -148,5 +154,5 @@ export function formatTypeLabel(type: TransactionType | null, group?: CategoryGr
 }
 
 export function showProjectTag(group: CategoryGroup | null): boolean {
-  return group === 'EVENT' || group === 'PROGRAM' || group === 'ENTITY_BCC_NEXT';
+  return group === 'EVENT' || group === 'PROGRAM' || group === 'ENTITY_BCC_NEXT' || group === 'ENTITY_KUKANANG';
 }
