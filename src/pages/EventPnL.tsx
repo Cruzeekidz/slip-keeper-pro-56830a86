@@ -221,6 +221,7 @@ const EventPnL = () => {
       fetchProductCosts();
       fetchOtherExpenses();
       fetchEventNotes();
+      fetchReminders();
     }
   }, [selectedEventId, selectedGroupId, financialData]);
 
