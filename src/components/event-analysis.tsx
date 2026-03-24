@@ -409,7 +409,17 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
       {/* P&L Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {eventPL.map(event => (
-          <Card key={event.tag} className="p-4 border">
+          <Card 
+            key={event.tag} 
+            className="p-4 border cursor-pointer hover:shadow-md hover:border-primary/30 transition-all"
+            onClick={() => {
+              const params = new URLSearchParams();
+              if (event.groupId) params.set('group', event.groupId);
+              else if (event.readygoEventId) params.set('event', event.readygoEventId);
+              else params.set('tag', event.tag);
+              navigate(`/event-pnl?${params.toString()}`);
+            }}
+          >
             <div className="flex items-center gap-2 mb-1">
               <span className="font-semibold text-foreground">{event.displayName}</span>
               {event.hasReadyGoData && (
