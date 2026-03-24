@@ -117,9 +117,13 @@ const EventPnL = () => {
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDate, setIncomeDate] = useState("");
 
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/auth");
-  }, [user, authLoading, navigate]);
+  // Product cost management
+  const [productCosts, setProductCosts] = useState<ProductCost[]>([]);
+  const [showProductDialog, setShowProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductCost | null>(null);
+  const [productName, setProductName] = useState("");
+  const [productQty, setProductQty] = useState("");
+  const [productUnitCost, setProductUnitCost] = useState("");
 
   useEffect(() => {
     if (user) {
