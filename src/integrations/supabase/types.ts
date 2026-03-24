@@ -110,6 +110,33 @@ export type Database = {
         }
         Relationships: []
       }
+      event_groups: {
+        Row: {
+          created_at: string
+          group_name: string
+          id: string
+          project_tag: string
+          readygo_event_ids: string[]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_name: string
+          id?: string
+          project_tag: string
+          readygo_event_ids?: string[]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_name?: string
+          id?: string
+          project_tag?: string
+          readygo_event_ids?: string[]
+          user_id?: string
+        }
+        Relationships: []
+      }
       event_registry: {
         Row: {
           aliases: string[]
