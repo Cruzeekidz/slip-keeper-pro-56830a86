@@ -29,6 +29,7 @@ import StaffManagement from "./pages/StaffManagement";
 import StaffInvoiceForm from "./pages/StaffInvoiceForm";
 import StaffPayments from "./pages/StaffPayments";
 import PaymentQueue from "./pages/PaymentQueue";
+import PublicPortal from "./pages/PublicPortal";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/staff-invoice" element={<StaffInvoiceForm />} />
             <Route path="/staff-payments" element={<StaffPayments />} />
             <Route path="/payment-queue" element={<PaymentQueue />} />
+            <Route path="/portal" element={<PublicPortal />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

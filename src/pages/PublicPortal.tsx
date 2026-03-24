@@ -1,0 +1,91 @@
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Users, FileText, Building2, Upload } from "lucide-react";
+import StaffRegistrationForm from "@/components/portal/StaffRegistrationForm";
+import StaffInvoicePublicForm from "@/components/portal/StaffInvoicePublicForm";
+import VendorRegistrationForm from "@/components/portal/VendorRegistrationForm";
+import VendorBillUpload from "@/components/portal/VendorBillUpload";
+
+type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
+
+const PublicPortal = () => {
+  const [view, setView] = useState<PortalView>("menu");
+
+  if (view !== "menu") {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-lg mx-auto pt-4">
+          <Button variant="ghost" onClick={() => setView("menu")} className="mb-4">
+            ← กลับเมนูหลัก
+          </Button>
+          {view === "staff-register" && <StaffRegistrationForm />}
+          {view === "staff-invoice" && <StaffInvoicePublicForm />}
+          {view === "vendor-register" && <VendorRegistrationForm />}
+          {view === "vendor-bill" && <VendorBillUpload />}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-lg mx-auto pt-8 space-y-4">
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold">ระบบเอกสารและการเงิน</h1>
+          <p className="text-muted-foreground mt-2">เลือกประเภทที่ต้องการดำเนินการ</p>
+        </div>
+
+        <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setView("staff-register")}>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="bg-primary/10 p-3 rounded-lg">
+              <Users className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">ลงทะเบียนทีมงานใหม่</CardTitle>
+              <CardDescription>สมัครเป็นทีมงานฟรีแลนซ์ กรอกข้อมูลและแนบบัตรประชาชน</CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setView("staff-invoice")}>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="bg-blue-500/10 p-3 rounded-lg">
+              <FileText className="h-6 w-6 text-blue-500" />
+            </div>
+            <div>
+              <CardTitle className="text-base">ส่งแบบฟอร์มเรียกเก็บเงิน</CardTitle>
+              <CardDescription>สำหรับทีมงานที่ลงทะเบียนแล้ว แจ้งวันทำงานและค่าแรง</CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setView("vendor-register")}>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="bg-green-500/10 p-3 rounded-lg">
+              <Building2 className="h-6 w-6 text-green-500" />
+            </div>
+            <div>
+              <CardTitle className="text-base">ลงทะเบียนคู่ค้า</CardTitle>
+              <CardDescription>บริษัท/ร้านค้า ลงทะเบียนพร้อมแนบ ภพ.20 หรือบัตรประชาชน</CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setView("vendor-bill")}>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="bg-orange-500/10 p-3 rounded-lg">
+              <Upload className="h-6 w-6 text-orange-500" />
+            </div>
+            <div>
+              <CardTitle className="text-base">ส่งบิล / ใบแจ้งหนี้</CardTitle>
+              <CardDescription>อัพโหลดไฟล์ภาพหรือ PDF ใบแจ้งหนี้จากคู่ค้า</CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default PublicPortal;
