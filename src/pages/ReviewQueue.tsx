@@ -298,7 +298,7 @@ export default function ReviewQueue() {
           <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-3xl font-bold text-foreground">ตรวจสอบรายการ</h1>
             <p className="text-muted-foreground">
               {items.length > 0
@@ -306,7 +306,49 @@ export default function ReviewQueue() {
                 : 'ไม่มีรายการรอตรวจสอบ 🎉'}
             </p>
           </div>
+          {items.length > 0 && !batchRunning && (
+            <Button onClick={handleBatchReanalyze} variant="outline" className="shrink-0">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Re-analyze ทั้งหมด ({items.filter(i => i.receipt_url).length})
+            </Button>
+          )}
         </div>
+
+        {/* Batch progress */}
+        {batchRunning && (
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <span className="font-medium">กำลัง Re-analyze ทั้งหมด...</span>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { batchPausedRef.current = !batchPausedRef.current; setBatchProgress(p => ({ ...p })); }}
+                >
+                  {batchPausedRef.current ? <PlayCircle className="h-4 w-4 mr-1" /> : <PauseCircle className="h-4 w-4 mr-1" />}
+                  {batchPausedRef.current ? 'ดำเนินการต่อ' : 'หยุดชั่วคราว'}
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => { batchAbortRef.current = true; }}
+                >
+                  หยุด
+                </Button>
+              </div>
+            </div>
+            <Progress value={batchProgress.total > 0 ? (batchProgress.done / batchProgress.total) * 100 : 0} className="h-2" />
+            <div className="flex gap-4 text-sm">
+              <span>{batchProgress.done}/{batchProgress.total} ไฟล์</span>
+              <span className="text-green-600">✅ {batchProgress.success} สำเร็จ</span>
+              <span className="text-blue-600">🔄 {batchProgress.updated} อนุมัติอัตโนมัติ</span>
+              <span className="text-destructive">❌ {batchProgress.failed} ผิดพลาด</span>
+            </div>
+          </Card>
+        )}
 
         {items.length === 0 ? (
           <Card className="p-12 text-center">
