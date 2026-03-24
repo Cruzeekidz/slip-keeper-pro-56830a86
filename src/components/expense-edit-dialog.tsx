@@ -151,6 +151,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       if (group === 'EVENT') return e.project_tag.startsWith('EVT-');
       if (group === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
       if (group === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      if (group === 'ENTITY_KUKANANG') return e.project_tag.startsWith('KUKAN-');
       return true;
     })
     .map(e => e.project_tag);
