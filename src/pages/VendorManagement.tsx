@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,10 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Clock, Search, Trash2 } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface VendorProfile {
@@ -62,7 +61,6 @@ const VendorManagement = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [selectedVendor, setSelectedVendor] = useState<VendorProfile | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
@@ -83,6 +81,38 @@ const VendorManagement = () => {
     if (invoiceRes.data) setInvoices(invoiceRes.data);
     setLoading(false);
   };
+
+  // Auto-link unlinked invoices to vendors by matching company name in description
+  const autoLinkInvoices = useCallback(async () => {
+    if (!user || vendors.length === 0) return;
+    const unlinked = invoices.filter((inv) => !inv.vendor_id && inv.description);
+    if (unlinked.length === 0) {
+      toast({ title: "ไม่มีบิลที่ต้องเชื่อม", description: "บิลทั้งหมดเชื่อมกับคู่ค้าแล้ว" });
+      return;
+    }
+
+    let linked = 0;
+    for (const inv of unlinked) {
+      const desc = (inv.description || "").toLowerCase();
+      const match = vendors.find((v) =>
+        desc.includes(v.company_name.toLowerCase()) ||
+        (v.tax_id && desc.includes(v.tax_id))
+      );
+      if (match) {
+        const { error } = await supabase
+          .from("vendor_invoices")
+          .update({ vendor_id: match.id })
+          .eq("id", inv.id);
+        if (!error) linked++;
+      }
+    }
+
+    toast({
+      title: `เชื่อมบิลอัตโนมัติสำเร็จ`,
+      description: `เชื่อมได้ ${linked} จาก ${unlinked.length} รายการ`,
+    });
+    if (linked > 0) fetchData();
+  }, [invoices, vendors, user]);
 
   const copyAccount = (account: string) => {
     const clean = account.replace(/[-\s]/g, "");
@@ -120,6 +150,19 @@ const VendorManagement = () => {
     }
   };
 
+  // Compute vendor summaries
+  const vendorSummaries = vendors.map((v) => {
+    const vInvoices = invoices.filter((inv) => inv.vendor_id === v.id);
+    const pending = vInvoices.filter((i) => i.status === "pending");
+    const approved = vInvoices.filter((i) => i.status === "approved");
+    const paid = vInvoices.filter((i) => i.status === "paid");
+    const totalOutstanding = [...pending, ...approved].reduce((s, i) => s + i.net_amount, 0);
+    const totalPaid = paid.reduce((s, i) => s + i.net_amount, 0);
+    return { vendor: v, invoiceCount: vInvoices.length, pendingCount: pending.length, approvedCount: approved.length, paidCount: paid.length, totalOutstanding, totalPaid };
+  });
+
+  const unlinkedCount = invoices.filter((i) => !i.vendor_id).length;
+
   const filteredVendors = vendors.filter((v) =>
     v.company_name.toLowerCase().includes(search.toLowerCase()) ||
     v.contact_name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -148,18 +191,104 @@ const VendorManagement = () => {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 space-y-4">
-        <Tabs defaultValue="vendors">
-          <TabsList className="grid w-full grid-cols-2">
+        {/* Unlinked invoices alert */}
+        {unlinkedCount > 0 && (
+          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+            <CardContent className="py-3 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                <AlertCircle className="h-5 w-5" />
+                <span className="text-sm font-medium">มี {unlinkedCount} บิลยังไม่ได้เชื่อมกับคู่ค้า</span>
+              </div>
+              <Button size="sm" variant="outline" onClick={autoLinkInvoices}>
+                <Link2 className="h-4 w-4 mr-1" /> เชื่อมอัตโนมัติ
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        <Tabs defaultValue="summary">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="summary">📊 สรุปรายคู่ค้า</TabsTrigger>
             <TabsTrigger value="vendors">
-              <Building2 className="h-4 w-4 mr-2" />
-              คู่ค้า ({vendors.length})
+              <Building2 className="h-4 w-4 mr-1" /> คู่ค้า ({vendors.length})
             </TabsTrigger>
             <TabsTrigger value="invoices">
-              <FileText className="h-4 w-4 mr-2" />
-              บิลเข้า ({invoices.length})
+              <FileText className="h-4 w-4 mr-1" /> บิล ({invoices.length})
             </TabsTrigger>
           </TabsList>
 
+          {/* Summary Tab */}
+          <TabsContent value="summary" className="space-y-3">
+            {vendorSummaries.length === 0 ? (
+              <Card><CardContent className="py-8 text-center text-muted-foreground">ยังไม่มีคู่ค้า</CardContent></Card>
+            ) : (
+              vendorSummaries.map(({ vendor, invoiceCount, pendingCount, approvedCount, paidCount, totalOutstanding, totalPaid }) => (
+                <Card key={vendor.id}>
+                  <CardContent className="py-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold">{vendor.company_name}</span>
+                          <Badge variant={vendor.vendor_type === "company" ? "default" : "secondary"}>
+                            {vendor.vendor_type === "company" ? "นิติบุคคล" : "บุคคลธรรมดา"}
+                          </Badge>
+                          <Badge variant="outline">{invoiceCount} บิล</Badge>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">รอตรวจสอบ</p>
+                            <p className="font-semibold text-amber-600">{pendingCount}</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">อนุมัติแล้ว</p>
+                            <p className="font-semibold text-blue-600">{approvedCount}</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">จ่ายแล้ว</p>
+                            <p className="font-semibold text-green-600">{paidCount}</p>
+                          </div>
+                          <div className="text-center p-2 rounded-lg bg-muted/50">
+                            <p className="text-xs text-muted-foreground">ยอดค้างจ่าย</p>
+                            <p className="font-bold text-destructive">{totalOutstanding.toLocaleString()} ฿</p>
+                          </div>
+                        </div>
+
+                        {vendor.bank_name && vendor.bank_account && (
+                          <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
+                            <span>🏦 {vendor.bank_name}: {vendor.bank_account}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => copyAccount(vendor.bank_account!)}>
+                              <Copy className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+
+            {/* Unlinked invoices summary */}
+            {unlinkedCount > 0 && (
+              <Card className="border-dashed">
+                <CardContent className="py-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <AlertCircle className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-bold text-muted-foreground">บิลที่ยังไม่เชื่อมคู่ค้า ({unlinkedCount})</span>
+                  </div>
+                  <div className="text-center p-2 rounded-lg bg-muted/50">
+                    <p className="text-xs text-muted-foreground">ยอดค้างจ่ายรวม</p>
+                    <p className="font-bold text-destructive">
+                      {invoices.filter((i) => !i.vendor_id && i.status !== "paid").reduce((s, i) => s + i.net_amount, 0).toLocaleString()} ฿
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Vendors Tab */}
           <TabsContent value="vendors" className="space-y-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -230,6 +359,7 @@ const VendorManagement = () => {
             )}
           </TabsContent>
 
+          {/* Invoices Tab */}
           <TabsContent value="invoices" className="space-y-4">
             <div className="flex gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -258,6 +388,7 @@ const VendorManagement = () => {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold">{inv.description || "บิลจากคู่ค้า"}</span>
                               <Badge variant={st.variant}>{st.label}</Badge>
+                              {!inv.vendor_id && <Badge variant="destructive" className="text-xs">ยังไม่เชื่อม</Badge>}
                             </div>
                             <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
                               {inv.invoice_number && <p>เลขที่: {inv.invoice_number}</p>}
@@ -267,6 +398,25 @@ const VendorManagement = () => {
                               {inv.wht_amount > 0 && <p>หัก ณ ที่จ่าย: {inv.wht_amount.toLocaleString()} บาท</p>}
                               <p className="text-xs">สร้างเมื่อ: {new Date(inv.created_at).toLocaleDateString("th-TH")}</p>
                             </div>
+
+                            {/* Manual link dropdown for unlinked invoices */}
+                            {!inv.vendor_id && vendors.length > 0 && (
+                              <div className="mt-2">
+                                <Select onValueChange={async (vendorId) => {
+                                  const { error } = await supabase.from("vendor_invoices").update({ vendor_id: vendorId }).eq("id", inv.id);
+                                  if (!error) { toast({ title: "เชื่อมคู่ค้าสำเร็จ" }); fetchData(); }
+                                }}>
+                                  <SelectTrigger className="w-48 h-8 text-xs">
+                                    <SelectValue placeholder="เลือกคู่ค้าเพื่อเชื่อม..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {vendors.map((v) => (
+                                      <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-col gap-1 items-end">
                             {inv.file_url && (
