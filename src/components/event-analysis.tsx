@@ -326,6 +326,14 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
 
       const groupTagSet = new Set(groups.map(g => g.project_tag));
 
+      // Build lookup maps for navigation
+      const tagToReadygoId = new Map<string, string>();
+      const tagToGroupId = new Map<string, string>();
+      activeRegistry.forEach(r => {
+        if (r.readygo_event_id) tagToReadygoId.set(r.project_tag, r.readygo_event_id);
+      });
+      groups.forEach(g => tagToGroupId.set(g.project_tag, g.id));
+
       const result: EventPLData[] = Array.from(map.entries())
         .map(([tag, data]) => ({
           tag,
@@ -335,9 +343,10 @@ export function EventAnalysis({ recentOnly = false }: EventAnalysisProps) {
           profit: data.income - data.expense,
           hasReadyGoData: readyGoRevenueMap.has(tag) || groupTagSet.has(tag),
           eventDate: tagDateMap.get(tag) || null,
+          readygoEventId: tagToReadygoId.get(tag) || null,
+          groupId: tagToGroupId.get(tag) || null,
         }))
         .sort((a, b) => {
-          // Sort by event date descending (newest first), null dates go last
           if (a.eventDate && b.eventDate) return b.eventDate.localeCompare(a.eventDate);
           if (a.eventDate && !b.eventDate) return -1;
           if (!a.eventDate && b.eventDate) return 1;
