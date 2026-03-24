@@ -23,10 +23,11 @@ Groups:
   Subcategories: Staff, Equipment, Venue, Other
 - VENUE: สนามจักรยาน operations
   Subcategories: Stock (น้ำ/ไอติม), Maintenance, Utilities, Other
-- ENTITY_KUKANANG: ธุรกิจคู่ขนาน (Parallel School)
+- ENTITY_KUKANANG: ธุรกิจคู่ขนาน (Entity 3)
   Subcategories: Staff, Venue, Equipment, Marketing, Utilities, Other
-- ENTITY_BCC: ธุรกิจ BCC
-  Subcategories: Staff, Venue, Equipment, Marketing, Utilities, Other
+- ENTITY_BCC_NEXT: ธุรกิจ BCC Next (Entity 2) → project_tag = "BCCNEXT-ชื่อโครงการ"
+  โครงการย่อย: Peca Bridge, EngineerX 2025 T1/T2, Play Box 2026
+  Subcategories: Staff, Venue, Equipment, Marketing, Printing, Prizes, Transport, Utilities, Other
 - GENERAL: ค่าใช้จ่ายทั่วไปบริษัท
   Subcategories: Salary, Marketing & Ads, Accounting, Consulting, Vehicle, Software & Subscription, Legal, Logistics, Investment, Utilities, Other
 
@@ -64,29 +65,30 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 8. **Refund/คืนเงิน**: "refund/คืนเงิน/คืนค่าสมัคร [อีเวนท์]"
    เช่น "refund Terminal21", "คืนค่าสมัคร KMT41" → Refund, transaction_direction: EXPENSE
 
-#### B. ENTITY patterns:
-9. **Entity + subcategory**: "[subcategory] [entity]"
-   เช่น "staff BCC" → ENTITY_BCC > Staff
-   เช่น "venue คู่ขนาน" → ENTITY_KUKANANG > Venue
-   เช่น "expense BCC" → ENTITY_BCC > Other
+#### B. BCC Next / คู่ขนาน patterns:
+9. "staff BCC" / "Peca Bridge" / "EngineerX" / "Play Box" → ENTITY_BCC_NEXT
+   เช่น "staff Peca Bridge" → ENTITY_BCC_NEXT, project_tag: BCCNEXT-PecaBridge
+10. "venue คู่ขนาน" → ENTITY_KUKANANG
 
-#### C. ชื่ออีเวนท์ที่รู้จัก (รวมชื่อย่อ):
-- Terminal21 / T21 → project_tag: "EVT-T21", event_name: "Terminal21"
-- KMT + เลข (เช่น KMT41, KMT42) → project_tag: "EVT-KMT41"
-- Rockstar + เลข (เช่น Rockstar3, Rockstar4) → project_tag: "EVT-Rockstar3"
-- TNV2 / Tooniverse2 → project_tag: "EVT-TNV2", event_name: "Tooniverse2"
-- ชื่ออื่นๆ ที่ไม่รู้จัก → ใช้ชื่อเต็มเป็น project_tag เช่น "EVT-ชื่อ"
+#### C. ชื่อโครงการที่รู้จัก:
+- Terminal21 / T21 → project_tag: "EVT-Terminal21", event_name: "Terminal21"
+- KMT + เลข → EVT-KMT41
+- Rockstar + เลข → EVT-Rockstar3
+- Peca Bridge → BCCNEXT-PecaBridge (BCC Next)
+- EngineerX → BCCNEXT-EngineerX25-T1 หรือ T2
+- Play Box → BCCNEXT-PlayBox2026
+- ชื่ออื่นๆ → ใช้ชื่อเต็มเป็น project_tag
 
 ## กฎการจัดหมวดพิเศษ:
 - ถ้ามี "คู่ขนาน" หรือ "พระราม 2" → ENTITY_KUKANANG
-- ถ้ามี "BCC" → ENTITY_BCC
+- ถ้ามี "BCC" / "Peca Bridge" / "EngineerX" / "Play Box" → ENTITY_BCC_NEXT
 - ถ้ามี "3BB", "ทริปเปิลที", "TRUE", "AIS" (internet/phone) → BUSINESS > GENERAL > Utilities
 - ถ้าเป็นเงินเข้า/ค่าสมัคร/สปอนเซอร์ → transaction_direction = INCOME
 
 ## ข้อมูลที่ต้องดึง:
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 - transaction_type: TRANSFER / BUSINESS / PERSONAL
-- category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC / GENERAL (เฉพาะ BUSINESS) หรือ null
+- category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC_NEXT / GENERAL (เฉพาะ BUSINESS) หรือ null
 - project_tag: เช่น "EVT-Rockstar3", "PROG-BikeClass" หรือ null
 - subcategory: จากรายการด้านบน
 - transaction_direction: INCOME หรือ EXPENSE (default EXPENSE, ใช้ INCOME ถ้าเป็นรายรับ เช่น ค่าสมัคร/สปอนเซอร์)
@@ -115,7 +117,7 @@ const TOOL_SCHEMA = {
         receiver: { type: ["string", "null"] },
         transaction_id: { type: ["string", "null"] },
         transaction_type: { type: ["string", "null"], enum: ["TRANSFER", "BUSINESS", "PERSONAL", null] },
-        category_group: { type: ["string", "null"], enum: ["EVENT", "PROGRAM", "VENUE", "ENTITY_KUKANANG", "ENTITY_BCC", "GENERAL", null] },
+        category_group: { type: ["string", "null"], enum: ["EVENT", "PROGRAM", "VENUE", "ENTITY_KUKANANG", "ENTITY_BCC_NEXT", "GENERAL", null] },
         project_tag: { type: ["string", "null"] },
         category: { type: ["string", "null"] },
         project: { type: ["string", "null"] },
