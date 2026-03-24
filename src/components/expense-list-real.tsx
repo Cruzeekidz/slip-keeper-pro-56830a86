@@ -20,6 +20,8 @@ import {
   TransactionType, CategoryGroup,
   TRANSACTION_TYPES, CATEGORY_GROUPS,
   getTypeBadgeClass, formatTypeLabel,
+  getSubcategoriesForType, getDefaultProjectTags, showProjectTag,
+  TransactionDirection,
 } from "@/lib/category-constants";
 
 interface Expense {
