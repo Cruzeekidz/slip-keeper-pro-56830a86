@@ -612,6 +612,118 @@ const EventPnL = () => {
     toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" });
   };
 
+  // Reminders CRUD
+  const fetchReminders = async () => {
+    if (!user) return;
+    let query = supabase
+      .from("event_reminders" as any)
+      .select("*")
+      .eq("user_id", user.id);
+
+    if (selectedGroupId) {
+      query = query.eq("event_group_id", selectedGroupId);
+    } else if (selectedEventId) {
+      query = query.eq("event_id", selectedEventId);
+    } else {
+      setReminders([]);
+      return;
+    }
+
+    const { data } = await query.order("due_date", { ascending: true });
+    setReminders((data as any[]) || []);
+  };
+
+  const openCreateReminder = (prefillType?: string, prefillTitle?: string, prefillAmount?: number) => {
+    setEditingReminder(null);
+    setReminderType(prefillType || "billing");
+    setReminderTitle(prefillTitle || "");
+    setReminderDesc("");
+    setReminderAmount(prefillAmount ? String(prefillAmount) : "");
+    setReminderDueDate("");
+    setReminderBeforeDays("1");
+    setReminderNotifyLine(true);
+    setShowReminderDialog(true);
+  };
+
+  const openEditReminder = (r: EventReminder) => {
+    setEditingReminder(r);
+    setReminderType(r.reminder_type);
+    setReminderTitle(r.title);
+    setReminderDesc(r.description || "");
+    setReminderAmount(String(r.amount));
+    setReminderDueDate(r.due_date);
+    setReminderBeforeDays(String(r.remind_before_days));
+    setReminderNotifyLine(r.notify_line);
+    setShowReminderDialog(true);
+  };
+
+  const saveReminder = async () => {
+    if (!user || !reminderTitle.trim() || !reminderDueDate) {
+      toast({ title: "กรุณากรอกชื่อและวันครบกำหนด", variant: "destructive" });
+      return;
+    }
+    try {
+      const payload: any = {
+        user_id: user.id,
+        reminder_type: reminderType,
+        title: reminderTitle.trim(),
+        description: reminderDesc.trim() || null,
+        amount: Number(reminderAmount) || 0,
+        due_date: reminderDueDate,
+        remind_before_days: Number(reminderBeforeDays) || 1,
+        notify_line: reminderNotifyLine,
+      };
+      if (editingReminder) {
+        await supabase.from("event_reminders" as any).update(payload).eq("id", editingReminder.id);
+        toast({ title: "อัปเดตแจ้งเตือนสำเร็จ" });
+      } else {
+        payload.event_group_id = selectedGroupId || null;
+        payload.event_id = selectedGroupId ? null : selectedEventId || null;
+        await supabase.from("event_reminders" as any).insert(payload);
+        toast({ title: "สร้างแจ้งเตือนสำเร็จ" });
+      }
+      setShowReminderDialog(false);
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    }
+  };
+
+  const deleteReminder = async (id: string) => {
+    await supabase.from("event_reminders" as any).delete().eq("id", id);
+    fetchReminders();
+    toast({ title: "ลบแจ้งเตือนสำเร็จ" });
+  };
+
+  const toggleReminderCompleted = async (r: EventReminder) => {
+    const newCompleted = !r.is_completed;
+    await supabase.from("event_reminders" as any).update({
+      is_completed: newCompleted,
+      completed_at: newCompleted ? new Date().toISOString() : null,
+    }).eq("id", r.id);
+    fetchReminders();
+    toast({ title: newCompleted ? "ทำเครื่องหมายว่าเสร็จแล้ว" : "ยกเลิกสถานะเสร็จ" });
+  };
+
+  const sendReminderNow = async (r: EventReminder) => {
+    setSendingReminder(r.id);
+    try {
+      const { error } = await supabase.functions.invoke("send-reminder-line", {
+        body: { reminder_id: r.id },
+      });
+      if (error) throw error;
+      toast({ title: "ส่งแจ้งเตือนไปที่ LINE สำเร็จ" });
+      fetchReminders();
+    } catch (err) {
+      console.error(err);
+      toast({ title: "ส่งแจ้งเตือนไม่สำเร็จ", variant: "destructive" });
+    } finally {
+      setSendingReminder(null);
+    }
+  };
+
+
   const handleEventSelect = (eventId: string) => {
     setSelectedEventId(eventId);
     fetchFinancials(eventId);
