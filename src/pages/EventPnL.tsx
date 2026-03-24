@@ -810,7 +810,7 @@ const EventPnL = () => {
     { name: "ค่าสมัคร", value: Number(stats.actual_revenue || 0) },
     { name: "OTO1", value: Number(stats.oto1_revenue || 0) },
     { name: "OTO2", value: Number(stats.oto2_revenue || 0) },
-    ...(summary?.totalOtherIncome ? [{ name: "รายได้อื่น (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
+    ...(summary?.totalOtherIncome ? [{ name: "สินค้า/บริการ (Ready-go)", value: Number(summary.totalOtherIncome) }] : []),
     ...(localOtherIncomeTotal > 0 ? [{ name: "รายได้อื่น (บันทึกเอง)", value: localOtherIncomeTotal }] : []),
   ].filter(d => d.value > 0) : [];
 
@@ -1121,7 +1121,7 @@ const EventPnL = () => {
                   </div>
                   {summary.totalOtherIncome > 0 && (
                     <div className="flex justify-between py-2 border-b">
-                      <span className="text-sm">รายได้อื่นๆ (Ready-go)</span>
+                      <span className="text-sm">รายได้อื่น (ค่าสินค้า/บริการ Ready-go)</span>
                       <span className="font-medium">฿{formatNumber(summary.totalOtherIncome)}</span>
                     </div>
                   )}
@@ -1235,15 +1235,10 @@ const EventPnL = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {summary.totalExpenses > 0 && (
-                      <div className="flex justify-between py-2 border-b opacity-50">
-                        <span className="text-sm">จาก Ready-go.fun <span className="text-xs">(ไม่นับรวม)</span></span>
-                        <span className="font-medium text-muted-foreground line-through">฿{formatNumber(summary.totalExpenses)}</span>
-                      </div>
-                    )}
+                    {/* Local expenses from slips */}
                     {localExpenses > 0 && (
                       <div className="flex justify-between py-2 border-b">
-                        <span className="text-sm">จากสลิป (ระบบนี้)</span>
+                        <span className="text-sm font-medium">จากสลิป (ระบบนี้)</span>
                         <span className="font-medium text-red-600">฿{formatNumber(localExpenses)}</span>
                       </div>
                     )}
@@ -1265,18 +1260,35 @@ const EventPnL = () => {
                         <span className="text-amber-500">฿{formatNumber(refundableTotal)}</span>
                       </div>
                     )}
-                    {(financialData.financials || [])
-                      .filter(f => f.category === "expense")
-                      .map((f, i) => (
-                        <div key={i} className="flex justify-between py-1.5 text-sm text-muted-foreground">
-                          <span>{f.description || f.subcategory || "รายจ่าย"}</span>
-                          <span>฿{formatNumber(f.amount)}</span>
-                        </div>
-                      ))}
+
+                    {/* Total */}
                     <div className="flex justify-between pt-3 font-bold border-t-2">
                       <span>ค่าใช้จ่ายรวม</span>
                       <span className="text-red-600">฿{formatNumber(totalCost)}</span>
                     </div>
+
+                    {/* Ready-go reference items (not counted) */}
+                    {(financialData.financials || []).filter(f => f.category === "expense").length > 0 && (
+                      <>
+                        <div className="mt-4 pt-3 border-t border-dashed">
+                          <p className="text-xs text-muted-foreground mb-2">📋 รายการจาก Ready-go.fun (ข้อมูลอ้างอิง ไม่นับรวมในยอด เพื่อป้องกันซ้ำ)</p>
+                        </div>
+                        {summary.totalExpenses > 0 && (
+                          <div className="flex justify-between py-1 opacity-50">
+                            <span className="text-xs">รวมจาก Ready-go.fun</span>
+                            <span className="text-xs line-through">฿{formatNumber(summary.totalExpenses)}</span>
+                          </div>
+                        )}
+                        {(financialData.financials || [])
+                          .filter(f => f.category === "expense")
+                          .map((f, i) => (
+                            <div key={i} className="flex justify-between py-1 text-xs text-muted-foreground opacity-50">
+                              <span>{f.description || f.subcategory || "รายจ่าย"}</span>
+                              <span>฿{formatNumber(f.amount)}</span>
+                            </div>
+                          ))}
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>
