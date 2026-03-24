@@ -217,6 +217,23 @@ const EventPnL = () => {
     }
   }, [user]);
 
+  // Auto-select from URL params (from dashboard card click)
+  useEffect(() => {
+    if (!user || events.length === 0) return;
+    const groupParam = searchParams.get('group');
+    const eventParam = searchParams.get('event');
+    
+    if (groupParam && groups.length > 0) {
+      const group = groups.find(g => g.id === groupParam);
+      if (group && !selectedGroupId) {
+        fetchGroupFinancials(group);
+      }
+    } else if (eventParam && !selectedEventId) {
+      setSelectedEventId(eventParam);
+      fetchFinancials(eventParam);
+    }
+  }, [user, events, groups, searchParams]);
+
   useEffect(() => {
     if ((selectedEventId || selectedGroupId) && financialData) {
       fetchLocalExpenses();
