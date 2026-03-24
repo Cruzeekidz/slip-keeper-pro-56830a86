@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Trash2, Calendar, Tag, X, Pencil, Check } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Calendar, Tag, X, Pencil, Check, Loader2, RefreshCw, Link2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -19,6 +19,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { FestivalManagement } from "@/components/festival-management";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface EventRegistryItem {
   id: string;
@@ -31,6 +38,14 @@ interface EventRegistryItem {
   readygo_event_id: string | null;
 }
 
+interface ReadyGoEvent {
+  id: string;
+  title: string;
+  short_code: string;
+  event_date: string | null;
+  location: string | null;
+}
+
 const EventManagement = () => {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -38,6 +53,10 @@ const EventManagement = () => {
   const [events, setEvents] = useState<EventRegistryItem[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  // Ready-go events
+  const [readyGoEvents, setReadyGoEvents] = useState<ReadyGoEvent[]>([]);
+  const [loadingReadyGo, setLoadingReadyGo] = useState(false);
 
   // Form state
   const [eventName, setEventName] = useState("");
@@ -52,7 +71,10 @@ const EventManagement = () => {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (user) fetchEvents();
+    if (user) {
+      fetchEvents();
+      fetchReadyGoEvents();
+    }
   }, [user]);
 
   const fetchEvents = async () => {
@@ -62,6 +84,21 @@ const EventManagement = () => {
       .order('event_date', { ascending: false, nullsFirst: false });
     if (error) { console.error(error); return; }
     setEvents((data as EventRegistryItem[]) || []);
+  };
+
+  const fetchReadyGoEvents = async () => {
+    setLoadingReadyGo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
+        body: { action: "list-events" },
+      });
+      if (error) throw error;
+      setReadyGoEvents(data?.events || []);
+    } catch (err) {
+      console.error("Failed to fetch Ready-go events:", err);
+    } finally {
+      setLoadingReadyGo(false);
+    }
   };
 
   const resetForm = () => {
@@ -77,6 +114,23 @@ const EventManagement = () => {
     setEventDate(ev.event_date || "");
     setAliases(ev.aliases || []);
     setReadygoEventId(ev.readygo_event_id || "");
+    setDialogOpen(true);
+  };
+
+  const createFromReadyGo = (rg: ReadyGoEvent) => {
+    resetForm();
+    setEventName(rg.title);
+    // Generate a project tag from the title
+    const shortName = rg.title.replace(/[^a-zA-Z0-9\s]/g, '').trim().split(/\s+/).slice(0, 3).join('-').substring(0, 20);
+    const dateStr = rg.event_date ? rg.event_date.replace(/-/g, '').substring(0, 8) : '';
+    setProjectTag(`EVT-${shortName}${dateStr ? '-' + dateStr : ''}`);
+    setEventDate(rg.event_date || "");
+    setReadygoEventId(rg.id);
+    // Add short_code and location as aliases
+    const autoAliases: string[] = [];
+    if (rg.short_code) autoAliases.push(rg.short_code);
+    if (rg.location) autoAliases.push(rg.location);
+    setAliases(autoAliases);
     setDialogOpen(true);
   };
 
@@ -129,6 +183,15 @@ const EventManagement = () => {
     fetchEvents();
   };
 
+  // Find which Ready-go events are already linked
+  const linkedReadyGoIds = new Set(events.map(e => e.readygo_event_id).filter(Boolean));
+
+  // Unlinked Ready-go events
+  const unlinkedReadyGoEvents = readyGoEvents.filter(rg => !linkedReadyGoIds.has(rg.id));
+
+  // Get Ready-go event name by ID for display
+  const getReadyGoName = (id: string) => readyGoEvents.find(rg => rg.id === id)?.title || id.substring(0, 8) + '...';
+
   if (loading || !user) return null;
 
   return (
@@ -148,7 +211,7 @@ const EventManagement = () => {
                 <Plus className="h-4 w-4 mr-2" /> เพิ่มอีเวนท์
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingId ? "แก้ไขอีเวนท์" : "เพิ่มอีเวนท์ใหม่"}</DialogTitle>
               </DialogHeader>
@@ -167,9 +230,28 @@ const EventManagement = () => {
                   <Input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} />
                 </div>
                 <div>
-                  <Label>Ready-go Event ID (ถ้ามี)</Label>
-                  <Input value={readygoEventId} onChange={e => setReadygoEventId(e.target.value)} placeholder="เช่น 97fbe10a-8639-..." />
-                  <p className="text-xs text-muted-foreground mt-1">UUID ของอีเวนท์ใน Ready-go.fun สำหรับดึงรายได้อัตโนมัติ</p>
+                  <Label>เชื่อมต่อ Ready-go Event</Label>
+                  <Select value={readygoEventId} onValueChange={setReadygoEventId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="เลือกอีเวนท์จาก Ready-go (ถ้ามี)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">— ไม่เชื่อมต่อ —</SelectItem>
+                      {readyGoEvents.map(rg => (
+                        <SelectItem key={rg.id} value={rg.id} disabled={linkedReadyGoIds.has(rg.id) && readygoEventId !== rg.id}>
+                          <div className="flex flex-col">
+                            <span>{rg.title}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {rg.event_date ? new Date(rg.event_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : ''}
+                              {rg.location ? ` • ${rg.location}` : ''}
+                              {linkedReadyGoIds.has(rg.id) && readygoEventId !== rg.id ? ' (ผูกแล้ว)' : ''}
+                            </span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">เลือกเพื่อดึงรายได้จาก Ready-go.fun อัตโนมัติ</p>
                 </div>
                 <div>
                   <Label>ชื่อเรียกอื่น (Aliases)</Label>
@@ -192,7 +274,10 @@ const EventManagement = () => {
                     ))}
                   </div>
                 </div>
-                <Button onClick={handleSave} className="w-full" disabled={!eventName || !projectTag}>
+                <Button onClick={() => {
+                  if (readygoEventId === "none") setReadygoEventId("");
+                  handleSave();
+                }} className="w-full" disabled={!eventName || !projectTag}>
                   <Check className="h-4 w-4 mr-2" />
                   {editingId ? "บันทึกการแก้ไข" : "สร้างอีเวนท์"}
                 </Button>
@@ -203,6 +288,53 @@ const EventManagement = () => {
       </header>
 
       <main className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Ready-go Events - Quick Import */}
+        {unlinkedReadyGoEvents.length > 0 && (
+          <Card className="p-4 border-primary/20 bg-primary/5">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Link2 className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-foreground text-sm">อีเวนท์จาก Ready-go ที่ยังไม่ได้ผูก</h3>
+                <Badge variant="secondary" className="text-xs">{unlinkedReadyGoEvents.length}</Badge>
+              </div>
+              <Button variant="ghost" size="sm" onClick={fetchReadyGoEvents} disabled={loadingReadyGo}>
+                <RefreshCw className={`h-3.5 w-3.5 ${loadingReadyGo ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {unlinkedReadyGoEvents.slice(0, 6).map(rg => (
+                <button
+                  key={rg.id}
+                  onClick={() => createFromReadyGo(rg)}
+                  className="flex items-start gap-3 p-3 rounded-lg border bg-background hover:bg-accent text-left transition-colors"
+                >
+                  <Calendar className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm text-foreground truncate">{rg.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rg.event_date ? new Date(rg.event_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }) : 'ไม่ระบุวันที่'}
+                      {rg.location ? ` • ${rg.location}` : ''}
+                    </p>
+                  </div>
+                  <Plus className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                </button>
+              ))}
+            </div>
+            {unlinkedReadyGoEvents.length > 6 && (
+              <p className="text-xs text-muted-foreground mt-2 text-center">
+                และอีก {unlinkedReadyGoEvents.length - 6} อีเวนท์...
+              </p>
+            )}
+          </Card>
+        )}
+
+        {loadingReadyGo && readyGoEvents.length === 0 && (
+          <Card className="p-4 flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm">กำลังโหลดอีเวนท์จาก Ready-go...</span>
+          </Card>
+        )}
+
         {/* Festival Section */}
         <FestivalManagement userId={user.id} events={events} />
 
@@ -233,7 +365,9 @@ const EventManagement = () => {
                   )}
                   {!ev.is_active && <Badge variant="destructive" className="text-xs">ปิดใช้งาน</Badge>}
                   {ev.readygo_event_id && (
-                    <Badge className="text-xs bg-primary/10 text-primary border-0">Ready-go</Badge>
+                    <Badge className="text-xs bg-primary/10 text-primary border-0">
+                      Ready-go
+                    </Badge>
                   )}
                 </div>
                 {ev.aliases.length > 0 && (
