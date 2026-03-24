@@ -20,7 +20,7 @@ const TYPE_COLORS: Record<string, string> = {
   'BUSINESS/VENUE': 'hsl(160 60% 42%)',
   'BUSINESS/GENERAL': 'hsl(185 65% 42%)',
   'BUSINESS/ENTITY_KUKANANG': 'hsl(340 65% 50%)',
-  'BUSINESS/ENTITY_BCC': 'hsl(340 65% 60%)',
+  'BUSINESS/ENTITY_BCC_NEXT': 'hsl(340 65% 60%)',
   'PERSONAL': 'hsl(30 90% 55%)',
 };
 
