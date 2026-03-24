@@ -119,7 +119,10 @@ const EventPnL = () => {
   }, [user]);
 
   useEffect(() => {
-    if ((selectedEventId || selectedGroupId) && financialData) fetchLocalExpenses();
+    if ((selectedEventId || selectedGroupId) && financialData) {
+      fetchLocalExpenses();
+      fetchOtherIncomes();
+    }
   }, [selectedEventId, selectedGroupId, financialData]);
 
   const fetchEvents = async () => {
