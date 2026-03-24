@@ -297,6 +297,24 @@ const EventPnL = () => {
       searchTerms = [financialData.event.title];
     }
 
+    // Also look up registry for matching readygo_event_id to get project_tag and aliases
+    if (selectedEventId && !selectedGroupId) {
+      const { data: regData } = await supabase
+        .from("event_registry")
+        .select("project_tag, event_name, aliases")
+        .eq("readygo_event_id", selectedEventId)
+        .limit(1);
+      if (regData && regData.length > 0) {
+        const reg = regData[0];
+        searchTerms.push(reg.project_tag, reg.event_name);
+        if (reg.aliases && Array.isArray(reg.aliases)) {
+          searchTerms.push(...reg.aliases);
+        }
+      }
+    }
+
+    // Deduplicate and filter empty
+    searchTerms = [...new Set(searchTerms.filter(t => t && t.trim()))];
     if (searchTerms.length === 0) return;
 
     const orClauses = searchTerms
