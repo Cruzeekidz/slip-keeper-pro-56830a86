@@ -464,7 +464,7 @@ const EventPnL = () => {
     : [];
 
   const totalRevenue = Number(stats?.actual_revenue || 0) + Number(stats?.total_oto_revenue || 0) + Number(summary?.totalOtherIncome || 0) + localOtherIncomeTotal;
-  const totalCost = Number(summary?.totalExpenses || 0) + Number(localExpenses || 0) + totalProductCost;
+  const totalCost = Number(localExpenses || 0) + totalProductCost;
   const combinedProfit = totalRevenue - totalCost;
 
   const pnlBarData = [
@@ -881,9 +881,9 @@ const EventPnL = () => {
                 <CardContent>
                   <div className="space-y-2">
                     {summary.totalExpenses > 0 && (
-                      <div className="flex justify-between py-2 border-b">
-                        <span className="text-sm">จาก Ready-go.fun</span>
-                        <span className="font-medium text-red-600">฿{formatNumber(summary.totalExpenses)}</span>
+                      <div className="flex justify-between py-2 border-b opacity-50">
+                        <span className="text-sm">จาก Ready-go.fun <span className="text-xs">(ไม่นับรวม)</span></span>
+                        <span className="font-medium text-muted-foreground line-through">฿{formatNumber(summary.totalExpenses)}</span>
                       </div>
                     )}
                     {localExpenses > 0 && (
