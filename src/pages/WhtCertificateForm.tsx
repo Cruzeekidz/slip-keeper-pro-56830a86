@@ -14,6 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Plus, Trash2, FileText, Save, X } from "lucide-react";
 import { numberToThaiText } from "@/lib/thai-baht-text";
 import { INCOME_TYPES, PND_TYPES, PAYER_CONDITION_OPTIONS, type IncomeTypeOption } from "@/lib/wht-constants";
+import companyStampUrl from "@/assets/company-stamp.png";
 
 const DEFAULT_PAYER = {
   name: "บริษัท เม้งซินเทรดดิ้ง จำกัด (สำนักงานใหญ่)",
