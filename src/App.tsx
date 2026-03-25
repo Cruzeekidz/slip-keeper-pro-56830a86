@@ -36,7 +36,17 @@ import WhtCertificateForm from "./pages/WhtCertificateForm";
 import WhtCertificateList from "./pages/WhtCertificateList";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 10,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: { retry: 0 }
+  }
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
