@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,17 @@ import { useLiff } from "@/hooks/useLiff";
 
 type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
 
+const VIEW_PARAM_MAP: Record<string, PortalView> = {
+  "staff-register": "staff-register",
+  "staff-invoice": "staff-invoice",
+  "vendor-register": "vendor-register",
+  "vendor-bill": "vendor-bill",
+};
+
 const PublicPortal = () => {
-  const [view, setView] = useState<PortalView>("menu");
+  const params = new URLSearchParams(window.location.search);
+  const initialView = VIEW_PARAM_MAP[params.get("view") || ""] || "menu";
+  const [view, setView] = useState<PortalView>(initialView);
   const { lineUserId, lineProfile, isInLineApp, isReady } = useLiff();
 
   if (view !== "menu") {
