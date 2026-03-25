@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +11,9 @@ import browserImageCompression from "browser-image-compression";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const VendorBillUpload = () => {
+const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
-  const ownerId = searchParams.get("owner");
+  const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [billFile, setBillFile] = useState<File | null>(null);

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,10 +22,10 @@ interface EventOption {
   event_date: string | null;
 }
 
-const StaffInvoicePublicForm = () => {
-  const [searchParams] = useSearchParams();
-  const ownerParam = searchParams.get("owner");
-  const staffParam = searchParams.get("staff");
+const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
+  const fallbackParams = new URLSearchParams(window.location.search);
+  const ownerParam = ownerIdProp || fallbackParams.get("owner");
+  const staffParam = fallbackParams.get("staff");
 
   const [step, setStep] = useState<"search" | "form" | "submitted">(staffParam ? "form" : "search");
   const [phone, setPhone] = useState("");
