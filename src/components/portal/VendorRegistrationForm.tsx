@@ -90,7 +90,8 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName }: VendorRegistrat
         bank_name: form.bank_name || null,
         bank_account: form.bank_account || null,
         tax_doc_url: taxDocUrl,
-      });
+        line_user_id: lineUserId || null,
+      } as any);
 
       if (error) throw error;
       setSubmitted(true);

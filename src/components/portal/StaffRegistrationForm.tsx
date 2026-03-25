@@ -97,6 +97,7 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName }: StaffRegistratio
         address: form.address || null,
         daily_rate: form.daily_rate || 0,
         id_card_url: idCardUrl,
+        line_user_id: lineUserId || null,
       });
 
       if (error) throw error;
