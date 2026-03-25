@@ -4,10 +4,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
-import { Folder, ExternalLink, ChevronRight } from "lucide-react";
+import { Folder, ExternalLink, ChevronRight, CalendarIcon } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface ProjectSummaryData {
   tag: string;
@@ -28,7 +32,7 @@ interface ExpenseDetail {
   receipt_url: string | null;
 }
 
-type PeriodPreset = "all" | "this-year" | "last-year" | "this-month" | "last-3m" | "last-6m";
+type PeriodPreset = "all" | "this-year" | "last-year" | "this-month" | "last-3m" | "last-6m" | "custom";
 
 function getDateRange(preset: PeriodPreset): { from: string | null; to: string | null } {
   if (preset === "all") return { from: null, to: null };
@@ -65,6 +69,7 @@ const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
   { value: "last-6m", label: "6 เดือนล่าสุด" },
   { value: "this-year", label: `ปี ${new Date().getFullYear() + 543}` },
   { value: "last-year", label: `ปี ${new Date().getFullYear() + 542}` },
+  { value: "custom", label: "กำหนดเอง..." },
 ];
 
 export function ProjectSummary() {
@@ -73,6 +78,8 @@ export function ProjectSummary() {
   const [viewBy, setViewBy] = useState<"project_tag" | "category_group">("project_tag");
   const [period, setPeriod] = useState<PeriodPreset>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [customFrom, setCustomFrom] = useState<Date | undefined>();
+  const [customTo, setCustomTo] = useState<Date | undefined>();
   const [details, setDetails] = useState<ExpenseDetail[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const navigate = useNavigate();
@@ -95,7 +102,15 @@ export function ProjectSummary() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
   useExpensesRealtime(fetchAll);
 
-  const { from: dateFrom, to: dateTo } = useMemo(() => getDateRange(period), [period]);
+  const { from: dateFrom, to: dateTo } = useMemo(() => {
+    if (period === "custom") {
+      return {
+        from: customFrom ? format(customFrom, 'yyyy-MM-dd') : null,
+        to: customTo ? format(customTo, 'yyyy-MM-dd') : null,
+      };
+    }
+    return getDateRange(period);
+  }, [period, customFrom, customTo]);
 
   const projectData = useMemo(() => {
     const map = new Map<string, { totalAmount: number; count: number }>();
@@ -173,7 +188,7 @@ export function ProjectSummary() {
             <Folder className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-bold text-foreground">สรุปยอด (ไม่รวม TRANSFER)</h2>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPreset)}>
               <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -182,6 +197,33 @@ export function ProjectSummary() {
                 ))}
               </SelectContent>
             </Select>
+            {period === "custom" && (
+              <>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-[130px] justify-start text-left font-normal", !customFrom && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-1 h-3.5 w-3.5" />
+                      {customFrom ? format(customFrom, 'dd/MM/yyyy') : "จากวันที่"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customFrom} onSelect={setCustomFrom} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+                <span className="text-muted-foreground text-sm">ถึง</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className={cn("w-[130px] justify-start text-left font-normal", !customTo && "text-muted-foreground")}>
+                      <CalendarIcon className="mr-1 h-3.5 w-3.5" />
+                      {customTo ? format(customTo, 'dd/MM/yyyy') : "ถึงวันที่"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar mode="single" selected={customTo} onSelect={setCustomTo} initialFocus className="p-3 pointer-events-auto" />
+                  </PopoverContent>
+                </Popover>
+              </>
+            )}
             <Select value={viewBy} onValueChange={(v) => setViewBy(v as any)}>
               <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
