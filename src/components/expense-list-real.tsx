@@ -115,6 +115,17 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   useEffect(() => { fetchExpenses(); }, []);
   useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
+  // Auto-open edit dialog when editId is provided
+  useEffect(() => {
+    if (editId && expenses.length > 0) {
+      const target = expenses.find(e => e.id === editId);
+      if (target) {
+        setEditingExpense(target);
+        setEditDialogOpen(true);
+      }
+    }
+  }, [editId, expenses]);
+
   // Realtime subscription for new expenses (e.g. from LINE webhook)
   useEffect(() => {
     const channel = supabase
