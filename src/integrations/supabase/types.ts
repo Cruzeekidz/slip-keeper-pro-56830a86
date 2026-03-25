@@ -1137,6 +1137,7 @@ export type Database = {
         Row: {
           created_at: string
           doc_number: string | null
+          flowaccount_url: string | null
           id: string
           issue_date: string
           payee_address: string | null
@@ -1150,6 +1151,8 @@ export type Database = {
           payer_name: string | null
           payer_tax_id: string | null
           pnd_type: string
+          sent_at: string | null
+          sent_to_payee: boolean
           source_invoice_id: string | null
           source_type: string | null
           status: string
@@ -1161,6 +1164,7 @@ export type Database = {
         Insert: {
           created_at?: string
           doc_number?: string | null
+          flowaccount_url?: string | null
           id?: string
           issue_date?: string
           payee_address?: string | null
@@ -1174,6 +1178,8 @@ export type Database = {
           payer_name?: string | null
           payer_tax_id?: string | null
           pnd_type?: string
+          sent_at?: string | null
+          sent_to_payee?: boolean
           source_invoice_id?: string | null
           source_type?: string | null
           status?: string
@@ -1185,6 +1191,7 @@ export type Database = {
         Update: {
           created_at?: string
           doc_number?: string | null
+          flowaccount_url?: string | null
           id?: string
           issue_date?: string
           payee_address?: string | null
@@ -1198,6 +1205,8 @@ export type Database = {
           payer_name?: string | null
           payer_tax_id?: string | null
           pnd_type?: string
+          sent_at?: string | null
+          sent_to_payee?: boolean
           source_invoice_id?: string | null
           source_type?: string | null
           status?: string
