@@ -1,68 +1,80 @@
 
 
-# แผนสร้างระบบจัดการหนังสือรับรองหัก ณ ที่จ่าย (แบบ FlowAccount)
+# แผนปรับระบบหัก ณ ที่จ่าย: เปลี่ยนจากออกเอกสารเป็นตารางติดตาม + เก็บลิงก์ FlowAccount
 
-## สิ่งที่จะสร้าง
+## สิ่งที่เปลี่ยน
 
-### 1. หน้ารายการหนังสือรับรอง `/wht-certificates`
-ตาราง List View แสดงหนังสือรับรองทั้งหมด:
-- คอลัมน์: เลขที่, วันที่, ชื่อผู้รับ, ยอดจ่าย, ภาษีหัก, สถานะ (draft/completed)
-- Filter เดือน/ปี + ค้นหาชื่อ
-- ปุ่มแต่ละแถว: แก้ไข, พิมพ์ PDF, คัดลอกลิงก์แชร์, ลบ
-- สรุปยอดรวมด้านล่าง
-- ปุ่ม "สร้างหนังสือรับรองใหม่" ด้านบน
+**ยกเลิก**: ฟอร์มสร้างใบหัก ณ ที่จ่าย (WhtCertificateForm) และ Public Portal view สำหรับ WHT cert — ใช้ FlowAccount ออกเอกสารแทน
 
-### 2. ระบบแก้ไขเอกสารเดิม (Edit Mode)
-ปรับ `WhtCertificateForm.tsx` ให้รับ `?edit=<cert_id>`:
-- โหลดข้อมูล certificate + items จาก DB มาเติมฟอร์ม
-- เมื่อบันทึก → UPDATE แทน INSERT (ลบ items เดิม แล้ว INSERT ใหม่)
-- ปุ่ม "คัดลอกลิงก์แชร์" หลังบันทึกสำเร็จ
+**เก็บไว้**: ตาราง `wht_certificates` + `wht_certificate_items` ในฐานข้อมูล (ใช้เป็นข้อมูลติดตาม)
 
-### 3. หน้า Public สำหรับคู่ค้าดู/พิมพ์
-เพิ่ม view `wht-cert` ใน `PublicPortal.tsx`:
-- เปิดลิงก์ `/portal?view=wht-cert&id=xxx` ได้โดยไม่ต้อง login
-- แสดงหนังสือรับรองแบบ read-only พร้อมปุ่ม "พิมพ์" และ "ดาวน์โหลด PDF"
-- ใช้ database function `get_wht_certificate_public(uuid)` แบบ SECURITY DEFINER เพื่อดึงข้อมูลอย่างปลอดภัย
-
-### 4. Database Function
-สร้าง `get_wht_certificate_public(p_cert_id uuid)` ที่ return ข้อมูล certificate + items สำหรับเอกสารที่มี status = 'completed' เท่านั้น
+**สร้างใหม่**: หน้ารายการติดตามหัก ณ ที่จ่าย พร้อมช่องเก็บลิงก์ FlowAccount
 
 ---
 
-## ไฟล์ที่สร้าง/แก้ไข
+## 1. ปรับตารางฐานข้อมูล
 
-| ไฟล์ | รายละเอียด |
-|------|-----------|
-| `src/pages/WhtCertificateList.tsx` | **สร้างใหม่** — หน้ารายการ (ตาราง + filter + actions) |
-| `src/pages/WhtCertificateForm.tsx` | เพิ่ม edit mode (โหลด/อัปเดตจาก DB) + ปุ่มแชร์ลิงก์ |
-| `src/pages/PublicPortal.tsx` | เพิ่ม view `wht-cert` สำหรับคู่ค้าดูเอกสาร |
-| `src/components/portal/WhtCertPublicView.tsx` | **สร้างใหม่** — component แสดง WHT cert แบบ read-only + ปุ่มพิมพ์ |
-| `src/App.tsx` | เพิ่ม route `/wht-certificates` |
-| `src/pages/Index.tsx` | เพิ่มเมนูไปยังหน้ารายการ |
-| Migration SQL | สร้าง function `get_wht_certificate_public` |
+เพิ่มคอลัมน์ใน `wht_certificates`:
+- `flowaccount_url` (text, nullable) — ลิงก์ใบหัก ณ ที่จ่ายจาก FlowAccount
+- `sent_to_payee` (boolean, default false) — ส่งลิงก์ให้คู่ค้าแล้วหรือยัง
+- `sent_at` (timestamptz, nullable) — วันที่ส่ง
+
+## 2. ปรับหน้า WhtCertificateList.tsx → หน้าหลักของระบบ
+
+ตารางติดตามรายการหัก ณ ที่จ่าย:
+- คอลัมน์: วันที่, ชื่อผู้รับ, ยอดจ่าย, ภาษีหัก, สถานะ FlowAccount (มีลิงก์/ยังไม่มี), สถานะส่งคู่ค้า
+- ปุ่ม "วางลิงก์ FlowAccount" → เปิด dialog ให้ paste URL
+- ปุ่ม "คัดลอกลิงก์" → copy ลิงก์ FlowAccount ไปส่งให้คู่ค้า
+- ปุ่ม "ส่งแล้ว" → mark ว่าส่งให้คู่ค้าแล้ว
+- Filter ตามเดือน + สถานะ (ยังไม่เปิด FlowAccount / เปิดแล้วยังไม่ส่ง / ส่งแล้ว)
+- แสดงสรุป: จำนวนที่ยังไม่เปิด FlowAccount / ยังไม่ส่งคู่ค้า
+
+## 3. ปรับ WhtCertificateForm.tsx → ฟอร์มบันทึกข้อมูลอย่างง่าย
+
+ลดรูปจากฟอร์มออกเอกสาร เหลือแค่:
+- เลือกคู่ค้า (staff/vendor)
+- วันที่จ่าย, ยอดเงิน, อัตราภาษี, ภาษีหัก
+- บันทึกลง DB → กลับไปหน้า List
+- ตัดส่วน generate PDF ออกทั้งหมด
+
+## 4. LINE Bot: รับลิงก์ FlowAccount อัตโนมัติ
+
+เพิ่มตรรกะใน `line-webhook/index.ts`:
+- ถ้า admin ส่ง URL ที่มี `flowaccount.com` → ระบบจะ:
+  1. ดึงชื่อคู่ค้าจาก URL (ถ้าทำได้) หรือจาก context ข้อความ
+  2. ค้นหารายการ WHT ที่ยังไม่มีลิงก์ → จับคู่ตามชื่อ payee
+  3. ถ้าจับคู่ได้ → บันทึกลิงก์อัตโนมัติ + ตอบยืนยัน
+  4. ถ้าจับคู่ไม่ได้ → ตอบกลับแสดงรายการที่ยังไม่มีลิงก์ ให้เลือก
+
+**ข้อจำกัด**: การจับคู่อัตโนมัติจะทำได้เฉพาะกรณีที่ชื่อ payee ตรงกัน หรือมีรายการรอลิงก์แค่รายเดียว ถ้ามีหลายรายการที่ตรงกัน ระบบจะแจ้งให้เลือกหรือให้วางลิงก์เองในหน้าเว็บ
+
+## 5. ลบ/ปรับไฟล์
+
+| ไฟล์ | การดำเนินการ |
+|------|-------------|
+| `src/pages/WhtCertificateList.tsx` | **แก้ไข** — ปรับเป็นตารางติดตาม + เก็บลิงก์ |
+| `src/pages/WhtCertificateForm.tsx` | **แก้ไข** — ลดรูปเป็นฟอร์มบันทึกอย่างง่าย ตัด PDF ออก |
+| `src/components/portal/WhtCertPublicView.tsx` | **ลบ** — ไม่ใช้แล้ว (ใช้ FlowAccount แทน) |
+| `src/pages/PublicPortal.tsx` | **แก้ไข** — ลบ case `wht-cert` ออก |
+| `src/pages/Index.tsx` | **แก้ไข** — ปรับชื่อเมนูเป็น "ติดตามหัก ณ ที่จ่าย" |
+| `src/App.tsx` | ไม่เปลี่ยน (route ยังใช้เหมือนเดิม) |
+| `supabase/functions/line-webhook/index.ts` | **แก้ไข** — เพิ่มตรรกะรับลิงก์ FlowAccount |
+| Migration SQL | เพิ่มคอลัมน์ `flowaccount_url`, `sent_to_payee`, `sent_at` |
 
 ---
 
-## รายละเอียดทางเทคนิค
+## สรุปประสบการณ์ใช้งาน
 
-### Database Function
-```sql
-CREATE FUNCTION get_wht_certificate_public(p_cert_id uuid)
-RETURNS jsonb
-SECURITY DEFINER
--- คืนข้อมูล cert + items เฉพาะ status='completed'
-```
+```text
+Flow ปกติ:
+1. บันทึกรายการหัก ณ ที่จ่ายในระบบ (จากหน้าจ่ายเงิน staff หรือกรอกเอง)
+2. ไปเปิดเอกสารใน FlowAccount
+3. Copy ลิงก์จาก FlowAccount มาวางในตาราง (หรือส่งทาง LINE)
+4. กดปุ่ม "คัดลอกลิงก์" → ส่งให้คู่ค้า
+5. กด "ส่งแล้ว" เพื่อ mark สถานะ
 
-### Edit Mode Logic (WhtCertificateForm)
-- ถ้ามี `?edit=cert_id` → fetch cert + items → populate state
-- บันทึก → `UPDATE wht_certificates` + `DELETE` items เดิม + `INSERT` items ใหม่
-
-### Public View (WhtCertPublicView)
-- เรียก `supabase.rpc('get_wht_certificate_public', { p_cert_id })` โดยไม่ต้อง auth
-- Render HTML เดียวกับ PDF template แต่แสดงในหน้าเว็บ + ปุ่ม print
-
-### Share Link Format
-```
-/portal?view=wht-cert&id={certificate_id}
+ตารางช่วยตรวจสอบ:
+- รายการไหนยังไม่เปิด FlowAccount (ไม่มีลิงก์)
+- รายการไหนเปิดแล้วแต่ยังไม่ส่งให้คู่ค้า
 ```
 
