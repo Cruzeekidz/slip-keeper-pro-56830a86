@@ -193,9 +193,22 @@ const WhtReport = () => {
     toast({ title: `ส่งออก ภ.ง.ด.${pndType} สำเร็จ` });
   };
 
-  const openCertDialog = (entry: WhtEntry) => {
-    setCertEntry(entry);
-    setShowPayerDialog(true);
+  const openCertForm = (entry: WhtEntry) => {
+    // Navigate to WHT certificate form with prefilled data
+    const params = new URLSearchParams({
+      payee_name: entry.payee_name,
+      payee_tax_id: entry.tax_id,
+      payee_address: entry.address,
+      payee_type: entry.pnd_type === "53" ? "company" : "individual",
+      pnd_type: entry.pnd_type,
+      gross_amount: String(entry.gross_amount),
+      wht_amount: String(entry.wht_amount),
+      wht_rate: String(entry.wht_rate),
+      paid_date: entry.paid_date,
+      source_id: entry.id,
+      source_type: entry.source,
+    });
+    navigate(`/wht-certificate?${params.toString()}`);
   };
 
   const generateWhtCert = () => {
@@ -376,7 +389,7 @@ const WhtReport = () => {
                   <TableCell className="text-right font-semibold">{e.wht_amount.toLocaleString()}</TableCell>
                   <TableCell className="text-xs">{e.paid_date}</TableCell>
                   <TableCell>
-                    <Button variant="ghost" size="icon" title="สร้างหนังสือรับรอง" onClick={() => openCertDialog(e)}>
+                    <Button variant="ghost" size="icon" title="สร้างหนังสือรับรอง" onClick={() => openCertForm(e)}>
                       <Printer className="h-4 w-4" />
                     </Button>
                   </TableCell>
