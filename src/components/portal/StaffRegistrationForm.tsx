@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,7 @@ import { CheckCircle, Users, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
 
-const OWNER_USER_ID = ""; // Will be set via query param
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface StaffRegistrationFormProps {
   lineUserId?: string | null;
@@ -18,6 +19,8 @@ interface StaffRegistrationFormProps {
 
 const StaffRegistrationForm = ({ lineUserId, lineDisplayName }: StaffRegistrationFormProps) => {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const ownerId = searchParams.get("owner");
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
@@ -59,17 +62,13 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName }: StaffRegistratio
       toast({ title: "กรุณากรอกชื่อและเบอร์โทร", variant: "destructive" });
       return;
     }
+    if (!ownerId || !UUID_REGEX.test(ownerId)) {
+      toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Get owner user_id from URL params
-      const params = new URLSearchParams(window.location.search);
-      const ownerId = params.get("owner");
-      if (!ownerId) {
-        toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
-        setSubmitting(false);
-        return;
-      }
 
       let idCardUrl = null;
 
