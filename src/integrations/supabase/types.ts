@@ -1039,6 +1039,7 @@ export type Database = {
           email: string | null
           id: string
           is_active: boolean
+          line_user_id: string | null
           phone: string | null
           tax_doc_url: string | null
           tax_id: string | null
@@ -1055,6 +1056,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          line_user_id?: string | null
           phone?: string | null
           tax_doc_url?: string | null
           tax_id?: string | null
@@ -1071,6 +1073,7 @@ export type Database = {
           email?: string | null
           id?: string
           is_active?: boolean
+          line_user_id?: string | null
           phone?: string | null
           tax_doc_url?: string | null
           tax_id?: string | null

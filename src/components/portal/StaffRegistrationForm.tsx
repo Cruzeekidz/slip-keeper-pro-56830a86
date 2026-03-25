@@ -11,7 +11,12 @@ import browserImageCompression from "browser-image-compression";
 
 const OWNER_USER_ID = ""; // Will be set via query param
 
-const StaffRegistrationForm = () => {
+interface StaffRegistrationFormProps {
+  lineUserId?: string | null;
+  lineDisplayName?: string | null;
+}
+
+const StaffRegistrationForm = ({ lineUserId, lineDisplayName }: StaffRegistrationFormProps) => {
   const { toast } = useToast();
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -92,6 +97,7 @@ const StaffRegistrationForm = () => {
         address: form.address || null,
         daily_rate: form.daily_rate || 0,
         id_card_url: idCardUrl,
+        line_user_id: lineUserId || null,
       });
 
       if (error) throw error;

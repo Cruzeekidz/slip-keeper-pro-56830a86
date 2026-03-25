@@ -1,0 +1,1 @@
+ALTER TABLE public.vendor_profiles ADD COLUMN IF NOT EXISTS line_user_id text;

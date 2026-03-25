@@ -10,7 +10,12 @@ import { CheckCircle, Building2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
 
-const VendorRegistrationForm = () => {
+interface VendorRegistrationFormProps {
+  lineUserId?: string | null;
+  lineDisplayName?: string | null;
+}
+
+const VendorRegistrationForm = ({ lineUserId, lineDisplayName }: VendorRegistrationFormProps) => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
   const ownerId = searchParams.get("owner");
@@ -85,7 +90,8 @@ const VendorRegistrationForm = () => {
         bank_name: form.bank_name || null,
         bank_account: form.bank_account || null,
         tax_doc_url: taxDocUrl,
-      });
+        line_user_id: lineUserId || null,
+      } as any);
 
       if (error) throw error;
       setSubmitted(true);
