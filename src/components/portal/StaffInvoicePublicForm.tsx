@@ -95,8 +95,8 @@ const StaffInvoicePublicForm = () => {
     const query = (supabase
       .from("staff_profiles_public" as any)
       .select("id, staff_name, daily_rate, user_id")
-      .eq("is_active", true) as any);
-      .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`);
+      .eq("is_active", true)
+      .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`) as any);
 
     const { data } = ownerParam ? await query.eq("user_id", ownerParam) : await query;
     if (data && data.length > 0) {
