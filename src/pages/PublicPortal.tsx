@@ -68,10 +68,10 @@ const PublicPortal = () => {
               <Badge variant="secondary" className="text-xs">เชื่อมต่อแล้ว</Badge>
             </div>
           )}
-          {view === "staff-register" && <StaffRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} />}
-          {view === "staff-invoice" && <StaffInvoicePublicForm />}
-          {view === "vendor-register" && <VendorRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} />}
-          {view === "vendor-bill" && <VendorBillUpload />}
+          {view === "staff-register" && <StaffRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} ownerId={ownerId} />}
+          {view === "staff-invoice" && <StaffInvoicePublicForm ownerId={ownerId} />}
+          {view === "vendor-register" && <VendorRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} ownerId={ownerId} />}
+          {view === "vendor-bill" && <VendorBillUpload ownerId={ownerId} />}
         </div>
       </div>
     );
