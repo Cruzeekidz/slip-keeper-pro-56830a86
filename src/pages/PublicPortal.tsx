@@ -18,8 +18,35 @@ const VIEW_PARAM_MAP: Record<string, PortalView> = {
   "vendor-bill": "vendor-bill",
 };
 
-const PublicPortal = () => {
+// Parse query params, including LIFF's liff.state fallback
+const getPortalParams = (): URLSearchParams => {
   const params = new URLSearchParams(window.location.search);
+  // LIFF may encode original params inside liff.state (used in external browsers)
+  if (!params.get("view") && !params.get("owner")) {
+    const liffState = params.get("liff.state");
+    if (liffState) {
+      // liff.state can be a path+query like "/portal?view=staff-register&owner=xxx"
+      const qIndex = liffState.indexOf("?");
+      if (qIndex !== -1) {
+        return new URLSearchParams(liffState.substring(qIndex + 1));
+      }
+    }
+    // Also check hash fragment (some LIFF versions)
+    if (window.location.hash) {
+      const hashQuery = window.location.hash.replace(/^#.*\?/, "");
+      if (hashQuery && hashQuery !== window.location.hash) {
+        const hashParams = new URLSearchParams(hashQuery);
+        if (hashParams.get("view") || hashParams.get("owner")) {
+          return hashParams;
+        }
+      }
+    }
+  }
+  return params;
+};
+
+const PublicPortal = () => {
+  const params = getPortalParams();
   const initialView = VIEW_PARAM_MAP[params.get("view") || ""] || "menu";
   const [view, setView] = useState<PortalView>(initialView);
   const { lineUserId, lineProfile, isInLineApp, isReady } = useLiff();
