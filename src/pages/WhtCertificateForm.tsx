@@ -265,7 +265,7 @@ const WhtCertificateForm = () => {
     }
   };
 
-  const generatePDF = (payeeInfo?: { name: string; taxId: string; address: string; type: string }) => {
+  const generatePDF = async (payeeInfo?: { name: string; taxId: string; address: string; type: string }) => {
     const pi = payeeInfo || (() => {
       const info = getPayeeInfo();
       if (!info) { toast({ title: "กรุณาเลือกผู้ถูกหักภาษี", variant: "destructive" }); return null; }
@@ -273,6 +273,20 @@ const WhtCertificateForm = () => {
     })();
     if (!pi) return;
     if (totalGross <= 0) { toast({ title: "กรุณากรอกจำนวนเงิน", variant: "destructive" }); return; }
+
+    // Convert stamp image to base64
+    let stampBase64 = "";
+    try {
+      const response = await fetch(companyStampUrl);
+      const blob = await response.blob();
+      stampBase64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) {
+      console.warn("Could not load stamp image", e);
+    }
 
     const payerTaxBoxes = formatTaxIdBoxes(payer.taxId.replace(/\D/g, ""));
     const payeeTaxBoxes = formatTaxIdBoxes(pi.taxId.replace(/\D/g, ""));
@@ -288,6 +302,12 @@ const WhtCertificateForm = () => {
         <td style="text-align:right;">${item.taxAmount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
       </tr>`;
     }).join("");
+
+    const issueDateThai = new Date(issueDate).toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+
+    const stampHtml = stampBase64 
+      ? `<img src="${stampBase64}" style="width:180px;height:auto;margin-bottom:5px;" />`
+      : "";
 
     const html = `<!DOCTYPE html>
 <html lang="th">
@@ -311,7 +331,8 @@ const WhtCertificateForm = () => {
   .checked { background:#000;color:#fff; }
   .sign-section { display:flex;justify-content:space-between;margin-top:40px; }
   .sign-box { text-align:center;width:45%; }
-  .sign-line { border-top:1px dotted #000;margin-top:50px;padding-top:5px; }
+  .sign-line { border-top:1px dotted #000;margin-top:10px;padding-top:5px; }
+  .stamp-area { min-height:80px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end; }
   .print-btn { background:#e11d48;color:white;border:none;padding:12px 30px;font-size:16px;cursor:pointer;border-radius:6px;display:block;margin:20px auto; }
 </style>
 </head>
@@ -372,8 +393,19 @@ const WhtCertificateForm = () => {
 </div>
 
 <div class="sign-section">
-  <div class="sign-box"><div class="sign-line">ผู้จ่ายเงิน</div><p style="font-size:12px;">วันที่ ........./........./.........</p></div>
-  <div class="sign-box"><div class="sign-line">ผู้รับเงิน</div><p style="font-size:12px;">วันที่ ........./........./.........</p></div>
+  <div class="sign-box">
+    <div class="stamp-area">
+      ${stampHtml}
+    </div>
+    <div class="sign-line">ผู้จ่ายเงิน</div>
+    <p style="font-size:12px;margin:4px 0 0;">${payer.name}</p>
+    <p style="font-size:12px;margin:2px 0;">วันที่ ${issueDateThai}</p>
+  </div>
+  <div class="sign-box">
+    <div class="stamp-area"></div>
+    <div class="sign-line">ผู้รับเงิน</div>
+    <p style="font-size:12px;margin:4px 0 0;">วันที่ ........./........./.........</p>
+  </div>
 </div>
 </body></html>`;
 
