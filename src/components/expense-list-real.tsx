@@ -47,7 +47,7 @@ interface Expense {
   event_name: string | null;
 }
 
-export function ExpenseListReal() {
+export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -114,6 +114,17 @@ export function ExpenseListReal() {
 
   useEffect(() => { fetchExpenses(); }, []);
   useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+
+  // Auto-open edit dialog when editId is provided
+  useEffect(() => {
+    if (editId && expenses.length > 0) {
+      const target = expenses.find(e => e.id === editId);
+      if (target) {
+        setEditingExpense(target);
+        setEditDialogOpen(true);
+      }
+    }
+  }, [editId, expenses]);
 
   // Realtime subscription for new expenses (e.g. from LINE webhook)
   useEffect(() => {
