@@ -880,6 +880,13 @@ export type Database = {
             referencedRelation: "staff_profiles"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "staff_invoices_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles_public"
+            referencedColumns: ["id"]
+          },
         ]
       }
       staff_profiles: {
@@ -1084,9 +1091,50 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      staff_profiles_public: {
+        Row: {
+          daily_rate: number | null
+          id: string | null
+          is_active: boolean | null
+          nickname: string | null
+          phone: string | null
+          staff_name: string | null
+          user_id: string | null
+        }
+        Insert: {
+          daily_rate?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          nickname?: string | null
+          phone?: string | null
+          staff_name?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          daily_rate?: number | null
+          id?: string | null
+          is_active?: boolean | null
+          nickname?: string | null
+          phone?: string | null
+          staff_name?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      get_staff_public_info: {
+        Args: { p_staff_id: string }
+        Returns: {
+          daily_rate: number
+          id: string
+          is_active: boolean
+          nickname: string
+          phone: string
+          staff_name: string
+          user_id: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
