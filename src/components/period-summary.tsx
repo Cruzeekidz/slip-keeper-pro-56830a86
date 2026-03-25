@@ -1,70 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { supabase } from "@/integrations/supabase/client";
 import { Calendar } from "lucide-react";
-import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
-
-interface PeriodData {
-  period: string;
-  totalAmount: number;
-  transferAmount: number;
-  count: number;
-}
+import { usePeriodSummaryData } from "@/hooks/useDashboardData";
 
 type PeriodType = "month" | "year";
 
 export function PeriodSummary() {
   const [periodType, setPeriodType] = useState<PeriodType>("month");
-  const [periodData, setPeriodData] = useState<PeriodData[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchPeriodSummary();
-  }, [periodType]);
-
-  useExpensesRealtime(useCallback(() => fetchPeriodSummary(), [periodType]));
-
-  const fetchPeriodSummary = async () => {
-    setLoading(true);
-    try {
-      const { data: expenses, error } = await supabase
-        .from('expenses')
-        .select('expense_date, amount, transaction_type')
-        .order('expense_date', { ascending: false });
-
-      if (error) throw error;
-
-      const periodMap = new Map<string, { totalAmount: number; transferAmount: number; count: number }>();
-
-      expenses?.forEach(expense => {
-        const date = new Date(expense.expense_date);
-        const periodKey = periodType === "month"
-          ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-          : String(date.getFullYear());
-
-        const current = periodMap.get(periodKey) || { totalAmount: 0, transferAmount: 0, count: 0 };
-        if (expense.transaction_type === 'TRANSFER') {
-          current.transferAmount += expense.amount;
-        } else {
-          current.totalAmount += expense.amount;
-        }
-        current.count += 1;
-        periodMap.set(periodKey, current);
-      });
-
-      const summaries = Array.from(periodMap.entries())
-        .map(([period, data]) => ({ period, ...data }))
-        .sort((a, b) => b.period.localeCompare(a.period));
-
-      setPeriodData(summaries);
-    } catch (error) {
-      console.error('Error fetching period summary:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { periodData, isLoading } = usePeriodSummaryData(periodType);
 
   const formatPeriod = (period: string) => {
     if (periodType === "month") {
@@ -75,7 +20,7 @@ export function PeriodSummary() {
     return `ปี ${parseInt(period) + 543}`;
   };
 
-  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
+  if (isLoading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   return (
     <Card className="p-6 bg-gradient-card shadow-card">

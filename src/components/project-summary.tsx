@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -8,16 +8,10 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { Folder, ExternalLink, ChevronRight, CalendarIcon } from "lucide-react";
-import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-interface ProjectSummaryData {
-  tag: string;
-  totalAmount: number;
-  count: number;
-}
+import { useProjectSummaryData } from "@/hooks/useDashboardData";
 
 interface ExpenseDetail {
   id: string;
@@ -73,8 +67,6 @@ const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
 ];
 
 export function ProjectSummary() {
-  const [allExpenses, setAllExpenses] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [viewBy, setViewBy] = useState<"project_tag" | "category_group">("project_tag");
   const [period, setPeriod] = useState<PeriodPreset>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
@@ -83,24 +75,6 @@ export function ProjectSummary() {
   const [details, setDetails] = useState<ExpenseDetail[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const navigate = useNavigate();
-
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('project_tag, category_group, transaction_type, amount, expense_date');
-      if (error) throw error;
-      setAllExpenses(data || []);
-    } catch (error) {
-      console.error('Error fetching project summary:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { fetchAll(); }, [fetchAll]);
-  useExpensesRealtime(fetchAll);
 
   const { from: dateFrom, to: dateTo } = useMemo(() => {
     if (period === "custom") {
@@ -112,31 +86,7 @@ export function ProjectSummary() {
     return getDateRange(period);
   }, [period, customFrom, customTo]);
 
-  const projectData = useMemo(() => {
-    const map = new Map<string, { totalAmount: number; count: number }>();
-
-    allExpenses.forEach(expense => {
-      if (expense.transaction_type === 'TRANSFER') return;
-      if (dateFrom && expense.expense_date < dateFrom) return;
-      if (dateTo && expense.expense_date > dateTo) return;
-
-      const key = viewBy === "project_tag"
-        ? expense.project_tag || 'ไม่ระบุแท็ก'
-        : expense.transaction_type === 'BUSINESS'
-          ? expense.category_group || 'ไม่ระบุกลุ่ม'
-          : expense.transaction_type || 'ไม่ระบุ';
-
-      const current = map.get(key) || { totalAmount: 0, count: 0 };
-      map.set(key, { totalAmount: current.totalAmount + expense.amount, count: current.count + 1 });
-    });
-
-    return Array.from(map.entries())
-      .map(([tag, data]) => ({ tag, ...data }))
-      .sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [allExpenses, viewBy, dateFrom, dateTo]);
-
-  const grandTotal = useMemo(() => projectData.reduce((s, d) => s + d.totalAmount, 0), [projectData]);
-  const grandCount = useMemo(() => projectData.reduce((s, d) => s + d.count, 0), [projectData]);
+  const { projectData, grandTotal, grandCount, isLoading } = useProjectSummaryData(viewBy, dateFrom, dateTo);
 
   const fetchDetails = async (tag: string) => {
     setSelectedTag(tag);
@@ -178,7 +128,7 @@ export function ProjectSummary() {
     }
   };
 
-  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
+  if (isLoading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   return (
     <>

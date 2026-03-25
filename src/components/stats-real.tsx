@@ -1,81 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
 import { StatsCard } from "@/components/ui/stats-card";
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, ArrowRightLeft, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
+import { TrendingDown, DollarSign, ShoppingCart, ArrowRightLeft, AlertTriangle } from "lucide-react";
+import { useStatsReal } from "@/hooks/useDashboardData";
 
 export function StatsReal() {
-  const [stats, setStats] = useState({
-    currentYearBusiness: 0,
-    currentYearPersonal: 0,
-    currentYearTransfers: 0,
-    lastYearBusiness: 0,
-    lastYearPersonal: 0,
-    lastYearTransfers: 0,
-    monthlyExpenses: 0,
-    expenseCount: 0,
-    monthlyChange: 0,
-    needsReviewCount: 0,
-  });
-
-  useEffect(() => {
-    fetchStats();
-  }, []);
-
-  useExpensesRealtime(useCallback(() => fetchStats(), []));
-
-  const fetchStats = async () => {
-    try {
-      const { data: allExpenses, error } = await supabase
-        .from('expenses')
-        .select('amount, expense_date, transaction_type, needs_review');
-
-      if (error) throw error;
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
-      const lastYear = currentYear - 1;
-      const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-      const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-
-      const byYearType = (year: number, type: string) =>
-        allExpenses?.filter(e => new Date(e.expense_date).getFullYear() === year && e.transaction_type === type)
-          .reduce((sum, e) => sum + e.amount, 0) || 0;
-
-      const currentMonthExpenses = allExpenses?.filter(e => {
-        const d = new Date(e.expense_date);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear && e.transaction_type !== 'TRANSFER';
-      }).reduce((sum, e) => sum + e.amount, 0) || 0;
-
-      const lastMonthExpenses = allExpenses?.filter(e => {
-        const d = new Date(e.expense_date);
-        return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear && e.transaction_type !== 'TRANSFER';
-      }).reduce((sum, e) => sum + e.amount, 0) || 0;
-
-      const monthlyChange = lastMonthExpenses > 0
-        ? ((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
-
-      const expenseCount = allExpenses?.filter(e => e.transaction_type !== 'TRANSFER').length || 0;
-      const needsReviewCount = allExpenses?.filter(e => e.needs_review).length || 0;
-
-      setStats({
-        currentYearBusiness: byYearType(currentYear, 'BUSINESS'),
-        currentYearPersonal: byYearType(currentYear, 'PERSONAL'),
-        currentYearTransfers: byYearType(currentYear, 'TRANSFER'),
-        lastYearBusiness: byYearType(lastYear, 'BUSINESS'),
-        lastYearPersonal: byYearType(lastYear, 'PERSONAL'),
-        lastYearTransfers: byYearType(lastYear, 'TRANSFER'),
-        monthlyExpenses: currentMonthExpenses,
-        expenseCount,
-        monthlyChange,
-        needsReviewCount,
-      });
-    } catch (error) {
-      console.error('Error fetching stats:', error);
-    }
-  };
-
+  const stats = useStatsReal();
   const currentYear = new Date().getFullYear();
 
   return (
