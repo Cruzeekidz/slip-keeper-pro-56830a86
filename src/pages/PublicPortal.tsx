@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Users, FileText, Building2, Upload } from "lucide-react";
 import StaffRegistrationForm from "@/components/portal/StaffRegistrationForm";
 import StaffInvoicePublicForm from "@/components/portal/StaffInvoicePublicForm";
 import VendorRegistrationForm from "@/components/portal/VendorRegistrationForm";
 import VendorBillUpload from "@/components/portal/VendorBillUpload";
+import { useLiff } from "@/hooks/useLiff";
 
 type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
 
 const PublicPortal = () => {
   const [view, setView] = useState<PortalView>("menu");
+  const { lineUserId, lineProfile, isInLineApp, isReady } = useLiff();
 
   if (view !== "menu") {
     return (
@@ -19,9 +22,18 @@ const PublicPortal = () => {
           <Button variant="ghost" onClick={() => setView("menu")} className="mb-4">
             ← กลับเมนูหลัก
           </Button>
-          {view === "staff-register" && <StaffRegistrationForm />}
+          {lineProfile && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+              {lineProfile.pictureUrl && (
+                <img src={lineProfile.pictureUrl} alt="" className="h-6 w-6 rounded-full" />
+              )}
+              <span>LINE: {lineProfile.displayName}</span>
+              <Badge variant="secondary" className="text-xs">เชื่อมต่อแล้ว</Badge>
+            </div>
+          )}
+          {view === "staff-register" && <StaffRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} />}
           {view === "staff-invoice" && <StaffInvoicePublicForm />}
-          {view === "vendor-register" && <VendorRegistrationForm />}
+          {view === "vendor-register" && <VendorRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} />}
           {view === "vendor-bill" && <VendorBillUpload />}
         </div>
       </div>
@@ -34,6 +46,15 @@ const PublicPortal = () => {
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold">ระบบเอกสารและการเงิน</h1>
           <p className="text-muted-foreground mt-2">เลือกประเภทที่ต้องการดำเนินการ</p>
+          {lineProfile && (
+            <div className="mt-3 flex items-center justify-center gap-2 text-sm">
+              {lineProfile.pictureUrl && (
+                <img src={lineProfile.pictureUrl} alt="" className="h-7 w-7 rounded-full" />
+              )}
+              <span className="text-muted-foreground">สวัสดี, {lineProfile.displayName}</span>
+              <Badge variant="secondary" className="text-xs">LINE เชื่อมต่อแล้ว</Badge>
+            </div>
+          )}
         </div>
 
         <Card className="cursor-pointer hover:border-primary transition-colors" onClick={() => setView("staff-register")}>
