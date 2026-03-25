@@ -196,12 +196,28 @@ const Index = () => {
                     รายการรอจ่ายเงิน
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
+                    const portalUrl = `${window.location.origin}/portal?view=staff-register&owner=${user?.id}`;
                     navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "นำไปวางในเมนู LINE ได้เลย" });
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนทีมงาน" });
                   }}>
                     <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์พอร์ทัล
+                    คัดลอกลิงก์ลงทะเบียนทีมงาน
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?view=vendor-register&owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนคู่ค้า" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์ลงทะเบียนคู่ค้า
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์พอร์ทัลหลัก (เมนูรวม)" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์พอร์ทัลหลัก
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/vendor-management')}>
                     <Building2 className="h-4 w-4 mr-2" />
