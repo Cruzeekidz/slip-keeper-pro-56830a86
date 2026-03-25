@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -14,6 +14,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ArrowLeft, Plus, Trash2, FileText, Save, X } from "lucide-react";
 import { numberToThaiText } from "@/lib/thai-baht-text";
 import { INCOME_TYPES, PND_TYPES, PAYER_CONDITION_OPTIONS, type IncomeTypeOption } from "@/lib/wht-constants";
+
+const DEFAULT_PAYER = {
+  name: "บริษัท เม้งซินเทรดดิ้ง จำกัด (สำนักงานใหญ่)",
+  taxId: "0745556003673",
+  address: "98/11 หมู่ 5 ต.พันท้ายนรสิงห์ อ.เมืองสมุทรสาคร จ.สมุทรสาคร 74000",
+};
 
 interface LineItem {
   id: string;
@@ -33,26 +39,29 @@ interface PayeeOption {
   source: "staff" | "vendor";
 }
 
-const createLineItem = (): LineItem => ({
+const createLineItem = (overrides?: Partial<LineItem>): LineItem => ({
   id: crypto.randomUUID(),
-  incomeTypeIndex: 2, // default: ค่าบริการ 3%
+  incomeTypeIndex: 2,
   paymentDate: new Date().toISOString().split("T")[0],
   grossAmount: 0,
   taxRate: 3,
   taxAmount: 0,
+  ...overrides,
 });
 
 const WhtCertificateForm = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const [saving, setSaving] = useState(false);
 
   // Document info
   const [docNumber, setDocNumber] = useState("");
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split("T")[0]);
 
-  // Payer info (saved in localStorage)
-  const [payer, setPayer] = useState({ name: "", taxId: "", address: "" });
+  // Payer info
+  const [payer, setPayer] = useState(DEFAULT_PAYER);
 
   // Payee info
   const [payeeSearch, setPayeeSearch] = useState("");
@@ -68,12 +77,16 @@ const WhtCertificateForm = () => {
   // Line items
   const [lineItems, setLineItems] = useState<LineItem[]>([createLineItem()]);
 
-  // Load payer info & payee options
+  // Load payer from localStorage (override defaults if saved)
   useEffect(() => {
     const saved = localStorage.getItem("wht_payer_info");
-    if (saved) setPayer(JSON.parse(saved));
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed.name) setPayer({ name: parsed.name, taxId: parsed.taxId || parsed.tax_id || DEFAULT_PAYER.taxId, address: parsed.address || DEFAULT_PAYER.address });
+    }
   }, []);
 
+  // Load payee options
   useEffect(() => {
     if (!user) return;
     const load = async () => {
@@ -89,6 +102,44 @@ const WhtCertificateForm = () => {
         opts.push({ id: v.id, name: v.company_name, taxId: v.tax_id || "", address: v.address || "", type: v.vendor_type === "company" ? "company" : "individual", source: "vendor" });
       }
       setPayeeOptions(opts);
+
+      // Prefill from URL params (from WhtReport)
+      const prefillPayee = searchParams.get("payee_name");
+      if (prefillPayee) {
+        const matched = opts.find(o => o.name === prefillPayee);
+        if (matched) {
+          selectPayee(matched);
+        } else {
+          setIsNewPayee(true);
+          setNewPayee({
+            name: prefillPayee,
+            taxId: searchParams.get("payee_tax_id") || "",
+            address: searchParams.get("payee_address") || "",
+            type: (searchParams.get("payee_type") as "individual" | "company") || "individual",
+          });
+          setPndType(searchParams.get("pnd_type") || "3");
+        }
+
+        // Prefill line item
+        const grossStr = searchParams.get("gross_amount");
+        const whtStr = searchParams.get("wht_amount");
+        const rateStr = searchParams.get("wht_rate");
+        const paidDate = searchParams.get("paid_date");
+        if (grossStr) {
+          const gross = Number(grossStr);
+          const wht = Number(whtStr || "0");
+          const rate = Number(rateStr || "3");
+          setLineItems([createLineItem({
+            grossAmount: gross,
+            taxRate: rate,
+            taxAmount: wht > 0 ? wht : Math.round(gross * rate / 100 * 100) / 100,
+            paymentDate: paidDate || new Date().toISOString().split("T")[0],
+          })]);
+        }
+
+        const pndParam = searchParams.get("pnd_type");
+        if (pndParam) setPndType(pndParam);
+      }
     };
     load();
   }, [user]);
@@ -108,7 +159,6 @@ const WhtCertificateForm = () => {
     setSelectedPayee(p);
     setIsNewPayee(false);
     setPayeeSearch("");
-    // Auto-select PND type
     setPndType(p.type === "company" ? "53" : "3");
   };
 
@@ -139,13 +189,15 @@ const WhtCertificateForm = () => {
   const totalGross = lineItems.reduce((s, i) => s + i.grossAmount, 0);
   const totalTax = lineItems.reduce((s, i) => s + i.taxAmount, 0);
 
-  const savePayer = () => {
-    localStorage.setItem("wht_payer_info", JSON.stringify(payer));
-    toast({ title: "บันทึกข้อมูลผู้จ่ายเงินแล้ว" });
+  const getPayeeInfo = () => {
+    if (selectedPayee) return { name: selectedPayee.name, taxId: selectedPayee.taxId, address: selectedPayee.address, type: selectedPayee.type, source: selectedPayee.source, sourceId: selectedPayee.id };
+    if (isNewPayee && newPayee.name) return { name: newPayee.name, taxId: newPayee.taxId, address: newPayee.address, type: newPayee.type, source: null, sourceId: null };
+    return null;
   };
 
-  const generatePDF = () => {
-    const payeeInfo = selectedPayee || (isNewPayee ? { name: newPayee.name, taxId: newPayee.taxId, address: newPayee.address, type: newPayee.type } : null);
+  const saveCertificate = async (andGenerate = false) => {
+    if (!user) return;
+    const payeeInfo = getPayeeInfo();
     if (!payeeInfo) {
       toast({ title: "กรุณาเลือกผู้ถูกหักภาษี", variant: "destructive" });
       return;
@@ -155,11 +207,74 @@ const WhtCertificateForm = () => {
       return;
     }
 
+    setSaving(true);
+    // Save payer to localStorage
     localStorage.setItem("wht_payer_info", JSON.stringify(payer));
 
-    const payerTaxBoxes = formatTaxIdBoxes(payer.taxId.replace(/\D/g, ""));
-    const payeeTaxBoxes = formatTaxIdBoxes(payeeInfo.taxId.replace(/\D/g, ""));
+    try {
+      // Insert certificate
+      const { data: cert, error: certError } = await supabase.from("wht_certificates").insert({
+        user_id: user.id,
+        doc_number: docNumber || null,
+        issue_date: issueDate,
+        pnd_type: pndType,
+        payer_condition: payerCondition,
+        payer_name: payer.name,
+        payer_tax_id: payer.taxId,
+        payer_address: payer.address,
+        payee_name: payeeInfo.name,
+        payee_tax_id: payeeInfo.taxId,
+        payee_address: payeeInfo.address,
+        payee_type: payeeInfo.type,
+        payee_source: payeeInfo.source,
+        payee_source_id: payeeInfo.sourceId,
+        total_gross: totalGross,
+        total_tax: totalTax,
+        total_tax_text: numberToThaiText(totalTax),
+        source_invoice_id: searchParams.get("source_id") || null,
+        source_type: searchParams.get("source_type") || null,
+        status: andGenerate ? "completed" : "draft",
+      } as any).select().single();
 
+      if (certError) throw certError;
+
+      // Insert line items
+      const items = lineItems.map(item => ({
+        certificate_id: cert.id,
+        income_type_index: item.incomeTypeIndex,
+        income_type_label: INCOME_TYPES[item.incomeTypeIndex]?.label || "",
+        payment_date: item.paymentDate,
+        gross_amount: item.grossAmount,
+        tax_rate: item.taxRate,
+        tax_amount: item.taxAmount,
+      }));
+
+      const { error: itemsError } = await supabase.from("wht_certificate_items").insert(items as any);
+      if (itemsError) throw itemsError;
+
+      toast({ title: andGenerate ? "บันทึกและสร้างหนังสือรับรองสำเร็จ" : "บันทึกฉบับร่างสำเร็จ" });
+
+      if (andGenerate) {
+        generatePDF(payeeInfo);
+      }
+    } catch (err: any) {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const generatePDF = (payeeInfo?: { name: string; taxId: string; address: string; type: string }) => {
+    const pi = payeeInfo || (() => {
+      const info = getPayeeInfo();
+      if (!info) { toast({ title: "กรุณาเลือกผู้ถูกหักภาษี", variant: "destructive" }); return null; }
+      return info;
+    })();
+    if (!pi) return;
+    if (totalGross <= 0) { toast({ title: "กรุณากรอกจำนวนเงิน", variant: "destructive" }); return; }
+
+    const payerTaxBoxes = formatTaxIdBoxes(payer.taxId.replace(/\D/g, ""));
+    const payeeTaxBoxes = formatTaxIdBoxes(pi.taxId.replace(/\D/g, ""));
     const pndLabel = PND_TYPES.find(p => p.value === pndType)?.label || "ภ.ง.ด.3";
     const conditionLabel = PAYER_CONDITION_OPTIONS.find(c => c.value === payerCondition)?.label || "หัก ณ ที่จ่าย";
 
@@ -177,7 +292,7 @@ const WhtCertificateForm = () => {
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<title>หนังสือรับรองหัก ณ ที่จ่าย - ${payeeInfo.name}</title>
+<title>หนังสือรับรองหัก ณ ที่จ่าย - ${pi.name}</title>
 <style>
   @media print { body { margin: 0; } @page { size: A4; margin: 15mm; } .no-print { display: none; } }
   body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; font-size: 14px; line-height: 1.6; max-width: 700px; margin: 20px auto; padding: 20px; }
@@ -218,16 +333,16 @@ const WhtCertificateForm = () => {
 
 <div class="section">
   <p style="font-weight:bold;margin:0 0 6px;">ผู้มีหน้าที่หักภาษี ณ ที่จ่าย</p>
-  <div class="row"><span class="label">ชื่อ:</span><span>${payer.name || "........................................"}</span></div>
+  <div class="row"><span class="label">ชื่อ:</span><span>${payer.name}</span></div>
   <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span><span>${payerTaxBoxes}</span></div>
-  <div class="row"><span class="label">ที่อยู่:</span><span>${payer.address || "........................................"}</span></div>
+  <div class="row"><span class="label">ที่อยู่:</span><span>${payer.address}</span></div>
 </div>
 
 <div class="section">
   <p style="font-weight:bold;margin:0 0 6px;">ผู้ถูกหักภาษี ณ ที่จ่าย</p>
-  <div class="row"><span class="label">ชื่อ:</span><span>${payeeInfo.name}</span></div>
+  <div class="row"><span class="label">ชื่อ:</span><span>${pi.name}</span></div>
   <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span><span>${payeeTaxBoxes}</span></div>
-  <div class="row"><span class="label">ที่อยู่:</span><span>${payeeInfo.address || "-"}</span></div>
+  <div class="row"><span class="label">ที่อยู่:</span><span>${pi.address || "-"}</span></div>
 </div>
 
 <table class="income">
@@ -263,7 +378,6 @@ const WhtCertificateForm = () => {
 
     const win = window.open("", "_blank");
     if (win) { win.document.write(html); win.document.close(); }
-    toast({ title: "สร้างหนังสือรับรองหัก ณ ที่จ่ายสำเร็จ" });
   };
 
   const formatTaxIdBoxes = (digits: string) => {
@@ -326,9 +440,6 @@ const WhtCertificateForm = () => {
                 <Label className="text-xs">ที่อยู่</Label>
                 <Input value={payer.address} onChange={e => setPayer({ ...payer, address: e.target.value })} placeholder="ที่อยู่" />
               </div>
-              <Button variant="outline" size="sm" className="w-full" onClick={savePayer}>
-                <Save className="h-3 w-3 mr-1" /> บันทึกข้อมูลผู้จ่าย
-              </Button>
             </CardContent>
           </Card>
 
@@ -509,11 +620,11 @@ const WhtCertificateForm = () => {
           <Button variant="ghost" className="flex-1" onClick={() => navigate("/wht-report")}>
             ยกเลิก
           </Button>
-          <Button variant="secondary" className="flex-1" onClick={savePayer}>
+          <Button variant="secondary" className="flex-1" onClick={() => saveCertificate(false)} disabled={saving}>
             <Save className="h-4 w-4 mr-1" /> บันทึกฉบับร่าง
           </Button>
-          <Button className="flex-[2]" onClick={generatePDF}>
-            <FileText className="h-4 w-4 mr-1" /> สร้างหนังสือรับรอง
+          <Button className="flex-[2]" onClick={() => saveCertificate(true)} disabled={saving}>
+            <FileText className="h-4 w-4 mr-1" /> บันทึก & สร้าง PDF
           </Button>
         </div>
       </div>

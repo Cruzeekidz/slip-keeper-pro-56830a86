@@ -1089,6 +1089,125 @@ export type Database = {
         }
         Relationships: []
       }
+      wht_certificate_items: {
+        Row: {
+          certificate_id: string
+          created_at: string
+          gross_amount: number
+          id: string
+          income_type_index: number
+          income_type_label: string
+          payment_date: string | null
+          tax_amount: number
+          tax_rate: number
+        }
+        Insert: {
+          certificate_id: string
+          created_at?: string
+          gross_amount?: number
+          id?: string
+          income_type_index?: number
+          income_type_label: string
+          payment_date?: string | null
+          tax_amount?: number
+          tax_rate?: number
+        }
+        Update: {
+          certificate_id?: string
+          created_at?: string
+          gross_amount?: number
+          id?: string
+          income_type_index?: number
+          income_type_label?: string
+          payment_date?: string | null
+          tax_amount?: number
+          tax_rate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wht_certificate_items_certificate_id_fkey"
+            columns: ["certificate_id"]
+            isOneToOne: false
+            referencedRelation: "wht_certificates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      wht_certificates: {
+        Row: {
+          created_at: string
+          doc_number: string | null
+          id: string
+          issue_date: string
+          payee_address: string | null
+          payee_name: string
+          payee_source: string | null
+          payee_source_id: string | null
+          payee_tax_id: string | null
+          payee_type: string
+          payer_address: string | null
+          payer_condition: string
+          payer_name: string | null
+          payer_tax_id: string | null
+          pnd_type: string
+          source_invoice_id: string | null
+          source_type: string | null
+          status: string
+          total_gross: number
+          total_tax: number
+          total_tax_text: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          doc_number?: string | null
+          id?: string
+          issue_date?: string
+          payee_address?: string | null
+          payee_name: string
+          payee_source?: string | null
+          payee_source_id?: string | null
+          payee_tax_id?: string | null
+          payee_type?: string
+          payer_address?: string | null
+          payer_condition?: string
+          payer_name?: string | null
+          payer_tax_id?: string | null
+          pnd_type?: string
+          source_invoice_id?: string | null
+          source_type?: string | null
+          status?: string
+          total_gross?: number
+          total_tax?: number
+          total_tax_text?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          doc_number?: string | null
+          id?: string
+          issue_date?: string
+          payee_address?: string | null
+          payee_name?: string
+          payee_source?: string | null
+          payee_source_id?: string | null
+          payee_tax_id?: string | null
+          payee_type?: string
+          payer_address?: string | null
+          payer_condition?: string
+          payer_name?: string | null
+          payer_tax_id?: string | null
+          pnd_type?: string
+          source_invoice_id?: string | null
+          source_type?: string | null
+          status?: string
+          total_gross?: number
+          total_tax?: number
+          total_tax_text?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       staff_profiles_public: {
