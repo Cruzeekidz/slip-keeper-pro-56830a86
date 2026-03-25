@@ -290,6 +290,10 @@ export default function ReviewQueue() {
     if (error) { toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" }); return; }
 
     toast({ title: "ยืนยันแล้ว", description: `${current.amount} บาท — ${category}` });
+    // Add new subcategory to local list so it appears in future items
+    if (subcategory && !existingSubcategories.includes(subcategory)) {
+      setExistingSubcategories(prev => [...prev, subcategory]);
+    }
     setItems(prev => prev.filter((_, i) => i !== currentIndex));
     if (currentIndex >= items.length - 1) setCurrentIndex(Math.max(0, currentIndex - 1));
   };
