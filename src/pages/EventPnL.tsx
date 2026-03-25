@@ -373,14 +373,7 @@ const EventPnL = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" size="icon" onClick={() => {
-                if (selectedGroupId) {
-                  const g = groups.find(g => g.id === selectedGroupId);
-                  if (g) fetchGroupFinancials(g);
-                } else if (selectedEventId) {
-                  fetchFinancials(selectedEventId);
-                }
-              }} disabled={(!selectedEventId && !selectedGroupId) || loadingData}>
+              <Button variant="outline" size="icon" onClick={handleRefresh} disabled={(!selectedEventId && !selectedGroupId) || loadingData}>
                 <RefreshCw className={`h-4 w-4 ${loadingData ? "animate-spin" : ""}`} />
               </Button>
             </div>
@@ -417,7 +410,7 @@ const EventPnL = () => {
                       className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
                         isSelected ? "bg-primary/10 border-primary" : "hover:bg-muted/50"
                       }`}
-                      onClick={() => fetchGroupFinancials(group)}
+                      onClick={() => handleGroupSelect(group)}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -1129,8 +1122,8 @@ const EventPnL = () => {
                           </div>
                           <div className="flex items-center gap-1 ml-2 shrink-0">
                             {r.notify_line && !r.is_completed && (
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => sendReminderNow(r)} disabled={sendingReminder === r.id} title="ส่งแจ้งเตือน LINE ตอนนี้">
-                                <Send className={`h-3.5 w-3.5 text-green-600 ${sendingReminder === r.id ? 'animate-pulse' : ''}`} />
+                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => sendReminderNow(r)} disabled={sendReminderMut.isPending} title="ส่งแจ้งเตือน LINE ตอนนี้">
+                                <Send className={`h-3.5 w-3.5 text-green-600 ${sendReminderMut.isPending ? 'animate-pulse' : ''}`} />
                               </Button>
                             )}
                             <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => toggleReminderCompleted(r)} title={r.is_completed ? 'ยกเลิก' : 'เสร็จแล้ว'}>
