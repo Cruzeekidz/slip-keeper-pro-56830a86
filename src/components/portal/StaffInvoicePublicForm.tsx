@@ -57,7 +57,7 @@ const StaffInvoicePublicForm = () => {
     const loadStaff = async () => {
       setLoading(true);
       const { data } = await supabase
-        .from("staff_profiles")
+        .from("staff_profiles_public" as any)
         .select("id, staff_name, daily_rate, user_id")
         .eq("id", staffParam)
         .eq("is_active", true)
@@ -93,7 +93,7 @@ const StaffInvoicePublicForm = () => {
     setLoading(true);
     setError("");
     const query = supabase
-      .from("staff_profiles")
+      .from("staff_profiles_public" as any)
       .select("id, staff_name, daily_rate, user_id")
       .eq("is_active", true)
       .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`);
