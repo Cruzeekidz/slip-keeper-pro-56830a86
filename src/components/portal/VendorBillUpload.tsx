@@ -10,6 +10,8 @@ import { CheckCircle, Upload, FileImage, File } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const VendorBillUpload = () => {
   const { toast } = useToast();
   const [searchParams] = useSearchParams();
@@ -49,7 +51,7 @@ const VendorBillUpload = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ownerId) {
+    if (!ownerId || !UUID_REGEX.test(ownerId)) {
       toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
       return;
     }
