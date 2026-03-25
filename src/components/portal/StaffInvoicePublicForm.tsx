@@ -56,11 +56,11 @@ const StaffInvoicePublicForm = () => {
     if (!staffParam) return;
     const loadStaff = async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from("staff_profiles")
+      const { data } = await (supabase
+        .from("staff_profiles_public" as any)
         .select("id, staff_name, daily_rate, user_id")
         .eq("id", staffParam)
-        .eq("is_active", true)
+        .eq("is_active", true) as any)
         .maybeSingle();
       if (data) {
         setSelectedStaff(data);
@@ -92,11 +92,11 @@ const StaffInvoicePublicForm = () => {
     }
     setLoading(true);
     setError("");
-    const query = supabase
-      .from("staff_profiles")
+    const query = (supabase
+      .from("staff_profiles_public" as any)
       .select("id, staff_name, daily_rate, user_id")
       .eq("is_active", true)
-      .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`);
+      .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`) as any);
 
     const { data } = ownerParam ? await query.eq("user_id", ownerParam) : await query;
     if (data && data.length > 0) {
