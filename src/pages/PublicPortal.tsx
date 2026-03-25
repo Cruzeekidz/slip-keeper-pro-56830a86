@@ -19,29 +19,58 @@ const VIEW_PARAM_MAP: Record<string, PortalView> = {
 };
 
 // Parse query params, including LIFF's liff.state fallback
-const getPortalParams = (): URLSearchParams => {
-  const params = new URLSearchParams(window.location.search);
-  // LIFF may encode original params inside liff.state (used in external browsers)
-  if (!params.get("view") && !params.get("owner")) {
-    const liffState = params.get("liff.state");
-    if (liffState) {
-      // liff.state can be a path+query like "/portal?view=staff-register&owner=xxx"
-      const qIndex = liffState.indexOf("?");
-      if (qIndex !== -1) {
-        return new URLSearchParams(liffState.substring(qIndex + 1));
-      }
+const extractParamsFromState = (state: string): URLSearchParams | null => {
+  const candidates = [state];
+
+  try {
+    candidates.push(decodeURIComponent(state));
+  } catch {
+    // ignore invalid encoded state
+  }
+
+  for (const candidate of candidates) {
+    const normalized = candidate.startsWith("?") ? candidate.slice(1) : candidate;
+    const directParams = new URLSearchParams(normalized);
+
+    if (directParams.get("view") || directParams.get("owner")) {
+      return directParams;
     }
-    // Also check hash fragment (some LIFF versions)
-    if (window.location.hash) {
-      const hashQuery = window.location.hash.replace(/^#.*\?/, "");
-      if (hashQuery && hashQuery !== window.location.hash) {
-        const hashParams = new URLSearchParams(hashQuery);
-        if (hashParams.get("view") || hashParams.get("owner")) {
-          return hashParams;
-        }
+
+    const qIndex = candidate.indexOf("?");
+    if (qIndex !== -1) {
+      const nestedParams = new URLSearchParams(candidate.slice(qIndex + 1));
+      if (nestedParams.get("view") || nestedParams.get("owner")) {
+        return nestedParams;
       }
     }
   }
+
+  return null;
+};
+
+const getPortalParams = (): URLSearchParams => {
+  const params = new URLSearchParams(window.location.search);
+
+  if (params.get("view") || params.get("owner")) {
+    return params;
+  }
+
+  const liffState = params.get("liff.state");
+  if (liffState) {
+    const stateParams = extractParamsFromState(liffState);
+    if (stateParams) {
+      return stateParams;
+    }
+  }
+
+  if (window.location.hash) {
+    const hash = window.location.hash.replace(/^#/, "");
+    const hashParams = extractParamsFromState(hash);
+    if (hashParams) {
+      return hashParams;
+    }
+  }
+
   return params;
 };
 
