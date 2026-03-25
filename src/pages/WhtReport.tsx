@@ -27,37 +27,7 @@ interface WhtEntry {
 
 const MONTHS_TH = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 
-const numberToThaiText = (num: number): string => {
-  const digits = ["ศูนย์","หนึ่ง","สอง","สาม","สี่","ห้า","หก","เจ็ด","แปด","เก้า"];
-  const positions = ["","สิบ","ร้อย","พัน","หมื่น","แสน","ล้าน"];
-  if (num === 0) return "ศูนย์บาทถ้วน";
-  const intPart = Math.floor(num);
-  const decPart = Math.round((num - intPart) * 100);
-  
-  const intToText = (n: number): string => {
-    if (n === 0) return "";
-    const s = String(n);
-    let result = "";
-    for (let i = 0; i < s.length; i++) {
-      const d = parseInt(s[i]);
-      const pos = s.length - i - 1;
-      if (d === 0) continue;
-      if (pos === 0 && d === 1 && s.length > 1) { result += "เอ็ด"; continue; }
-      if (pos === 1 && d === 1) { result += "สิบ"; continue; }
-      if (pos === 1 && d === 2) { result += "ยี่สิบ"; continue; }
-      result += digits[d] + positions[pos];
-    }
-    return result;
-  };
 
-  let text = intToText(intPart) + "บาท";
-  if (decPart > 0) {
-    text += intToText(decPart) + "สตางค์";
-  } else {
-    text += "ถ้วน";
-  }
-  return text;
-};
 
 const WhtReport = () => {
   const navigate = useNavigate();
@@ -66,22 +36,8 @@ const WhtReport = () => {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<WhtEntry[]>([]);
 
-  // Payer info (for localStorage persistence)
-  const [payerInfo, setPayerInfo] = useState({
-    name: "",
-    tax_id: "",
-    address: "",
-  });
 
-  const now = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
-  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear() + 543));
 
-  // Load saved payer info
-  useEffect(() => {
-    const saved = localStorage.getItem("wht_payer_info");
-    if (saved) setPayerInfo(JSON.parse(saved));
-  }, []);
 
   const years = useMemo(() => {
     const cy = now.getFullYear() + 543;
