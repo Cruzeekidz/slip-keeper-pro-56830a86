@@ -89,6 +89,18 @@ const VendorBillUpload = () => {
     setSubmitting(false);
   };
 
+  if (!ownerId || !UUID_REGEX.test(ownerId)) {
+    return (
+      <Card>
+        <CardContent className="pt-6 text-center space-y-4">
+          <Upload className="h-16 w-16 text-destructive mx-auto" />
+          <h2 className="text-xl font-bold">ลิงก์ไม่ถูกต้อง</h2>
+          <p className="text-muted-foreground">กรุณาเข้าผ่านลิงก์ที่ได้รับจากผู้ดูแลหรือ LINE เท่านั้น</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   if (submitted) {
     return (
       <Card>
