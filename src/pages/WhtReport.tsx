@@ -36,7 +36,9 @@ const WhtReport = () => {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<WhtEntry[]>([]);
 
-
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(String(now.getMonth() + 1));
+  const [selectedYear, setSelectedYear] = useState(String(now.getFullYear() + 543));
 
 
   const years = useMemo(() => {
