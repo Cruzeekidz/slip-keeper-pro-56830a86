@@ -360,43 +360,6 @@ const WhtReport = () => {
         </Tabs>
       </main>
 
-      {/* Payer Info Dialog before generating certificate */}
-      <Dialog open={showPayerDialog} onOpenChange={setShowPayerDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>ข้อมูลผู้จ่ายเงิน (ผู้หักภาษี)</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">กรอกข้อมูลบริษัท/บุคคลที่เป็นผู้จ่ายเงิน (จะจำไว้ครั้งถัดไป)</p>
-            {certEntry && (
-              <Card className="bg-muted/50">
-                <CardContent className="py-3">
-                  <p className="text-sm"><strong>ผู้ถูกหัก:</strong> {certEntry.payee_name}</p>
-                  <p className="text-sm"><strong>ยอด:</strong> {certEntry.gross_amount.toLocaleString()} บาท | <strong>ภาษี:</strong> {certEntry.wht_amount.toLocaleString()} บาท</p>
-                </CardContent>
-              </Card>
-            )}
-            <div>
-              <Label>ชื่อผู้จ่ายเงิน / บริษัท</Label>
-              <Input value={payerInfo.name} onChange={(e) => setPayerInfo({ ...payerInfo, name: e.target.value })} placeholder="บริษัท ... จำกัด" />
-            </div>
-            <div>
-              <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
-              <Input value={payerInfo.tax_id} onChange={(e) => setPayerInfo({ ...payerInfo, tax_id: e.target.value })} placeholder="X-XXXX-XXXXX-XX-X" />
-            </div>
-            <div>
-              <Label>ที่อยู่</Label>
-              <Input value={payerInfo.address} onChange={(e) => setPayerInfo({ ...payerInfo, address: e.target.value })} placeholder="ที่อยู่สำหรับใส่ในเอกสาร" />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPayerDialog(false)}>ยกเลิก</Button>
-            <Button onClick={generateWhtCert}>
-              <Printer className="h-4 w-4 mr-1" /> สร้างหนังสือรับรอง
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
