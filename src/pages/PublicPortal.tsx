@@ -50,6 +50,7 @@ const PublicPortal = () => {
   const initialView = VIEW_PARAM_MAP[params.get("view") || ""] || "menu";
   const [view, setView] = useState<PortalView>(initialView);
   const { lineUserId, lineProfile, isInLineApp, isReady } = useLiff();
+  const ownerId = params.get("owner") || "";
 
   if (view !== "menu") {
     return (
