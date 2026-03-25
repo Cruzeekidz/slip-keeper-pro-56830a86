@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,12 +14,12 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 interface VendorRegistrationFormProps {
   lineUserId?: string | null;
   lineDisplayName?: string | null;
+  ownerId?: string;
 }
 
-const VendorRegistrationForm = ({ lineUserId, lineDisplayName }: VendorRegistrationFormProps) => {
+const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdProp }: VendorRegistrationFormProps) => {
   const { toast } = useToast();
-  const [searchParams] = useSearchParams();
-  const ownerId = searchParams.get("owner");
+  const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
