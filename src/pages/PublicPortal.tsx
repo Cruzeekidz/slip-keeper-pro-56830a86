@@ -67,9 +67,7 @@ const extractParamsFromState = (state: string): URLSearchParams | null => {
 const getPortalParams = (): URLSearchParams => {
   const searchParams = new URLSearchParams(window.location.search);
 
-  if (searchParams.get("view") || searchParams.get("owner")) {
-    return searchParams;
-  }
+  const mergedParams = new URLSearchParams(searchParams);
 
   const stateSources = [
     searchParams.get("liff.state"),
@@ -80,11 +78,22 @@ const getPortalParams = (): URLSearchParams => {
   for (const source of stateSources) {
     const extractedParams = extractParamsFromState(source);
     if (extractedParams) {
-      return extractedParams;
+      const extractedView = (extractedParams.get("view") || "").trim();
+      const extractedOwner = (extractedParams.get("owner") || "").trim();
+      const currentView = (mergedParams.get("view") || "").trim();
+      const currentOwner = (mergedParams.get("owner") || "").trim();
+
+      if (!currentView && extractedView) {
+        mergedParams.set("view", extractedView);
+      }
+
+      if ((!UUID_REGEX.test(currentOwner) || currentOwner === "YOUR_USER_ID") && UUID_REGEX.test(extractedOwner)) {
+        mergedParams.set("owner", extractedOwner);
+      }
     }
   }
 
-  return searchParams;
+  return mergedParams;
 };
 
 const PublicPortal = () => {
