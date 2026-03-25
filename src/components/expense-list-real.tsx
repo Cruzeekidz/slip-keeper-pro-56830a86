@@ -47,7 +47,7 @@ interface Expense {
   event_name: string | null;
 }
 
-export function ExpenseListReal() {
+export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
