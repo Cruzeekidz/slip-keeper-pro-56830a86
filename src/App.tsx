@@ -32,6 +32,7 @@ import PaymentQueue from "./pages/PaymentQueue";
 import PublicPortal from "./pages/PublicPortal";
 import VendorManagement from "./pages/VendorManagement";
 import WhtReport from "./pages/WhtReport";
+import WhtCertificateForm from "./pages/WhtCertificateForm";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
             <Route path="/portal" element={<PublicPortal />} />
             <Route path="/vendor-management" element={<VendorManagement />} />
             <Route path="/wht-report" element={<WhtReport />} />
+            <Route path="/wht-certificate" element={<WhtCertificateForm />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
