@@ -1,32 +1,26 @@
 
 
-# ปรับ QueryClient Config ใน App.tsx
+# Lazy Loading สำหรับ App.tsx
 
-เปลี่ยนจาก `new QueryClient()` ที่ไม่มี config เป็น config ที่เหมาะกับ app นี้
+คำแนะนำนี้เหมาะสมและไม่กระทบ config ที่ตั้งไว้แล้ว (QueryClient config ยังคงเหมือนเดิม)
 
-### สิ่งที่แก้ไข
-แก้ไขไฟล์เดียว: `src/App.tsx` บรรทัดที่ 39
+## สิ่งที่จะแก้ไข
 
-```typescript
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 10,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-    mutations: { retry: 0 }
-  }
-});
-```
+แก้ไฟล์เดียว: `src/App.tsx`
 
-### เหตุผล
-- **refetchOnWindowFocus: false** — Dashboard มีหลาย component ที่ fetch ข้อมูล การสลับ tab กลับมาจะ trigger fetch พร้อมกันหลายสิบครั้งโดยไม่จำเป็น
-- **staleTime: 5 นาที** — ข้อมูลค่าใช้จ่ายไม่เปลี่ยนทุกวินาที และหน้าที่ต้องการ realtime ก็มี Supabase subscription อยู่แล้ว
-- **gcTime: 10 นาที** — เก็บ cache หลัง unmount ไม่ต้อง fetch ใหม่เมื่อกลับมาหน้าเดิม
-- **retry: 1** — ลดจาก default 3 ครั้ง ไม่ต้องรอนานเมื่อ Supabase มีปัญหา
-- **mutations retry: 0** — ป้องกันข้อมูลซ้ำจาก auto-retry ของ insert/update
+1. **เปลี่ยน import ปกติ → `lazy()`** สำหรับ 28 หน้าที่ไม่ใช่หน้าหลัก
+2. **คง import ปกติ** สำหรับ `Index`, `Auth`, `NotFound` (ใช้บ่อย/เล็ก)
+3. **เพิ่ม `<Suspense>`** ครอบ `<Routes>` พร้อม loading indicator ภาษาไทย
+4. **คง QueryClient config** ที่ตั้งไว้แล้วทุกประการ
 
-ไม่ต้องแก้ไฟล์อื่น เพราะ `QueryClientProvider` ครอบ app ทั้งหมดอยู่แล้ว
+## ผลที่ได้
+
+- Initial bundle เล็กลงมาก (โหลดแค่ 3 หน้าแทน 31 หน้า)
+- หน้าอื่นโหลดเมื่อ navigate ไปจริงเท่านั้น
+- ไม่กระทบ functionality ใดๆ ที่มีอยู่
+
+## หมายเหตุ
+
+- `ResetPassword` ควร lazy ด้วยเพราะใช้ไม่บ่อย (ต่างจากที่ Claude แนะนำให้ไม่ lazy แต่ไม่มีผลเสีย)
+- Vite จะ auto-split chunks ให้ ไม่ต้อง config เพิ่ม
 
