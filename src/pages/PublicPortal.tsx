@@ -11,6 +11,8 @@ import { useLiff } from "@/hooks/useLiff";
 
 type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const VIEW_PARAM_MAP: Record<string, PortalView> = {
   "staff-register": "staff-register",
   "staff-invoice": "staff-invoice",
