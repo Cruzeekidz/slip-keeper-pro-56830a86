@@ -10,6 +10,8 @@ import { CheckCircle, Building2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface VendorRegistrationFormProps {
   lineUserId?: string | null;
   lineDisplayName?: string | null;
@@ -58,7 +60,7 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName }: VendorRegistrat
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ownerId) {
+    if (!ownerId || !UUID_REGEX.test(ownerId)) {
       toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
       return;
     }
@@ -91,7 +93,7 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName }: VendorRegistrat
         bank_account: form.bank_account || null,
         tax_doc_url: taxDocUrl,
         line_user_id: lineUserId || null,
-      } as any);
+      });
 
       if (error) throw error;
       setSubmitted(true);
