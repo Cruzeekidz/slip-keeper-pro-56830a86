@@ -1,17 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
-import { supabase } from "@/integrations/supabase/client";
 import { PieChartIcon, Maximize2, Minimize2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
-
-interface CategoryData {
-  name: string;
-  value: number;
-}
+import { useCategoryChartData } from "@/hooks/useDashboardData";
 
 const TYPE_COLORS: Record<string, string> = {
   'TRANSFER': 'hsl(220 10% 55%)',
@@ -31,51 +25,11 @@ const COLORS = [
 ];
 
 export function CategoryChart() {
-  const [chartData, setChartData] = useState<CategoryData[]>([]);
-  const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<"type" | "group">("type");
   const [isExpanded, setIsExpanded] = useState(false);
+  const { chartData, isLoading } = useCategoryChartData(viewMode);
 
-  useEffect(() => { fetchData(); }, [viewMode]);
-
-  useExpensesRealtime(useCallback(() => fetchData(), [viewMode]));
-
-  const fetchData = async () => {
-    try {
-      const { data: expenses, error } = await supabase
-        .from('expenses')
-        .select('transaction_type, category_group, amount, transaction_direction');
-      if (error) throw error;
-
-      const map = new Map<string, number>();
-      expenses?.forEach(exp => {
-        if (exp.transaction_type === 'TRANSFER') return;
-        // For P&L chart, subtract income from expense
-        const sign = exp.transaction_direction === 'INCOME' ? -1 : 1;
-        let key: string;
-        if (viewMode === "type") {
-          key = exp.transaction_type || 'ไม่ระบุ';
-        } else {
-          if (exp.transaction_type === 'BUSINESS' && exp.category_group) {
-            key = `${exp.transaction_type}/${exp.category_group}`;
-          } else {
-            key = exp.transaction_type || 'ไม่ระบุ';
-          }
-        }
-        map.set(key, (map.get(key) || 0) + exp.amount * sign);
-      });
-
-      const data = Array.from(map.entries())
-        .map(([name, value]) => ({ name, value: Math.abs(value) }))
-        .sort((a, b) => b.value - a.value);
-
-      setChartData(data);
-    } catch (error) {
-      console.error('Error fetching category data:', error);
-    } finally { setLoading(false); }
-  };
-
-  if (loading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
+  if (isLoading) return <Card className="p-6"><p className="text-muted-foreground">กำลังโหลด...</p></Card>;
 
   const getColor = (name: string, index: number) => TYPE_COLORS[name] || COLORS[index % COLORS.length];
 

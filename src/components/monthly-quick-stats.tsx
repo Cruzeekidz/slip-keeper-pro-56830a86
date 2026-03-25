@@ -1,41 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { FileText, TrendingDown, AlertTriangle, Briefcase, User } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
+import { useMonthlyQuickStats } from "@/hooks/useDashboardData";
 
 export function MonthlyQuickStats() {
-  const [slipCount, setSlipCount] = useState(0);
-  const [businessExpense, setBusinessExpense] = useState(0);
-  const [personalExpense, setPersonalExpense] = useState(0);
-  const [needsReview, setNeedsReview] = useState(0);
-
-  const fetchStats = useCallback(async () => {
-    try {
-      const now = new Date();
-      const startOfMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('amount, transaction_type, needs_review, transaction_direction')
-        .gte('expense_date', startOfMonth);
-
-      if (error) throw error;
-
-      const nonTransfer = data?.filter(e => e.transaction_type !== 'TRANSFER') || [];
-      setSlipCount(nonTransfer.length);
-
-      const expenseOnly = nonTransfer.filter(e => e.transaction_direction !== 'INCOME');
-      setBusinessExpense(expenseOnly.filter(e => e.transaction_type === 'BUSINESS').reduce((sum, e) => sum + e.amount, 0));
-      setPersonalExpense(expenseOnly.filter(e => e.transaction_type === 'PERSONAL').reduce((sum, e) => sum + e.amount, 0));
-      setNeedsReview(data?.filter(e => e.needs_review).length || 0);
-    } catch (error) {
-      console.error('Error fetching monthly stats:', error);
-    }
-  }, []);
-
-  useEffect(() => { fetchStats(); }, [fetchStats]);
-  useExpensesRealtime(fetchStats);
+  const { slipCount, businessExpense, personalExpense, needsReview } = useMonthlyQuickStats();
 
   const monthName = new Date().toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
   const totalExpense = businessExpense + personalExpense;
