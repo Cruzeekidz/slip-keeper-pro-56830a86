@@ -169,603 +169,138 @@ const EventPnL = () => {
     }
   }, [user, events, groups, searchParams]);
 
-  const fetchEvents = async () => {
-    setLoadingEvents(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
-        body: { action: "list-events" },
-      });
-      if (error) throw error;
-      setEvents(data.events || []);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "ไม่สามารถดึงรายการอีเวนท์ได้", variant: "destructive" });
-    } finally {
-      setLoadingEvents(false);
-    }
-  };
-
-  const fetchGroups = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from("event_groups")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
-    setGroups((data as any[]) || []);
-  };
-
-  const fetchFinancials = async (eventId: string) => {
-    setLoadingData(true);
+  // ─── Event/Group selection handlers ─────────────────────────
+  const handleEventSelect = (eventId: string) => {
     setSelectedGroupId("");
-    try {
-      const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
-        body: { action: "event-financials", event_id: eventId },
-      });
-      if (error) throw error;
-      setFinancialData(data);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "ไม่สามารถดึงข้อมูลการเงินได้", variant: "destructive" });
-    } finally {
-      setLoadingData(false);
-    }
+    setSelectedEventId(eventId);
   };
 
-  const fetchGroupFinancials = async (group: EventGroup) => {
-    setLoadingData(true);
+  const handleGroupSelect = (group: EventGroup) => {
     setSelectedEventId("");
     setSelectedGroupId(group.id);
-    try {
-      const { data, error } = await supabase.functions.invoke("fetch-readygo-data", {
-        body: { action: "multi-event-financials", event_ids: group.readygo_event_ids },
-      });
-      if (error) throw error;
-      setFinancialData(data);
-    } catch (err) {
-      console.error(err);
-      toast({ title: "ไม่สามารถดึงข้อมูลกลุ่มอีเวนท์ได้", variant: "destructive" });
-    } finally {
-      setLoadingData(false);
-    }
   };
 
-  const fetchLocalExpenses = async () => {
-    if (!user) return;
-    let searchTerms: string[] = [];
-
-    if (selectedGroupId) {
-      const group = groups.find(g => g.id === selectedGroupId);
-      if (group) searchTerms = [group.project_tag, group.group_name];
-    } else if (financialData?.event) {
-      searchTerms = [financialData.event.title];
-    }
-
-    // Also look up registry for matching readygo_event_id to get project_tag and aliases
-    if (selectedEventId && !selectedGroupId) {
-      const { data: regData } = await supabase
-        .from("event_registry")
-        .select("project_tag, event_name, aliases")
-        .eq("readygo_event_id", selectedEventId)
-        .limit(1);
-      if (regData && regData.length > 0) {
-        const reg = regData[0];
-        searchTerms.push(reg.project_tag, reg.event_name);
-        if (reg.aliases && Array.isArray(reg.aliases)) {
-          searchTerms.push(...reg.aliases);
-        }
-      }
-    }
-
-    // Deduplicate and filter empty
-    searchTerms = [...new Set(searchTerms.filter(t => t && t.trim()))];
-    if (searchTerms.length === 0) return;
-
-    const orClauses = searchTerms
-      .flatMap(t => [`event_name.ilike.%${t}%`, `project.ilike.%${t}%`, `project_tag.ilike.%${t}%`])
-      .join(",");
-
-    const { data } = await supabase
-      .from("expenses")
-      .select("amount, description, expense_date, category, event_name, project_tag, merchant")
-      .eq("user_id", user.id)
-      .or(orClauses)
-      .order("expense_date", { ascending: false });
-
-    const items = (data || []).map(e => ({
-      description: e.description || e.merchant || e.category || "รายจ่าย",
-      amount: Number(e.amount),
-      expense_date: e.expense_date,
-      category: e.category,
-      event_name: e.event_name,
-      project_tag: e.project_tag,
-    }));
-    setLocalExpenseItems(items);
-    const total = items.reduce((s, e) => s + e.amount, 0);
-    setLocalExpenses(total);
+  const handleRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["event-financials"] });
+    queryClient.invalidateQueries({ queryKey: ["local-expenses"] });
   };
 
-  // Other Income CRUD
-  const fetchOtherIncomes = async () => {
-    if (!user) return;
-    let query = supabase
-      .from("event_other_income" as any)
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (selectedGroupId) {
-      query = query.eq("event_group_id", selectedGroupId);
-    } else if (selectedEventId) {
-      query = query.eq("event_id", selectedEventId);
-    } else {
-      setOtherIncomes([]);
-      return;
-    }
-
-    const { data } = await query.order("created_at", { ascending: false });
-    setOtherIncomes((data as any[]) || []);
-  };
-
+  // ─── Open/Edit/Save/Delete helpers (thin wrappers) ────────
   const openCreateIncome = () => {
-    setEditingIncome(null);
-    setIncomeDesc("");
-    setIncomeAmount("");
-    setIncomeDate("");
-    setShowIncomeDialog(true);
+    setEditingIncome(null); setIncomeDesc(""); setIncomeAmount(""); setIncomeDate(""); setShowIncomeDialog(true);
   };
-
   const openEditIncome = (income: OtherIncome) => {
-    setEditingIncome(income);
-    setIncomeDesc(income.description);
-    setIncomeAmount(String(income.amount));
-    setIncomeDate(income.income_date || "");
-    setShowIncomeDialog(true);
+    setEditingIncome(income); setIncomeDesc(income.description); setIncomeAmount(String(income.amount)); setIncomeDate(income.income_date || ""); setShowIncomeDialog(true);
   };
-
-  const saveIncome = async () => {
-    if (!user || !incomeDesc.trim() || !incomeAmount) {
-      toast({ title: "กรุณากรอกรายละเอียดและจำนวนเงิน", variant: "destructive" });
-      return;
-    }
-    try {
-      const payload: any = {
-        description: incomeDesc.trim(),
-        amount: Number(incomeAmount),
-        income_date: incomeDate || null,
-      };
-      if (editingIncome) {
-        await supabase.from("event_other_income" as any).update(payload).eq("id", editingIncome.id);
-        toast({ title: "อัปเดตรายได้อื่นสำเร็จ" });
-      } else {
-        payload.user_id = user.id;
-        payload.event_group_id = selectedGroupId || null;
-        payload.event_id = selectedGroupId ? null : selectedEventId || null;
-        await supabase.from("event_other_income" as any).insert(payload);
-        toast({ title: "เพิ่มรายได้อื่นสำเร็จ" });
-      }
-      setShowIncomeDialog(false);
-      fetchOtherIncomes();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+  const saveIncome = () => {
+    if (!user || !incomeDesc.trim() || !incomeAmount) { toast({ title: "กรุณากรอกรายละเอียดและจำนวนเงิน", variant: "destructive" }); return; }
+    const payload: any = { description: incomeDesc.trim(), amount: Number(incomeAmount), income_date: incomeDate || null };
+    if (!editingIncome) { payload.user_id = user.id; payload.event_group_id = selectedGroupId || null; payload.event_id = selectedGroupId ? null : selectedEventId || null; }
+    saveIncomeMut.mutate({ id: editingIncome?.id, payload }, {
+      onSuccess: () => { setShowIncomeDialog(false); toast({ title: editingIncome ? "อัปเดตรายได้อื่นสำเร็จ" : "เพิ่มรายได้อื่นสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
-
-  const deleteIncome = async (id: string) => {
-    await supabase.from("event_other_income" as any).delete().eq("id", id);
-    fetchOtherIncomes();
-    toast({ title: "ลบรายได้อื่นสำเร็จ" });
-  };
-
-  // Product Cost CRUD
-  const fetchProductCosts = async () => {
-    if (!user) return;
-    let query = supabase.from("event_product_costs" as any).select("*").eq("user_id", user.id);
-    if (selectedGroupId) {
-      query = query.eq("event_group_id", selectedGroupId);
-    } else if (selectedEventId) {
-      query = query.eq("event_id", selectedEventId);
-    } else {
-      setProductCosts([]);
-      return;
-    }
-    const { data } = await query.order("created_at", { ascending: false });
-    setProductCosts((data as any[]) || []);
-  };
+  const deleteIncome = (id: string) => deleteIncomeMut.mutate(id, { onSuccess: () => toast({ title: "ลบรายได้อื่นสำเร็จ" }) });
 
   const openCreateProduct = () => {
-    setEditingProduct(null);
-    setProductName("");
-    setProductQty("");
-    setProductUnitCost("");
-    setShowProductDialog(true);
+    setEditingProduct(null); setProductName(""); setProductQty(""); setProductUnitCost(""); setShowProductDialog(true);
   };
-
   const openEditProduct = (p: ProductCost) => {
-    setEditingProduct(p);
-    setProductName(p.product_name);
-    setProductQty(String(p.quantity));
-    setProductUnitCost(String(p.unit_cost));
-    setShowProductDialog(true);
+    setEditingProduct(p); setProductName(p.product_name); setProductQty(String(p.quantity)); setProductUnitCost(String(p.unit_cost)); setShowProductDialog(true);
   };
-
-  const saveProduct = async () => {
-    if (!user || !productName.trim() || !productQty || !productUnitCost) {
-      toast({ title: "กรุณากรอกข้อมูลให้ครบ", variant: "destructive" });
-      return;
-    }
-    try {
-      const payload: any = {
-        product_name: productName.trim(),
-        quantity: Number(productQty),
-        unit_cost: Number(productUnitCost),
-      };
-      if (editingProduct) {
-        await supabase.from("event_product_costs" as any).update(payload).eq("id", editingProduct.id);
-        toast({ title: "อัปเดตต้นทุนสินค้าสำเร็จ" });
-      } else {
-        payload.user_id = user.id;
-        payload.event_group_id = selectedGroupId || null;
-        payload.event_id = selectedGroupId ? null : selectedEventId || null;
-        await supabase.from("event_product_costs" as any).insert(payload);
-        toast({ title: "เพิ่มต้นทุนสินค้าสำเร็จ" });
-      }
-      setShowProductDialog(false);
-      fetchProductCosts();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+  const saveProduct = () => {
+    if (!user || !productName.trim() || !productQty || !productUnitCost) { toast({ title: "กรุณากรอกข้อมูลให้ครบ", variant: "destructive" }); return; }
+    const payload: any = { product_name: productName.trim(), quantity: Number(productQty), unit_cost: Number(productUnitCost) };
+    if (!editingProduct) { payload.user_id = user.id; payload.event_group_id = selectedGroupId || null; payload.event_id = selectedGroupId ? null : selectedEventId || null; }
+    saveProductMut.mutate({ id: editingProduct?.id, payload }, {
+      onSuccess: () => { setShowProductDialog(false); toast({ title: editingProduct ? "อัปเดตต้นทุนสินค้าสำเร็จ" : "เพิ่มต้นทุนสินค้าสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
-
-  const deleteProduct = async (id: string) => {
-    await supabase.from("event_product_costs" as any).delete().eq("id", id);
-    fetchProductCosts();
-    toast({ title: "ลบต้นทุนสินค้าสำเร็จ" });
-  };
-
-  // Other Expenses CRUD
-  const fetchOtherExpenses = async () => {
-    if (!user) return;
-    let query = supabase
-      .from("event_other_expenses" as any)
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (selectedGroupId) {
-      query = query.eq("event_group_id", selectedGroupId);
-    } else if (selectedEventId) {
-      query = query.eq("event_id", selectedEventId);
-    } else {
-      setOtherExpenses([]);
-      return;
-    }
-
-    const { data } = await query.order("created_at", { ascending: false });
-    setOtherExpenses((data as any[]) || []);
-  };
+  const deleteProduct = (id: string) => deleteProductMut.mutate(id, { onSuccess: () => toast({ title: "ลบต้นทุนสินค้าสำเร็จ" }) });
 
   const openCreateExpense = () => {
-    setEditingExpense(null);
-    setExpenseDesc("");
-    setExpenseAmount("");
-    setExpenseDate("");
-    setExpenseRefundable(false);
-    setShowExpenseDialog(true);
+    setEditingExpense(null); setExpenseDesc(""); setExpenseAmount(""); setExpenseDate(""); setExpenseRefundable(false); setShowExpenseDialog(true);
   };
-
   const openEditExpense = (exp: OtherExpense) => {
-    setEditingExpense(exp);
-    setExpenseDesc(exp.description);
-    setExpenseAmount(String(exp.amount));
-    setExpenseDate(exp.expense_date || "");
-    setExpenseRefundable(exp.is_refundable);
-    setShowExpenseDialog(true);
+    setEditingExpense(exp); setExpenseDesc(exp.description); setExpenseAmount(String(exp.amount)); setExpenseDate(exp.expense_date || ""); setExpenseRefundable(exp.is_refundable); setShowExpenseDialog(true);
   };
-
-  const saveExpense = async () => {
+  const saveExpense = () => {
     if (!user) return;
-    try {
-      const payload: any = {
-        user_id: user.id,
-        description: expenseDesc.trim(),
-        amount: Number(expenseAmount),
-        expense_date: expenseDate || null,
-        is_refundable: expenseRefundable,
-        refund_status: expenseRefundable ? "pending" : "not_applicable",
-      };
-      if (editingExpense) {
-        await supabase.from("event_other_expenses" as any).update(payload).eq("id", editingExpense.id);
-        toast({ title: "อัปเดตค่าใช้จ่ายอื่นสำเร็จ" });
-      } else {
-        payload.event_group_id = selectedGroupId || null;
-        payload.event_id = selectedGroupId ? null : selectedEventId || null;
-        await supabase.from("event_other_expenses" as any).insert(payload);
-        toast({ title: "เพิ่มค่าใช้จ่ายอื่นสำเร็จ" });
-      }
-      setShowExpenseDialog(false);
-      fetchOtherExpenses();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+    const payload: any = { user_id: user.id, description: expenseDesc.trim(), amount: Number(expenseAmount), expense_date: expenseDate || null, is_refundable: expenseRefundable, refund_status: expenseRefundable ? "pending" : "not_applicable" };
+    if (!editingExpense) { payload.event_group_id = selectedGroupId || null; payload.event_id = selectedGroupId ? null : selectedEventId || null; }
+    saveExpenseMut.mutate({ id: editingExpense?.id, payload }, {
+      onSuccess: () => { setShowExpenseDialog(false); toast({ title: editingExpense ? "อัปเดตค่าใช้จ่ายอื่นสำเร็จ" : "เพิ่มค่าใช้จ่ายอื่นสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
+  const deleteExpense = (id: string) => deleteExpenseMut.mutate(id, { onSuccess: () => toast({ title: "ลบค่าใช้จ่ายอื่นสำเร็จ" }) });
+  const toggleRefundStatus = (exp: OtherExpense) => toggleRefundMut.mutate(exp, {
+    onSuccess: (newStatus) => toast({ title: newStatus === "refunded" ? "ทำเครื่องหมายว่าได้รับคืนแล้ว" : "ยกเลิกสถานะได้รับคืน" }),
+  });
 
-  const deleteExpense = async (id: string) => {
-    await supabase.from("event_other_expenses" as any).delete().eq("id", id);
-    fetchOtherExpenses();
-    toast({ title: "ลบค่าใช้จ่ายอื่นสำเร็จ" });
-  };
-
-  const toggleRefundStatus = async (exp: OtherExpense) => {
-    const newStatus = exp.refund_status === "refunded" ? "pending" : "refunded";
-    await supabase.from("event_other_expenses" as any).update({
-      refund_status: newStatus,
-      refunded_at: newStatus === "refunded" ? new Date().toISOString() : null,
-    }).eq("id", exp.id);
-    fetchOtherExpenses();
-    toast({ title: newStatus === "refunded" ? "ทำเครื่องหมายว่าได้รับคืนแล้ว" : "ยกเลิกสถานะได้รับคืน" });
-  };
-
-  // Event Notes CRUD
-  const fetchEventNotes = async () => {
+  const openCreateNote = () => { setEditingNote(null); setNoteText(""); setNoteType("general"); setShowNoteDialog(true); };
+  const openEditNote = (note: EventNote) => { setEditingNote(note); setNoteText(note.note_text); setNoteType(note.note_type); setShowNoteDialog(true); };
+  const saveNote = () => {
     if (!user) return;
-    let query = supabase
-      .from("event_notes" as any)
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (selectedGroupId) {
-      query = query.eq("event_group_id", selectedGroupId);
-    } else if (selectedEventId) {
-      query = query.eq("event_id", selectedEventId);
-    } else {
-      setEventNotes([]);
-      return;
-    }
-
-    const { data } = await query.order("created_at", { ascending: false });
-    setEventNotes((data as any[]) || []);
+    const payload: any = { user_id: user.id, note_text: noteText.trim(), note_type: noteType };
+    if (!editingNote) { payload.event_group_id = selectedGroupId || null; payload.event_id = selectedGroupId ? null : selectedEventId || null; }
+    saveNoteMut.mutate({ id: editingNote?.id, payload }, {
+      onSuccess: () => { setShowNoteDialog(false); toast({ title: editingNote ? "อัปเดตหมายเหตุสำเร็จ" : "เพิ่มหมายเหตุสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
-
-  const openCreateNote = () => {
-    setEditingNote(null);
-    setNoteText("");
-    setNoteType("general");
-    setShowNoteDialog(true);
-  };
-
-  const openEditNote = (note: EventNote) => {
-    setEditingNote(note);
-    setNoteText(note.note_text);
-    setNoteType(note.note_type);
-    setShowNoteDialog(true);
-  };
-
-  const saveNote = async () => {
-    if (!user) return;
-    try {
-      const payload: any = {
-        user_id: user.id,
-        note_text: noteText.trim(),
-        note_type: noteType,
-      };
-      if (editingNote) {
-        await supabase.from("event_notes" as any).update(payload).eq("id", editingNote.id);
-        toast({ title: "อัปเดตหมายเหตุสำเร็จ" });
-      } else {
-        payload.event_group_id = selectedGroupId || null;
-        payload.event_id = selectedGroupId ? null : selectedEventId || null;
-        await supabase.from("event_notes" as any).insert(payload);
-        toast({ title: "เพิ่มหมายเหตุสำเร็จ" });
-      }
-      setShowNoteDialog(false);
-      fetchEventNotes();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
-  };
-
-  const deleteNote = async (id: string) => {
-    await supabase.from("event_notes" as any).delete().eq("id", id);
-    fetchEventNotes();
-    toast({ title: "ลบหมายเหตุสำเร็จ" });
-  };
-
-  const toggleNoteResolved = async (note: EventNote) => {
-    const newResolved = !note.is_resolved;
-    await supabase.from("event_notes" as any).update({
-      is_resolved: newResolved,
-      resolved_at: newResolved ? new Date().toISOString() : null,
-      note_type: newResolved ? "resolved" : "general",
-    }).eq("id", note.id);
-    fetchEventNotes();
-    toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" });
-  };
-
-  // Reminders CRUD
-  const fetchReminders = async () => {
-    if (!user) return;
-    let query = supabase
-      .from("event_reminders" as any)
-      .select("*")
-      .eq("user_id", user.id);
-
-    if (selectedGroupId) {
-      query = query.eq("event_group_id", selectedGroupId);
-    } else if (selectedEventId) {
-      query = query.eq("event_id", selectedEventId);
-    } else {
-      setReminders([]);
-      return;
-    }
-
-    const { data } = await query.order("due_date", { ascending: true });
-    setReminders((data as any[]) || []);
-  };
+  const deleteNote = (id: string) => deleteNoteMut.mutate(id, { onSuccess: () => toast({ title: "ลบหมายเหตุสำเร็จ" }) });
+  const toggleNoteResolved = (note: EventNote) => toggleNoteMut.mutate(note, {
+    onSuccess: (newResolved) => toast({ title: newResolved ? "ทำเครื่องหมายว่าเรียบร้อยแล้ว" : "ยกเลิกสถานะเรียบร้อย" }),
+  });
 
   const openCreateReminder = (prefillType?: string, prefillTitle?: string, prefillAmount?: number) => {
-    setEditingReminder(null);
-    setReminderType(prefillType || "billing");
-    setReminderTitle(prefillTitle || "");
-    setReminderDesc("");
-    setReminderAmount(prefillAmount ? String(prefillAmount) : "");
-    setReminderDueDate("");
-    setReminderBeforeDays("1");
-    setReminderNotifyLine(true);
-    setShowReminderDialog(true);
+    setEditingReminder(null); setReminderType(prefillType || "billing"); setReminderTitle(prefillTitle || ""); setReminderDesc("");
+    setReminderAmount(prefillAmount ? String(prefillAmount) : ""); setReminderDueDate(""); setReminderBeforeDays("1"); setReminderNotifyLine(true); setShowReminderDialog(true);
   };
-
   const openEditReminder = (r: EventReminder) => {
-    setEditingReminder(r);
-    setReminderType(r.reminder_type);
-    setReminderTitle(r.title);
-    setReminderDesc(r.description || "");
-    setReminderAmount(String(r.amount));
-    setReminderDueDate(r.due_date);
-    setReminderBeforeDays(String(r.remind_before_days));
-    setReminderNotifyLine(r.notify_line);
-    setShowReminderDialog(true);
+    setEditingReminder(r); setReminderType(r.reminder_type); setReminderTitle(r.title); setReminderDesc(r.description || "");
+    setReminderAmount(String(r.amount)); setReminderDueDate(r.due_date); setReminderBeforeDays(String(r.remind_before_days)); setReminderNotifyLine(r.notify_line); setShowReminderDialog(true);
   };
-
-  const saveReminder = async () => {
-    if (!user || !reminderTitle.trim() || !reminderDueDate) {
-      toast({ title: "กรุณากรอกชื่อและวันครบกำหนด", variant: "destructive" });
-      return;
-    }
-    try {
-      const payload: any = {
-        user_id: user.id,
-        reminder_type: reminderType,
-        title: reminderTitle.trim(),
-        description: reminderDesc.trim() || null,
-        amount: Number(reminderAmount) || 0,
-        due_date: reminderDueDate,
-        remind_before_days: Number(reminderBeforeDays) || 1,
-        notify_line: reminderNotifyLine,
-      };
-      if (editingReminder) {
-        await supabase.from("event_reminders" as any).update(payload).eq("id", editingReminder.id);
-        toast({ title: "อัปเดตแจ้งเตือนสำเร็จ" });
-      } else {
-        payload.event_group_id = selectedGroupId || null;
-        payload.event_id = selectedGroupId ? null : selectedEventId || null;
-        await supabase.from("event_reminders" as any).insert(payload);
-        toast({ title: "สร้างแจ้งเตือนสำเร็จ" });
-      }
-      setShowReminderDialog(false);
-      fetchReminders();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
+  const saveReminder = () => {
+    if (!user || !reminderTitle.trim() || !reminderDueDate) { toast({ title: "กรุณากรอกชื่อและวันครบกำหนด", variant: "destructive" }); return; }
+    const payload: any = { user_id: user.id, reminder_type: reminderType, title: reminderTitle.trim(), description: reminderDesc.trim() || null, amount: Number(reminderAmount) || 0, due_date: reminderDueDate, remind_before_days: Number(reminderBeforeDays) || 1, notify_line: reminderNotifyLine };
+    if (!editingReminder) { payload.event_group_id = selectedGroupId || null; payload.event_id = selectedGroupId ? null : selectedEventId || null; }
+    saveReminderMut.mutate({ id: editingReminder?.id, payload }, {
+      onSuccess: () => { setShowReminderDialog(false); toast({ title: editingReminder ? "อัปเดตแจ้งเตือนสำเร็จ" : "สร้างแจ้งเตือนสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
-
-  const deleteReminder = async (id: string) => {
-    await supabase.from("event_reminders" as any).delete().eq("id", id);
-    fetchReminders();
-    toast({ title: "ลบแจ้งเตือนสำเร็จ" });
-  };
-
-  const toggleReminderCompleted = async (r: EventReminder) => {
-    const newCompleted = !r.is_completed;
-    await supabase.from("event_reminders" as any).update({
-      is_completed: newCompleted,
-      completed_at: newCompleted ? new Date().toISOString() : null,
-    }).eq("id", r.id);
-    fetchReminders();
-    toast({ title: newCompleted ? "ทำเครื่องหมายว่าเสร็จแล้ว" : "ยกเลิกสถานะเสร็จ" });
-  };
-
-  const sendReminderNow = async (r: EventReminder) => {
-    setSendingReminder(r.id);
-    try {
-      const { error } = await supabase.functions.invoke("send-reminder-line", {
-        body: { reminder_id: r.id },
-      });
-      if (error) throw error;
-      toast({ title: "ส่งแจ้งเตือนไปที่ LINE สำเร็จ" });
-      fetchReminders();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "ส่งแจ้งเตือนไม่สำเร็จ", variant: "destructive" });
-    } finally {
-      setSendingReminder(null);
-    }
-  };
-
-
-  const handleEventSelect = (eventId: string) => {
-    setSelectedEventId(eventId);
-    fetchFinancials(eventId);
-  };
+  const deleteReminder = (id: string) => deleteReminderMut.mutate(id, { onSuccess: () => toast({ title: "ลบแจ้งเตือนสำเร็จ" }) });
+  const toggleReminderCompleted = (r: EventReminder) => toggleReminderMut.mutate(r, {
+    onSuccess: (newCompleted) => toast({ title: newCompleted ? "ทำเครื่องหมายว่าเสร็จแล้ว" : "ยกเลิกสถานะเสร็จ" }),
+  });
+  const sendReminderNow = (r: EventReminder) => sendReminderMut.mutate(r.id, {
+    onSuccess: () => toast({ title: "ส่งแจ้งเตือนไปที่ LINE สำเร็จ" }),
+    onError: () => toast({ title: "ส่งแจ้งเตือนไม่สำเร็จ", variant: "destructive" }),
+  });
 
   // Group CRUD
-  const openCreateGroup = () => {
-    setEditingGroup(null);
-    setGroupName("");
-    setGroupTag("");
-    setSelectedEventIds([]);
-    setShowGroupDialog(true);
+  const openCreateGroup = () => { setEditingGroup(null); setGroupName(""); setGroupTag(""); setSelectedEventIds([]); setShowGroupDialog(true); };
+  const openEditGroup = (group: EventGroup) => { setEditingGroup(group); setGroupName(group.group_name); setGroupTag(group.project_tag); setSelectedEventIds(group.readygo_event_ids); setShowGroupDialog(true); };
+  const saveGroup = () => {
+    if (!user || !groupName.trim() || selectedEventIds.length === 0) { toast({ title: "กรุณากรอกชื่อกลุ่มและเลือกอีเวนท์อย่างน้อย 1 รายการ", variant: "destructive" }); return; }
+    const payload: any = { group_name: groupName.trim(), project_tag: groupTag.trim() || groupName.trim(), readygo_event_ids: selectedEventIds };
+    if (!editingGroup) payload.user_id = user.id;
+    saveGroupMut.mutate({ id: editingGroup?.id, payload }, {
+      onSuccess: () => { setShowGroupDialog(false); toast({ title: editingGroup ? "อัปเดตกลุ่มสำเร็จ" : "สร้างกลุ่มสำเร็จ" }); },
+      onError: () => toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }),
+    });
   };
-
-  const openEditGroup = (group: EventGroup) => {
-    setEditingGroup(group);
-    setGroupName(group.group_name);
-    setGroupTag(group.project_tag);
-    setSelectedEventIds(group.readygo_event_ids);
-    setShowGroupDialog(true);
+  const deleteGroup = (groupId: string) => {
+    deleteGroupMut.mutate(groupId, {
+      onSuccess: () => { if (selectedGroupId === groupId) { setSelectedGroupId(""); } toast({ title: "ลบกลุ่มสำเร็จ" }); },
+    });
   };
-
-  const saveGroup = async () => {
-    if (!user || !groupName.trim() || selectedEventIds.length === 0) {
-      toast({ title: "กรุณากรอกชื่อกลุ่มและเลือกอีเวนท์อย่างน้อย 1 รายการ", variant: "destructive" });
-      return;
-    }
-
-    try {
-      if (editingGroup) {
-        await supabase
-          .from("event_groups")
-          .update({
-            group_name: groupName.trim(),
-            project_tag: groupTag.trim() || groupName.trim(),
-            readygo_event_ids: selectedEventIds,
-          })
-          .eq("id", editingGroup.id);
-        toast({ title: "อัปเดตกลุ่มสำเร็จ" });
-      } else {
-        await supabase.from("event_groups").insert({
-          user_id: user.id,
-          group_name: groupName.trim(),
-          project_tag: groupTag.trim() || groupName.trim(),
-          readygo_event_ids: selectedEventIds,
-        });
-        toast({ title: "สร้างกลุ่มสำเร็จ" });
-      }
-      setShowGroupDialog(false);
-      fetchGroups();
-    } catch (err) {
-      console.error(err);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    }
-  };
-
-  const deleteGroup = async (groupId: string) => {
-    await supabase.from("event_groups").delete().eq("id", groupId);
-    if (selectedGroupId === groupId) {
-      setSelectedGroupId("");
-      setFinancialData(null);
-    }
-    fetchGroups();
-    toast({ title: "ลบกลุ่มสำเร็จ" });
-  };
-
   const toggleEventInGroup = (eventId: string) => {
-    setSelectedEventIds(prev =>
-      prev.includes(eventId) ? prev.filter(id => id !== eventId) : [...prev, eventId]
-    );
+    setSelectedEventIds(prev => prev.includes(eventId) ? prev.filter(id => id !== eventId) : [...prev, eventId]);
   };
 
   if (authLoading || !user) return null;
