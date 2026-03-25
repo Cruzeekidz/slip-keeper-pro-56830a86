@@ -7,7 +7,7 @@ import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { EventAnalysis } from "@/components/event-analysis";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -24,6 +24,8 @@ const Index = () => {
   const { user, loading, signOut } = useAuth();
   const { isAdmin, isSuperAdmin } = useUserRole();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('edit');
   const { toast } = useToast();
 
   const exportToCSV = async () => {
@@ -332,7 +334,7 @@ const Index = () => {
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
         <EventAnalysis recentOnly />
-        <ExpenseListReal />
+        <ExpenseListReal editId={editId} />
       </main>
     </div>
   );
