@@ -1254,6 +1254,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_wht_certificate_public: { Args: { p_cert_id: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
