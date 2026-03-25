@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,9 +48,45 @@ interface Expense {
   event_name: string | null;
 }
 
+// Query functions
+const fetchAllExpenses = async (): Promise<Expense[]> => {
+  let allExpenses: Expense[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('expenses')
+      .select('*')
+      .range(from, from + pageSize - 1)
+      .order('expense_date', { ascending: false });
+    if (error) throw error;
+    if (data && data.length > 0) {
+      allExpenses = [...allExpenses, ...data];
+      from += pageSize;
+      hasMore = data.length === pageSize;
+    } else {
+      hasMore = false;
+    }
+  }
+  return allExpenses;
+};
+
+const fetchEventNamesList = async (): Promise<string[]> => {
+  const { data, error } = await supabase
+    .from('event_registry')
+    .select('event_name')
+    .order('event_date', { ascending: false });
+  if (error) throw error;
+  return Array.from(new Set((data || []).map(e => e.event_name))).filter(Boolean);
+};
+
 export function ExpenseListReal({ editId }: { editId?: string | null }) {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // UI state
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterGroup, setFilterGroup] = useState("all");
@@ -59,27 +96,92 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
-  const [loading, setLoading] = useState(true);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [viewingReceipt, setViewingReceipt] = useState<number>(-1);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
-  const [eventNames, setEventNames] = useState<string[]>([]);
-  const { toast } = useToast();
 
-  // Fetch event names for dropdown
+  // Data queries
+  const { data: expenses = [], isLoading } = useQuery({
+    queryKey: ['expenses'],
+    queryFn: fetchAllExpenses,
+  });
+
+  const { data: eventNames = [] } = useQuery({
+    queryKey: ['event-registry-names'],
+    queryFn: fetchEventNamesList,
+  });
+
+  // Realtime subscription → invalidate queries
   useEffect(() => {
-    const fetchEventNames = async () => {
-      const { data } = await supabase.from('event_registry').select('event_name').order('event_date', { ascending: false });
-      if (data) {
-        const unique = Array.from(new Set(data.map(e => e.event_name))).filter(Boolean);
-        setEventNames(unique);
-      }
+    const channel = supabase
+      .channel('expenses-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'expenses' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['expenses'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
-    fetchEventNames();
-  }, []);
+  }, [queryClient]);
+
+  // Mutations
+  const updateExpenseMutation = useMutation({
+    mutationFn: async ({ id, updateData }: { id: string; updateData: Record<string, any> }) => {
+      const { error } = await supabase.from('expenses').update(updateData).eq('id', id);
+      if (error) throw error;
+    },
+    onMutate: async ({ id, updateData }) => {
+      // Optimistic update
+      await queryClient.cancelQueries({ queryKey: ['expenses'] });
+      const previous = queryClient.getQueryData<Expense[]>(['expenses']);
+      queryClient.setQueryData<Expense[]>(['expenses'], (old) =>
+        (old || []).map(e => e.id === id ? { ...e, ...updateData } : e)
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['expenses'], context.previous);
+      }
+      toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
+    },
+  });
+
+  const deleteExpenseMutation = useMutation({
+    mutationFn: async ({ id, receiptUrl }: { id: string; receiptUrl?: string | null }) => {
+      if (receiptUrl) await supabase.storage.from('receipts').remove([receiptUrl]);
+      const { error } = await supabase.from('expenses').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      toast({ title: "ลบสำเร็จ" });
+    },
+    onError: () => {
+      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
+
+  // Inline update handler
+  const inlineUpdate = useCallback((id: string, field: string, value: string | null, extraFields?: Record<string, any>) => {
+    const updateData: Record<string, any> = { [field]: value || null, ...extraFields };
+    setEditingCell(null);
+    updateExpenseMutation.mutate({ id, updateData });
+  }, [updateExpenseMutation]);
+
+  // Delete handler
+  const deleteExpense = useCallback((id: string, receiptUrl?: string | null) => {
+    if (!confirm("คุณต้องการลบรายการนี้ใช่หรือไม่?")) return;
+    deleteExpenseMutation.mutate({ id, receiptUrl });
+  }, [deleteExpenseMutation]);
 
   // Dynamic options from existing data
   const dynamicSubcategories = useMemo(() => {
@@ -97,23 +199,36 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     return Array.from(existing).sort();
   }, [expenses]);
 
-  const inlineUpdate = useCallback(async (id: string, field: string, value: string | null, extraFields?: Record<string, any>) => {
-    const updateData: Record<string, any> = { [field]: value || null, ...extraFields };
-    // Optimistic update - update UI immediately
-    setExpenses(prev => prev.map(e => e.id === id ? { ...e, ...updateData } : e));
-    setEditingCell(null);
-    try {
-      const { error } = await supabase.from('expenses').update(updateData).eq('id', id);
-      if (error) throw error;
-    } catch {
-      // Revert on failure
-      fetchExpenses();
-      toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
-    }
-  }, [toast]);
+  const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
+  const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
 
-  useEffect(() => { fetchExpenses(); }, []);
-  useEffect(() => { filterExpenses(); }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  // Filtering + sorting as useMemo (no more setState)
+  const filteredExpenses = useMemo(() => {
+    let filtered = expenses;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      filtered = filtered.filter(e =>
+        e.description?.toLowerCase().includes(term) ||
+        e.project_tag?.toLowerCase().includes(term) ||
+        e.merchant?.toLowerCase().includes(term) ||
+        e.receiver?.toLowerCase().includes(term) ||
+        e.payee_group?.toLowerCase().includes(term)
+      );
+    }
+    if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
+    if (filterGroup !== "all") filtered = filtered.filter(e => e.category_group === filterGroup);
+    if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
+    if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
+    if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+    if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
+    if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
+
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
+      if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
@@ -126,95 +241,17 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     }
   }, [editId, expenses]);
 
-  // Realtime subscription for new expenses (e.g. from LINE webhook)
-  useEffect(() => {
-    const channel = supabase
-      .channel('expenses-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'expenses' },
-        () => {
-          fetchExpenses();
-        }
-      )
-      .subscribe();
+  const needsReviewCount = useMemo(() => expenses.filter(e => e.needs_review).length, [expenses]);
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
-
-  const fetchExpenses = async () => {
-    try {
-      // Fetch all expenses - use range to bypass 1000 row default limit
-      let allExpenses: any[] = [];
-      let from = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data, error } = await supabase
-          .from('expenses')
-          .select('*')
-          .range(from, from + pageSize - 1)
-          .order('expense_date', { ascending: false });
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allExpenses = [...allExpenses, ...data];
-          from += pageSize;
-          hasMore = data.length === pageSize;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      setExpenses(allExpenses);
-    } catch (error) {
-      console.error('Error fetching expenses:', error);
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    } finally { setLoading(false); }
-  };
-
-  const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
-  const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
-
-  const filterExpenses = () => {
-    let filtered = expenses;
-    if (searchTerm) {
-      filtered = filtered.filter(e =>
-        e.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.project_tag?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.merchant?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.receiver?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        e.payee_group?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
-    if (filterGroup !== "all") filtered = filtered.filter(e => e.category_group === filterGroup);
-    if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
-    if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
-    if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
-    if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
-    if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
-
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
-      if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    });
-    setFilteredExpenses(sorted);
-  };
-
-  const deleteExpense = async (id: string, receiptUrl?: string | null) => {
-    if (!confirm("คุณต้องการลบรายการนี้ใช่หรือไม่?")) return;
-    try {
-      if (receiptUrl) await supabase.storage.from('receipts').remove([receiptUrl]);
-      const { error } = await supabase.from('expenses').delete().eq('id', id);
-      if (error) throw error;
-      toast({ title: "ลบสำเร็จ" });
-      fetchExpenses();
-    } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
-  };
+  const summaryStats = useMemo(() => {
+    const nonTransfer = filteredExpenses.filter(e => e.transaction_type !== 'TRANSFER');
+    const expenseItems = nonTransfer.filter(e => e.transaction_direction !== 'INCOME');
+    const incomeItems = nonTransfer.filter(e => e.transaction_direction === 'INCOME');
+    const totalExpense = expenseItems.reduce((sum, e) => sum + e.amount, 0);
+    const totalIncome = incomeItems.reduce((sum, e) => sum + e.amount, 0);
+    const transferTotal = filteredExpenses.filter(e => e.transaction_type === 'TRANSFER').reduce((sum, e) => sum + e.amount, 0);
+    return { totalExpense, totalIncome, transferTotal, count: filteredExpenses.length };
+  }, [filteredExpenses]);
 
   const viewReceipt = (expenseId: string) => {
     const receiptsOnly = filteredExpenses.filter(e => e.receipt_url);
@@ -233,19 +270,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
   };
 
-  const needsReviewCount = useMemo(() => expenses.filter(e => e.needs_review).length, [expenses]);
-
-  const summaryStats = useMemo(() => {
-    const nonTransfer = filteredExpenses.filter(e => e.transaction_type !== 'TRANSFER');
-    const expenseItems = nonTransfer.filter(e => e.transaction_direction !== 'INCOME');
-    const incomeItems = nonTransfer.filter(e => e.transaction_direction === 'INCOME');
-    const totalExpense = expenseItems.reduce((sum, e) => sum + e.amount, 0);
-    const totalIncome = incomeItems.reduce((sum, e) => sum + e.amount, 0);
-    const transferTotal = filteredExpenses.filter(e => e.transaction_type === 'TRANSFER').reduce((sum, e) => sum + e.amount, 0);
-    return { totalExpense, totalIncome, transferTotal, count: filteredExpenses.length };
-  }, [filteredExpenses]);
-
-  if (loading) {
+  if (isLoading) {
     return <Card className="p-6 bg-gradient-card shadow-elevated"><div className="text-center"><p className="text-muted-foreground">กำลังโหลดข้อมูล...</p></div></Card>;
   }
 
@@ -623,7 +648,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       )}
 
-      <ExpenseEditDialog expense={editingExpense} open={editDialogOpen} onOpenChange={setEditDialogOpen} onSuccess={fetchExpenses} />
+      <ExpenseEditDialog
+        expense={editingExpense}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['expenses'] })}
+      />
 
       {galleryOpen && (
         <ReceiptGallery
