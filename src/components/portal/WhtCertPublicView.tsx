@@ -50,9 +50,9 @@ const WhtCertPublicView = ({ certId }: WhtCertPublicViewProps) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data, error: rpcError } = await supabase.rpc("get_wht_certificate_public", {
+      const { data, error: rpcError } = await (supabase.rpc as any)("get_wht_certificate_public", {
         p_cert_id: certId,
-      } as any);
+      });
 
       if (rpcError || !data) {
         setError("ไม่พบเอกสาร หรือเอกสารยังไม่สมบูรณ์");
