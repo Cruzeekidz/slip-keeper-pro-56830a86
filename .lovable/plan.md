@@ -1,80 +1,32 @@
 
 
-# แผนปรับระบบหัก ณ ที่จ่าย: เปลี่ยนจากออกเอกสารเป็นตารางติดตาม + เก็บลิงก์ FlowAccount
+# ปรับ QueryClient Config ใน App.tsx
 
-## สิ่งที่เปลี่ยน
+เปลี่ยนจาก `new QueryClient()` ที่ไม่มี config เป็น config ที่เหมาะกับ app นี้
 
-**ยกเลิก**: ฟอร์มสร้างใบหัก ณ ที่จ่าย (WhtCertificateForm) และ Public Portal view สำหรับ WHT cert — ใช้ FlowAccount ออกเอกสารแทน
+### สิ่งที่แก้ไข
+แก้ไขไฟล์เดียว: `src/App.tsx` บรรทัดที่ 39
 
-**เก็บไว้**: ตาราง `wht_certificates` + `wht_certificate_items` ในฐานข้อมูล (ใช้เป็นข้อมูลติดตาม)
-
-**สร้างใหม่**: หน้ารายการติดตามหัก ณ ที่จ่าย พร้อมช่องเก็บลิงก์ FlowAccount
-
----
-
-## 1. ปรับตารางฐานข้อมูล
-
-เพิ่มคอลัมน์ใน `wht_certificates`:
-- `flowaccount_url` (text, nullable) — ลิงก์ใบหัก ณ ที่จ่ายจาก FlowAccount
-- `sent_to_payee` (boolean, default false) — ส่งลิงก์ให้คู่ค้าแล้วหรือยัง
-- `sent_at` (timestamptz, nullable) — วันที่ส่ง
-
-## 2. ปรับหน้า WhtCertificateList.tsx → หน้าหลักของระบบ
-
-ตารางติดตามรายการหัก ณ ที่จ่าย:
-- คอลัมน์: วันที่, ชื่อผู้รับ, ยอดจ่าย, ภาษีหัก, สถานะ FlowAccount (มีลิงก์/ยังไม่มี), สถานะส่งคู่ค้า
-- ปุ่ม "วางลิงก์ FlowAccount" → เปิด dialog ให้ paste URL
-- ปุ่ม "คัดลอกลิงก์" → copy ลิงก์ FlowAccount ไปส่งให้คู่ค้า
-- ปุ่ม "ส่งแล้ว" → mark ว่าส่งให้คู่ค้าแล้ว
-- Filter ตามเดือน + สถานะ (ยังไม่เปิด FlowAccount / เปิดแล้วยังไม่ส่ง / ส่งแล้ว)
-- แสดงสรุป: จำนวนที่ยังไม่เปิด FlowAccount / ยังไม่ส่งคู่ค้า
-
-## 3. ปรับ WhtCertificateForm.tsx → ฟอร์มบันทึกข้อมูลอย่างง่าย
-
-ลดรูปจากฟอร์มออกเอกสาร เหลือแค่:
-- เลือกคู่ค้า (staff/vendor)
-- วันที่จ่าย, ยอดเงิน, อัตราภาษี, ภาษีหัก
-- บันทึกลง DB → กลับไปหน้า List
-- ตัดส่วน generate PDF ออกทั้งหมด
-
-## 4. LINE Bot: รับลิงก์ FlowAccount อัตโนมัติ
-
-เพิ่มตรรกะใน `line-webhook/index.ts`:
-- ถ้า admin ส่ง URL ที่มี `flowaccount.com` → ระบบจะ:
-  1. ดึงชื่อคู่ค้าจาก URL (ถ้าทำได้) หรือจาก context ข้อความ
-  2. ค้นหารายการ WHT ที่ยังไม่มีลิงก์ → จับคู่ตามชื่อ payee
-  3. ถ้าจับคู่ได้ → บันทึกลิงก์อัตโนมัติ + ตอบยืนยัน
-  4. ถ้าจับคู่ไม่ได้ → ตอบกลับแสดงรายการที่ยังไม่มีลิงก์ ให้เลือก
-
-**ข้อจำกัด**: การจับคู่อัตโนมัติจะทำได้เฉพาะกรณีที่ชื่อ payee ตรงกัน หรือมีรายการรอลิงก์แค่รายเดียว ถ้ามีหลายรายการที่ตรงกัน ระบบจะแจ้งให้เลือกหรือให้วางลิงก์เองในหน้าเว็บ
-
-## 5. ลบ/ปรับไฟล์
-
-| ไฟล์ | การดำเนินการ |
-|------|-------------|
-| `src/pages/WhtCertificateList.tsx` | **แก้ไข** — ปรับเป็นตารางติดตาม + เก็บลิงก์ |
-| `src/pages/WhtCertificateForm.tsx` | **แก้ไข** — ลดรูปเป็นฟอร์มบันทึกอย่างง่าย ตัด PDF ออก |
-| `src/components/portal/WhtCertPublicView.tsx` | **ลบ** — ไม่ใช้แล้ว (ใช้ FlowAccount แทน) |
-| `src/pages/PublicPortal.tsx` | **แก้ไข** — ลบ case `wht-cert` ออก |
-| `src/pages/Index.tsx` | **แก้ไข** — ปรับชื่อเมนูเป็น "ติดตามหัก ณ ที่จ่าย" |
-| `src/App.tsx` | ไม่เปลี่ยน (route ยังใช้เหมือนเดิม) |
-| `supabase/functions/line-webhook/index.ts` | **แก้ไข** — เพิ่มตรรกะรับลิงก์ FlowAccount |
-| Migration SQL | เพิ่มคอลัมน์ `flowaccount_url`, `sent_to_payee`, `sent_at` |
-
----
-
-## สรุปประสบการณ์ใช้งาน
-
-```text
-Flow ปกติ:
-1. บันทึกรายการหัก ณ ที่จ่ายในระบบ (จากหน้าจ่ายเงิน staff หรือกรอกเอง)
-2. ไปเปิดเอกสารใน FlowAccount
-3. Copy ลิงก์จาก FlowAccount มาวางในตาราง (หรือส่งทาง LINE)
-4. กดปุ่ม "คัดลอกลิงก์" → ส่งให้คู่ค้า
-5. กด "ส่งแล้ว" เพื่อ mark สถานะ
-
-ตารางช่วยตรวจสอบ:
-- รายการไหนยังไม่เปิด FlowAccount (ไม่มีลิงก์)
-- รายการไหนเปิดแล้วแต่ยังไม่ส่งให้คู่ค้า
+```typescript
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 10,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+    mutations: { retry: 0 }
+  }
+});
 ```
+
+### เหตุผล
+- **refetchOnWindowFocus: false** — Dashboard มีหลาย component ที่ fetch ข้อมูล การสลับ tab กลับมาจะ trigger fetch พร้อมกันหลายสิบครั้งโดยไม่จำเป็น
+- **staleTime: 5 นาที** — ข้อมูลค่าใช้จ่ายไม่เปลี่ยนทุกวินาที และหน้าที่ต้องการ realtime ก็มี Supabase subscription อยู่แล้ว
+- **gcTime: 10 นาที** — เก็บ cache หลัง unmount ไม่ต้อง fetch ใหม่เมื่อกลับมาหน้าเดิม
+- **retry: 1** — ลดจาก default 3 ครั้ง ไม่ต้องรอนานเมื่อ Supabase มีปัญหา
+- **mutations retry: 0** — ป้องกันข้อมูลซ้ำจาก auto-retry ของ insert/update
+
+ไม่ต้องแก้ไฟล์อื่น เพราะ `QueryClientProvider` ครอบ app ทั้งหมดอยู่แล้ว
 
