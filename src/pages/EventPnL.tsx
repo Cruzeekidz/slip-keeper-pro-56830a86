@@ -10,112 +10,38 @@ import { ArrowLeft, TrendingUp, TrendingDown, Users, DollarSign, Package, Refres
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-
-interface ReadyGoEvent {
-  id: string;
-  title: string;
-  short_code: string;
-  event_date: string;
-  location: string;
-}
-
-interface RegistrationStats {
-  total_registrations: number;
-  completed_count: number;
-  sponsored_count: number;
-  total_registration_fee: number;
-  total_discount: number;
-  total_cruzee_discount: number;
-  actual_revenue: number;
-  oto1_revenue: number;
-  oto1_count: number;
-  oto2_revenue: number;
-  oto2_count: number;
-  total_oto_revenue: number;
-  category_breakdown: Record<string, number>;
-}
-
-interface EventFinancialData {
-  event?: ReadyGoEvent;
-  events?: ReadyGoEvent[];
-  registrationStats: RegistrationStats;
-  financials: any[];
-  summary: {
-    totalExpenses: number;
-    totalOtherIncome: number;
-    netProfit: number;
-  };
-}
-
-interface EventGroup {
-  id: string;
-  group_name: string;
-  project_tag: string;
-  readygo_event_ids: string[];
-}
-
-interface OtherIncome {
-  id: string;
-  description: string;
-  amount: number;
-  income_date: string | null;
-  event_group_id: string | null;
-  event_id: string | null;
-}
-
-interface ProductCost {
-  id: string;
-  product_name: string;
-  quantity: number;
-  unit_cost: number;
-  total_cost: number;
-  event_group_id: string | null;
-  event_id: string | null;
-}
-
-interface OtherExpense {
-  id: string;
-  description: string;
-  amount: number;
-  expense_date: string | null;
-  is_refundable: boolean;
-  refund_status: string;
-  refunded_at: string | null;
-  event_group_id: string | null;
-  event_id: string | null;
-}
-
-interface EventNote {
-  id: string;
-  note_text: string;
-  note_type: string;
-  is_resolved: boolean;
-  resolved_at: string | null;
-  event_group_id: string | null;
-  event_id: string | null;
-  created_at: string;
-}
-
-interface EventReminder {
-  id: string;
-  reminder_type: string;
-  title: string;
-  description: string | null;
-  amount: number;
-  due_date: string;
-  remind_before_days: number;
-  is_completed: boolean;
-  completed_at: string | null;
-  notify_line: boolean;
-  notify_gcal: boolean;
-  line_notified_at: string | null;
-  event_group_id: string | null;
-  event_id: string | null;
-  created_at: string;
-}
+import {
+  useReadyGoEvents,
+  useEventGroups,
+  useEventFinancials,
+  useLocalExpenses,
+  useOtherIncomes,
+  useProductCosts,
+  useOtherExpenses,
+  useEventNotes,
+  useEventReminders,
+  useOtherIncomeMutations,
+  useProductCostMutations,
+  useOtherExpenseMutations,
+  useEventNoteMutations,
+  useEventReminderMutations,
+  useGroupMutations,
+  useToggleRefundStatus,
+  useToggleNoteResolved,
+  useToggleReminderCompleted,
+  useSendReminderLine,
+  type ReadyGoEvent,
+  type EventFinancialData,
+  type EventGroup,
+  type OtherIncome,
+  type ProductCost,
+  type OtherExpense,
+  type EventNote,
+  type EventReminder,
+} from "@/hooks/useEventPnLData";
 
 const REMINDER_TYPES = [
   { value: "billing", label: "📋 วางบิล", color: "text-blue-600" },
@@ -125,14 +51,14 @@ const REMINDER_TYPES = [
 ];
 
 const CHART_COLORS = [
-  "hsl(190, 80%, 45%)",   // ค่าสมัคร - ฟ้าเข้ม
-  "hsl(30, 90%, 55%)",    // OTO1 - ส้ม
-  "hsl(280, 65%, 55%)",   // OTO2 - ม่วง
-  "hsl(340, 80%, 55%)",   // รายได้อื่น Ready-go - ชมพูเข้ม
-  "hsl(45, 95%, 50%)",    // รายได้อื่น บันทึกเอง - เหลืองทอง
-  "hsl(150, 60%, 45%)",   // สำรอง - เขียว
-  "hsl(0, 70%, 55%)",     // สำรอง - แดง
-  "hsl(210, 70%, 50%)",   // สำรอง - น้ำเงิน
+  "hsl(190, 80%, 45%)",
+  "hsl(30, 90%, 55%)",
+  "hsl(280, 65%, 55%)",
+  "hsl(340, 80%, 55%)",
+  "hsl(45, 95%, 50%)",
+  "hsl(150, 60%, 45%)",
+  "hsl(0, 70%, 55%)",
+  "hsl(210, 70%, 50%)",
 ];
 
 const formatNumber = (n: number) => n.toLocaleString("th-TH", { minimumFractionDigits: 0 });
@@ -142,44 +68,62 @@ const EventPnL = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  const [events, setEvents] = useState<ReadyGoEvent[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
-  const [financialData, setFinancialData] = useState<EventFinancialData | null>(null);
-  const [localExpenses, setLocalExpenses] = useState<number>(0);
-  const [localExpenseItems, setLocalExpenseItems] = useState<{description: string; amount: number; expense_date: string; category: string; event_name: string | null; project_tag: string | null}[]>([]);
   const [showExpenseBreakdown, setShowExpenseBreakdown] = useState(false);
   const [showReadyGoIncomeBreakdown, setShowReadyGoIncomeBreakdown] = useState(false);
-  const [loadingEvents, setLoadingEvents] = useState(false);
-  const [loadingData, setLoadingData] = useState(false);
 
+  // ─── Data queries via custom hooks ─────────────────────────
+  const { data: events = [], isLoading: loadingEvents } = useReadyGoEvents();
+  const { data: groups = [] } = useEventGroups(user?.id);
+  const { data: financialData, isLoading: loadingData } = useEventFinancials(selectedEventId, selectedGroupId, groups);
+  const { data: localExpenseData } = useLocalExpenses(user?.id, selectedEventId, selectedGroupId, groups, financialData);
+  const { data: otherIncomes = [] } = useOtherIncomes(user?.id, selectedEventId, selectedGroupId);
+  const { data: productCosts = [] } = useProductCosts(user?.id, selectedEventId, selectedGroupId);
+  const { data: otherExpenses = [] } = useOtherExpenses(user?.id, selectedEventId, selectedGroupId);
+  const { data: eventNotes = [] } = useEventNotes(user?.id, selectedEventId, selectedGroupId);
+  const { data: reminders = [] } = useEventReminders(user?.id, selectedEventId, selectedGroupId);
+
+  const localExpenses = localExpenseData?.total || 0;
+  const localExpenseItems = localExpenseData?.items || [];
+
+  // ─── Mutations ─────────────────────────────────────────────
+  const { saveMutation: saveGroupMut, deleteMutation: deleteGroupMut } = useGroupMutations(user?.id);
+  const { saveMutation: saveIncomeMut, deleteMutation: deleteIncomeMut } = useOtherIncomeMutations(selectedEventId, selectedGroupId);
+  const { saveMutation: saveProductMut, deleteMutation: deleteProductMut } = useProductCostMutations(selectedEventId, selectedGroupId);
+  const { saveMutation: saveExpenseMut, deleteMutation: deleteExpenseMut } = useOtherExpenseMutations(selectedEventId, selectedGroupId);
+  const { saveMutation: saveNoteMut, deleteMutation: deleteNoteMut } = useEventNoteMutations(selectedEventId, selectedGroupId);
+  const { saveMutation: saveReminderMut, deleteMutation: deleteReminderMut } = useEventReminderMutations(selectedEventId, selectedGroupId);
+  const toggleRefundMut = useToggleRefundStatus(selectedEventId, selectedGroupId);
+  const toggleNoteMut = useToggleNoteResolved(selectedEventId, selectedGroupId);
+  const toggleReminderMut = useToggleReminderCompleted(selectedEventId, selectedGroupId);
+  const sendReminderMut = useSendReminderLine(selectedEventId, selectedGroupId);
+
+  // ─── UI form state (keep as useState) ──────────────────────
   // Group management
-  const [groups, setGroups] = useState<EventGroup[]>([]);
   const [showGroupDialog, setShowGroupDialog] = useState(false);
   const [editingGroup, setEditingGroup] = useState<EventGroup | null>(null);
   const [groupName, setGroupName] = useState("");
   const [groupTag, setGroupTag] = useState("");
   const [selectedEventIds, setSelectedEventIds] = useState<string[]>([]);
 
-  // Other income management
-  const [otherIncomes, setOtherIncomes] = useState<OtherIncome[]>([]);
+  // Other income
   const [showIncomeDialog, setShowIncomeDialog] = useState(false);
   const [editingIncome, setEditingIncome] = useState<OtherIncome | null>(null);
   const [incomeDesc, setIncomeDesc] = useState("");
   const [incomeAmount, setIncomeAmount] = useState("");
   const [incomeDate, setIncomeDate] = useState("");
 
-  // Product cost management
-  const [productCosts, setProductCosts] = useState<ProductCost[]>([]);
+  // Product cost
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductCost | null>(null);
   const [productName, setProductName] = useState("");
   const [productQty, setProductQty] = useState("");
   const [productUnitCost, setProductUnitCost] = useState("");
 
-  // Other expenses management
-  const [otherExpenses, setOtherExpenses] = useState<OtherExpense[]>([]);
+  // Other expenses
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [editingExpense, setEditingExpense] = useState<OtherExpense | null>(null);
   const [expenseDesc, setExpenseDesc] = useState("");
@@ -187,15 +131,13 @@ const EventPnL = () => {
   const [expenseDate, setExpenseDate] = useState("");
   const [expenseRefundable, setExpenseRefundable] = useState(false);
 
-  // Event notes management
-  const [eventNotes, setEventNotes] = useState<EventNote[]>([]);
+  // Event notes
   const [showNoteDialog, setShowNoteDialog] = useState(false);
   const [editingNote, setEditingNote] = useState<EventNote | null>(null);
   const [noteText, setNoteText] = useState("");
   const [noteType, setNoteType] = useState("general");
 
-  // Reminders management
-  const [reminders, setReminders] = useState<EventReminder[]>([]);
+  // Reminders
   const [showReminderDialog, setShowReminderDialog] = useState(false);
   const [editingReminder, setEditingReminder] = useState<EventReminder | null>(null);
   const [reminderType, setReminderType] = useState("billing");
@@ -205,18 +147,10 @@ const EventPnL = () => {
   const [reminderDueDate, setReminderDueDate] = useState("");
   const [reminderBeforeDays, setReminderBeforeDays] = useState("1");
   const [reminderNotifyLine, setReminderNotifyLine] = useState(true);
-  const [sendingReminder, setSendingReminder] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
   }, [user, authLoading, navigate]);
-
-  useEffect(() => {
-    if (user) {
-      fetchEvents();
-      fetchGroups();
-    }
-  }, [user]);
 
   // Auto-select from URL params (from dashboard card click)
   useEffect(() => {
@@ -227,24 +161,13 @@ const EventPnL = () => {
     if (groupParam && groups.length > 0) {
       const group = groups.find(g => g.id === groupParam);
       if (group && !selectedGroupId) {
-        fetchGroupFinancials(group);
+        setSelectedEventId("");
+        setSelectedGroupId(group.id);
       }
     } else if (eventParam && !selectedEventId) {
       setSelectedEventId(eventParam);
-      fetchFinancials(eventParam);
     }
   }, [user, events, groups, searchParams]);
-
-  useEffect(() => {
-    if ((selectedEventId || selectedGroupId) && financialData) {
-      fetchLocalExpenses();
-      fetchOtherIncomes();
-      fetchProductCosts();
-      fetchOtherExpenses();
-      fetchEventNotes();
-      fetchReminders();
-    }
-  }, [selectedEventId, selectedGroupId, financialData]);
 
   const fetchEvents = async () => {
     setLoadingEvents(true);
