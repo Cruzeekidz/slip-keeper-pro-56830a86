@@ -229,7 +229,7 @@ const Index = () => {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/wht-certificates')}>
                     <FileText className="h-4 w-4 mr-2" />
-                    หนังสือรับรอง 50 ทวิ
+                    ติดตามหัก ณ ที่จ่าย
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />

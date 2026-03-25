@@ -299,9 +299,81 @@ serve(async (req) => {
           continue;
         }
 
-        // --- ADMIN ONLY: Handle TEXT messages as pending memo ---
+        // --- ADMIN ONLY: Handle FlowAccount URL ---
         if (userRole !== 'admin') continue;
 
+        if (text.includes('flowaccount.com')) {
+          // Find the user's supabase ID
+          const { data: mapping } = await supabase
+            .from('line_user_mappings')
+            .select('supabase_user_id')
+            .eq('line_user_id', userId)
+            .maybeSingle();
+
+          if (!mapping?.supabase_user_id) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ ยังไม่ได้ผูกบัญชี กรุณาผูกบัญชีก่อน`);
+            continue;
+          }
+
+          // Extract URL from text
+          const urlMatch = text.match(/(https?:\/\/[^\s]+flowaccount\.com[^\s]*)/i);
+          const flowUrl = urlMatch ? urlMatch[1] : text.trim();
+
+          // Find WHT records without flowaccount_url for this user
+          const { data: pendingCerts } = await supabase
+            .from('wht_certificates')
+            .select('id, payee_name, total_gross, total_tax, issue_date')
+            .eq('user_id', mapping.supabase_user_id)
+            .is('flowaccount_url', null)
+            .order('issue_date', { ascending: false })
+            .limit(10);
+
+          if (!pendingCerts || pendingCerts.length === 0) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `⚠️ ไม่พบรายการหัก ณ ที่จ่ายที่รอลิงก์\nกรุณาบันทึกรายการก่อนที่หน้าเว็บ`);
+            continue;
+          }
+
+          if (pendingCerts.length === 1) {
+            // Auto-match: only one pending record
+            const cert = pendingCerts[0];
+            await supabase
+              .from('wht_certificates')
+              .update({ flowaccount_url: flowUrl } as any)
+              .eq('id', cert.id);
+
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `✅ บันทึกลิงก์ FlowAccount สำเร็จ!\n👤 ${cert.payee_name}\n💰 ${Number(cert.total_gross).toLocaleString()} บาท\n🔗 ${flowUrl}`);
+            continue;
+          }
+
+          // Multiple pending: try to match by payee name in the message text
+          const textLower = text.toLowerCase();
+          const matched = pendingCerts.find(c => textLower.includes(c.payee_name.toLowerCase()));
+
+          if (matched) {
+            await supabase
+              .from('wht_certificates')
+              .update({ flowaccount_url: flowUrl } as any)
+              .eq('id', matched.id);
+
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `✅ บันทึกลิงก์ FlowAccount สำเร็จ!\n👤 ${matched.payee_name}\n💰 ${Number(matched.total_gross).toLocaleString()} บาท\n🔗 ${flowUrl}`);
+            continue;
+          }
+
+          // Can't auto-match: list pending records
+          const listText = pendingCerts.map((c, i) =>
+            `${i + 1}. ${c.payee_name} - ${Number(c.total_gross).toLocaleString()} บาท (${c.issue_date})`
+          ).join('\n');
+
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            `🔍 พบหลายรายการที่รอลิงก์:\n${listText}\n\n💡 กรุณาวางลิงก์พร้อมชื่อคู่ค้า หรือวางลิงก์ที่หน้าเว็บแทน`);
+          continue;
+        }
+
+        // --- Handle TEXT messages as pending memo ---
         await supabase.from('line_pending_memos').delete().eq('line_user_id', userId);
         await supabase.from('line_pending_memos').insert({
           line_user_id: userId,
