@@ -509,13 +509,22 @@ const WhtCertificateForm = () => {
       {/* Header */}
       <div className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/wht-report")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(editId ? "/wht-certificates" : "/wht-report")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <div>
-            <h1 className="text-lg font-bold">หนังสือรับรองหัก ณ ที่จ่าย</h1>
+          <div className="flex-1">
+            <h1 className="text-lg font-bold">{editId ? "แก้ไข" : "สร้าง"}หนังสือรับรองหัก ณ ที่จ่าย</h1>
             <p className="text-xs text-muted-foreground">ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร</p>
           </div>
+          {editId && (
+            <Button variant="outline" size="sm" onClick={() => {
+              const url = `${window.location.origin}/portal?view=wht-cert&id=${editId}`;
+              navigator.clipboard.writeText(url);
+              toast({ title: "คัดลอกลิงก์สำเร็จ" });
+            }}>
+              <Copy className="h-4 w-4 mr-1" /> แชร์
+            </Button>
+          )}
         </div>
       </div>
 
@@ -733,7 +742,7 @@ const WhtCertificateForm = () => {
       {/* Sticky Footer */}
       <div className="fixed bottom-0 left-0 right-0 bg-card border-t p-3 z-20">
         <div className="max-w-4xl mx-auto flex gap-2">
-          <Button variant="ghost" className="flex-1" onClick={() => navigate("/wht-report")}>
+          <Button variant="ghost" className="flex-1" onClick={() => navigate(editId ? "/wht-certificates" : "/wht-report")}>
             ยกเลิก
           </Button>
           <Button variant="secondary" className="flex-1" onClick={() => saveCertificate(false)} disabled={saving}>
