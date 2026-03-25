@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
-import { Folder, ExternalLink, ChevronRight, Eye } from "lucide-react";
+import { Folder, ExternalLink, ChevronRight } from "lucide-react";
 import { useExpensesRealtime } from "@/hooks/useExpensesRealtime";
 import { useNavigate } from "react-router-dom";
 
@@ -28,56 +28,100 @@ interface ExpenseDetail {
   receipt_url: string | null;
 }
 
+type PeriodPreset = "all" | "this-year" | "last-year" | "this-month" | "last-3m" | "last-6m";
+
+function getDateRange(preset: PeriodPreset): { from: string | null; to: string | null } {
+  if (preset === "all") return { from: null, to: null };
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  switch (preset) {
+    case "this-year":
+      return { from: `${y}-01-01`, to: `${y}-12-31` };
+    case "last-year":
+      return { from: `${y - 1}-01-01`, to: `${y - 1}-12-31` };
+    case "this-month": {
+      const start = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      const end = new Date(y, m + 1, 0);
+      return { from: start, to: end.toISOString().slice(0, 10) };
+    }
+    case "last-3m": {
+      const d = new Date(y, m - 2, 1);
+      return { from: d.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+    }
+    case "last-6m": {
+      const d = new Date(y, m - 5, 1);
+      return { from: d.toISOString().slice(0, 10), to: now.toISOString().slice(0, 10) };
+    }
+    default:
+      return { from: null, to: null };
+  }
+}
+
+const PERIOD_OPTIONS: { value: PeriodPreset; label: string }[] = [
+  { value: "all", label: "ทั้งหมด" },
+  { value: "this-month", label: "เดือนนี้" },
+  { value: "last-3m", label: "3 เดือนล่าสุด" },
+  { value: "last-6m", label: "6 เดือนล่าสุด" },
+  { value: "this-year", label: `ปี ${new Date().getFullYear() + 543}` },
+  { value: "last-year", label: `ปี ${new Date().getFullYear() + 542}` },
+];
+
 export function ProjectSummary() {
-  const [projectData, setProjectData] = useState<ProjectSummaryData[]>([]);
+  const [allExpenses, setAllExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewBy, setViewBy] = useState<"project_tag" | "category_group">("project_tag");
+  const [period, setPeriod] = useState<PeriodPreset>("all");
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [details, setDetails] = useState<ExpenseDetail[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchSummary();
-  }, [viewBy]);
-
-  useExpensesRealtime(useCallback(() => fetchSummary(), [viewBy]));
-
-  const fetchSummary = async () => {
+  const fetchAll = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: expenses, error } = await supabase
+      const { data, error } = await supabase
         .from('expenses')
-        .select('project_tag, category_group, transaction_type, amount');
-
+        .select('project_tag, category_group, transaction_type, amount, expense_date');
       if (error) throw error;
-
-      const map = new Map<string, { totalAmount: number; count: number }>();
-
-      expenses?.forEach(expense => {
-        if (expense.transaction_type === 'TRANSFER') return;
-
-        const key = viewBy === "project_tag"
-          ? expense.project_tag || 'ไม่ระบุแท็ก'
-          : expense.transaction_type === 'BUSINESS'
-            ? expense.category_group || 'ไม่ระบุกลุ่ม'
-            : expense.transaction_type || 'ไม่ระบุ';
-
-        const current = map.get(key) || { totalAmount: 0, count: 0 };
-        map.set(key, { totalAmount: current.totalAmount + expense.amount, count: current.count + 1 });
-      });
-
-      const summaries = Array.from(map.entries())
-        .map(([tag, data]) => ({ tag, ...data }))
-        .sort((a, b) => b.totalAmount - a.totalAmount);
-
-      setProjectData(summaries);
+      setAllExpenses(data || []);
     } catch (error) {
       console.error('Error fetching project summary:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useExpensesRealtime(fetchAll);
+
+  const { from: dateFrom, to: dateTo } = useMemo(() => getDateRange(period), [period]);
+
+  const projectData = useMemo(() => {
+    const map = new Map<string, { totalAmount: number; count: number }>();
+
+    allExpenses.forEach(expense => {
+      if (expense.transaction_type === 'TRANSFER') return;
+      if (dateFrom && expense.expense_date < dateFrom) return;
+      if (dateTo && expense.expense_date > dateTo) return;
+
+      const key = viewBy === "project_tag"
+        ? expense.project_tag || 'ไม่ระบุแท็ก'
+        : expense.transaction_type === 'BUSINESS'
+          ? expense.category_group || 'ไม่ระบุกลุ่ม'
+          : expense.transaction_type || 'ไม่ระบุ';
+
+      const current = map.get(key) || { totalAmount: 0, count: 0 };
+      map.set(key, { totalAmount: current.totalAmount + expense.amount, count: current.count + 1 });
+    });
+
+    return Array.from(map.entries())
+      .map(([tag, data]) => ({ tag, ...data }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [allExpenses, viewBy, dateFrom, dateTo]);
+
+  const grandTotal = useMemo(() => projectData.reduce((s, d) => s + d.totalAmount, 0), [projectData]);
+  const grandCount = useMemo(() => projectData.reduce((s, d) => s + d.count, 0), [projectData]);
 
   const fetchDetails = async (tag: string) => {
     setSelectedTag(tag);
@@ -90,6 +134,9 @@ export function ProjectSummary() {
         .order('expense_date', { ascending: false })
         .limit(500);
 
+      if (dateFrom) query = query.gte('expense_date', dateFrom);
+      if (dateTo) query = query.lte('expense_date', dateTo);
+
       if (viewBy === "project_tag") {
         if (tag === 'ไม่ระบุแท็ก') {
           query = query.is('project_tag', null);
@@ -97,7 +144,6 @@ export function ProjectSummary() {
           query = query.eq('project_tag', tag);
         }
       } else {
-        // category_group view
         if (tag === 'ไม่ระบุกลุ่ม') {
           query = query.eq('transaction_type', 'BUSINESS').is('category_group', null);
         } else if (tag === 'PERSONAL' || tag === 'BUSINESS') {
@@ -122,18 +168,28 @@ export function ProjectSummary() {
   return (
     <>
       <Card className="p-6 bg-gradient-card shadow-card">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Folder className="h-5 w-5 text-primary" />
             <h2 className="text-xl font-bold text-foreground">สรุปยอด (ไม่รวม TRANSFER)</h2>
           </div>
-          <Select value={viewBy} onValueChange={(v) => setViewBy(v as any)}>
-            <SelectTrigger className="w-[180px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="project_tag">ตามแท็กโปรเจค</SelectItem>
-              <SelectItem value="category_group">ตามกลุ่ม</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <Select value={period} onValueChange={(v) => setPeriod(v as PeriodPreset)}>
+              <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PERIOD_OPTIONS.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={viewBy} onValueChange={(v) => setViewBy(v as any)}>
+              <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="project_tag">ตามแท็กโปรเจค</SelectItem>
+                <SelectItem value="category_group">ตามกลุ่ม</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <Table>
@@ -160,6 +216,14 @@ export function ProjectSummary() {
                   </TableCell>
                 </TableRow>
               ))}
+              {projectData.length > 1 && (
+                <TableRow className="border-t-2 font-bold">
+                  <TableCell>รวมทั้งหมด</TableCell>
+                  <TableCell className="text-right">{grandCount}</TableCell>
+                  <TableCell className="text-right text-expense">฿{grandTotal.toLocaleString()}</TableCell>
+                  <TableCell />
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
