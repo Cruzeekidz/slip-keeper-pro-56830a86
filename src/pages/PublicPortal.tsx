@@ -7,9 +7,10 @@ import StaffRegistrationForm from "@/components/portal/StaffRegistrationForm";
 import StaffInvoicePublicForm from "@/components/portal/StaffInvoicePublicForm";
 import VendorRegistrationForm from "@/components/portal/VendorRegistrationForm";
 import VendorBillUpload from "@/components/portal/VendorBillUpload";
+import WhtCertPublicView from "@/components/portal/WhtCertPublicView";
 import { useLiff } from "@/hooks/useLiff";
 
-type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
+type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill" | "wht-cert";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -18,6 +19,7 @@ const VIEW_PARAM_MAP: Record<string, PortalView> = {
   "staff-invoice": "staff-invoice",
   "vendor-register": "vendor-register",
   "vendor-bill": "vendor-bill",
+  "wht-cert": "wht-cert",
 };
 
 const getDecodedVariants = (value: string): string[] => {
@@ -105,8 +107,19 @@ const PublicPortal = () => {
   const view = manualView ?? parsedView;
   const { lineUserId, lineProfile } = useLiff();
   const ownerId = (parsedParams.get("owner") || "").trim();
+  const certViewId = (parsedParams.get("id") || "").trim();
 
-  if (view !== "menu") {
+  if (view === "wht-cert" && certViewId) {
+    return (
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-lg mx-auto pt-4">
+          <WhtCertPublicView certId={certViewId} />
+        </div>
+      </div>
+    );
+  }
+
+  if (view !== "menu" && view !== "wht-cert") {
     return (
       <div className="min-h-screen bg-background p-4">
         <div className="max-w-lg mx-auto pt-4">

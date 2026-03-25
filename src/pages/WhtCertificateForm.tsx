@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Plus, Trash2, FileText, Save, X } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, FileText, Save, X, Copy } from "lucide-react";
 import { numberToThaiText } from "@/lib/thai-baht-text";
 import { INCOME_TYPES, PND_TYPES, PAYER_CONDITION_OPTIONS, type IncomeTypeOption } from "@/lib/wht-constants";
 import companyStampUrl from "@/assets/company-stamp.png";
@@ -56,6 +56,8 @@ const WhtCertificateForm = () => {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editLoaded, setEditLoaded] = useState(false);
 
   // Document info
   const [docNumber, setDocNumber] = useState("");
@@ -150,6 +152,57 @@ const WhtCertificateForm = () => {
     if (!user) navigate("/auth");
   }, [user, authLoading]);
 
+  // Edit mode: load existing certificate
+  useEffect(() => {
+    const editParam = searchParams.get("edit");
+    if (!editParam || !user || editLoaded) return;
+    setEditId(editParam);
+    const loadCert = async () => {
+      const { data: cert } = await supabase
+        .from("wht_certificates")
+        .select("*")
+        .eq("id", editParam)
+        .eq("user_id", user.id)
+        .single();
+      if (!cert) {
+        toast({ title: "ไม่พบเอกสาร", variant: "destructive" });
+        return;
+      }
+      setDocNumber(cert.doc_number || "");
+      setIssueDate(cert.issue_date);
+      setPndType(cert.pnd_type);
+      setPayerCondition(cert.payer_condition);
+      setPayer({ name: cert.payer_name || "", taxId: cert.payer_tax_id || "", address: cert.payer_address || "" });
+      // Set payee as new payee with loaded data
+      setIsNewPayee(true);
+      setNewPayee({
+        name: cert.payee_name,
+        taxId: cert.payee_tax_id || "",
+        address: cert.payee_address || "",
+        type: cert.payee_type as "individual" | "company",
+      });
+
+      // Load items
+      const { data: itemsData } = await supabase
+        .from("wht_certificate_items")
+        .select("*")
+        .eq("certificate_id", editParam)
+        .order("created_at");
+      if (itemsData && itemsData.length > 0) {
+        setLineItems(itemsData.map(i => ({
+          id: crypto.randomUUID(),
+          incomeTypeIndex: i.income_type_index,
+          paymentDate: i.payment_date || new Date().toISOString().split("T")[0],
+          grossAmount: Number(i.gross_amount),
+          taxRate: Number(i.tax_rate),
+          taxAmount: Number(i.tax_amount),
+        })));
+      }
+      setEditLoaded(true);
+    };
+    loadCert();
+  }, [user, searchParams, editLoaded]);
+
   const filteredPayees = useMemo(() => {
     if (!payeeSearch) return payeeOptions;
     const q = payeeSearch.toLowerCase();
@@ -213,35 +266,65 @@ const WhtCertificateForm = () => {
     localStorage.setItem("wht_payer_info", JSON.stringify(payer));
 
     try {
-      // Insert certificate
-      const { data: cert, error: certError } = await supabase.from("wht_certificates").insert({
-        user_id: user.id,
-        doc_number: docNumber || null,
-        issue_date: issueDate,
-        pnd_type: pndType,
-        payer_condition: payerCondition,
-        payer_name: payer.name,
-        payer_tax_id: payer.taxId,
-        payer_address: payer.address,
-        payee_name: payeeInfo.name,
-        payee_tax_id: payeeInfo.taxId,
-        payee_address: payeeInfo.address,
-        payee_type: payeeInfo.type,
-        payee_source: payeeInfo.source,
-        payee_source_id: payeeInfo.sourceId,
-        total_gross: totalGross,
-        total_tax: totalTax,
-        total_tax_text: numberToThaiText(totalTax),
-        source_invoice_id: searchParams.get("source_id") || null,
-        source_type: searchParams.get("source_type") || null,
-        status: andGenerate ? "completed" : "draft",
-      } as any).select().single();
+      let certId = editId;
 
-      if (certError) throw certError;
+      if (editId) {
+        // UPDATE existing certificate
+        const { error: certError } = await supabase.from("wht_certificates").update({
+          doc_number: docNumber || null,
+          issue_date: issueDate,
+          pnd_type: pndType,
+          payer_condition: payerCondition,
+          payer_name: payer.name,
+          payer_tax_id: payer.taxId,
+          payer_address: payer.address,
+          payee_name: payeeInfo.name,
+          payee_tax_id: payeeInfo.taxId,
+          payee_address: payeeInfo.address,
+          payee_type: payeeInfo.type,
+          payee_source: payeeInfo.source,
+          payee_source_id: payeeInfo.sourceId,
+          total_gross: totalGross,
+          total_tax: totalTax,
+          total_tax_text: numberToThaiText(totalTax),
+          status: andGenerate ? "completed" : "draft",
+        } as any).eq("id", editId);
+        if (certError) throw certError;
+
+        // Delete old items and re-insert
+        await supabase.from("wht_certificate_items").delete().eq("certificate_id", editId);
+      } else {
+        // INSERT new certificate
+        const { data: cert, error: certError } = await supabase.from("wht_certificates").insert({
+          user_id: user.id,
+          doc_number: docNumber || null,
+          issue_date: issueDate,
+          pnd_type: pndType,
+          payer_condition: payerCondition,
+          payer_name: payer.name,
+          payer_tax_id: payer.taxId,
+          payer_address: payer.address,
+          payee_name: payeeInfo.name,
+          payee_tax_id: payeeInfo.taxId,
+          payee_address: payeeInfo.address,
+          payee_type: payeeInfo.type,
+          payee_source: payeeInfo.source,
+          payee_source_id: payeeInfo.sourceId,
+          total_gross: totalGross,
+          total_tax: totalTax,
+          total_tax_text: numberToThaiText(totalTax),
+          source_invoice_id: searchParams.get("source_id") || null,
+          source_type: searchParams.get("source_type") || null,
+          status: andGenerate ? "completed" : "draft",
+        } as any).select().single();
+        if (certError) throw certError;
+        certId = cert.id;
+        setEditId(certId);
+      }
 
       // Insert line items
       const items = lineItems.map(item => ({
-        certificate_id: cert.id,
+        certificate_id: certId,
         income_type_index: item.incomeTypeIndex,
         income_type_label: INCOME_TYPES[item.incomeTypeIndex]?.label || "",
         payment_date: item.paymentDate,
