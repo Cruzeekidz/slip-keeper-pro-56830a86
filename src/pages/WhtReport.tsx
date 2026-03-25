@@ -69,9 +69,7 @@ const WhtReport = () => {
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState<WhtEntry[]>([]);
 
-  // Payer info dialog
-  const [showPayerDialog, setShowPayerDialog] = useState(false);
-  const [certEntry, setCertEntry] = useState<WhtEntry | null>(null);
+  // Payer info (for localStorage persistence)
   const [payerInfo, setPayerInfo] = useState({
     name: "",
     tax_id: "",
@@ -211,141 +209,7 @@ const WhtReport = () => {
     navigate(`/wht-certificate?${params.toString()}`);
   };
 
-  const generateWhtCert = () => {
-    if (!certEntry) return;
 
-    // Save payer info
-    localStorage.setItem("wht_payer_info", JSON.stringify(payerInfo));
-
-    const monthName = MONTHS_TH[Number(selectedMonth) - 1];
-    const pndLabel = certEntry.pnd_type === "3" ? "ภ.ง.ด.3" : "ภ.ง.ด.53";
-    const taxIdDigits = certEntry.tax_id.replace(/\D/g, "");
-    const payerTaxDigits = payerInfo.tax_id.replace(/\D/g, "");
-
-    const formatTaxIdBoxes = (digits: string) => {
-      return digits.padEnd(13, " ").split("").map((d, i) =>
-        `<span style="display:inline-block;width:22px;height:26px;border:1px solid #000;text-align:center;line-height:26px;font-size:14px;margin:0 1px;">${d.trim()}</span>`
-      ).join("");
-    };
-
-    const html = `<!DOCTYPE html>
-<html lang="th">
-<head>
-<meta charset="UTF-8">
-<title>หนังสือรับรองหัก ณ ที่จ่าย - ${certEntry.payee_name}</title>
-<style>
-  @media print { body { margin: 0; } @page { size: A4; margin: 15mm; } }
-  body { font-family: 'Sarabun', 'TH Sarabun New', sans-serif; font-size: 14px; line-height: 1.6; max-width: 700px; margin: 20px auto; padding: 20px; }
-  .header { text-align: center; margin-bottom: 20px; }
-  .header h2 { margin: 5px 0; font-size: 18px; }
-  .header h3 { margin: 5px 0; font-size: 16px; font-weight: normal; }
-  .section { border: 1px solid #000; padding: 10px 15px; margin-bottom: 10px; }
-  .row { display: flex; justify-content: space-between; margin: 4px 0; }
-  .label { font-weight: bold; min-width: 120px; }
-  table.income { width: 100%; border-collapse: collapse; margin: 10px 0; }
-  table.income th, table.income td { border: 1px solid #000; padding: 6px 10px; font-size: 13px; }
-  table.income th { background: #f0f0f0; text-align: center; }
-  .amount-text { font-size: 13px; margin-top: 8px; }
-  .checkbox { display: inline-block; width: 14px; height: 14px; border: 1px solid #000; margin-right: 4px; vertical-align: middle; text-align: center; line-height: 14px; font-size: 11px; }
-  .checked { background: #000; color: #fff; }
-  .sign-section { display: flex; justify-content: space-between; margin-top: 40px; }
-  .sign-box { text-align: center; width: 45%; }
-  .sign-line { border-top: 1px dotted #000; margin-top: 50px; padding-top: 5px; }
-  .print-btn { background: #e11d48; color: white; border: none; padding: 12px 30px; font-size: 16px; cursor: pointer; border-radius: 6px; display: block; margin: 20px auto; }
-  @media print { .print-btn { display: none; } }
-</style>
-</head>
-<body>
-<button class="print-btn" onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
-
-<div class="header">
-  <h2>หนังสือรับรองการหักภาษี ณ ที่จ่าย</h2>
-  <h3>ตามมาตรา 50 ทวิ แห่งประมวลรัษฎากร</h3>
-</div>
-
-<div class="section">
-  <div style="display:flex;justify-content:space-between;align-items:center;">
-    <div>
-      <span class="checkbox ${certEntry.pnd_type === "3" ? "checked" : ""}">✓</span> ภ.ง.ด.3
-      &nbsp;&nbsp;
-      <span class="checkbox ${certEntry.pnd_type === "53" ? "checked" : ""}">✓</span> ภ.ง.ด.53
-    </div>
-    <div>เล่มที่ .............. เลขที่ ..............</div>
-  </div>
-</div>
-
-<div class="section">
-  <p style="font-weight:bold;margin:0 0 8px;">ผู้มีหน้าที่หักภาษี ณ ที่จ่าย</p>
-  <div class="row"><span class="label">ชื่อ:</span> <span>${payerInfo.name || "........................................"}</span></div>
-  <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span> <span>${formatTaxIdBoxes(payerTaxDigits)}</span></div>
-  <div class="row"><span class="label">ที่อยู่:</span> <span>${payerInfo.address || "........................................"}</span></div>
-</div>
-
-<div class="section">
-  <p style="font-weight:bold;margin:0 0 8px;">ผู้ถูกหักภาษี ณ ที่จ่าย</p>
-  <div class="row"><span class="label">ชื่อ:</span> <span>${certEntry.payee_name}</span></div>
-  <div class="row"><span class="label">เลขประจำตัวผู้เสียภาษี:</span> <span>${formatTaxIdBoxes(taxIdDigits)}</span></div>
-  <div class="row"><span class="label">ที่อยู่:</span> <span>${certEntry.address}</span></div>
-</div>
-
-<table class="income">
-  <thead>
-    <tr>
-      <th>ประเภทเงินได้พึงประเมินที่จ่าย</th>
-      <th>วัน เดือน ปี<br/>ที่จ่าย</th>
-      <th>จำนวนเงินที่จ่าย</th>
-      <th>ภาษีที่หักไว้</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>${certEntry.income_type}</td>
-      <td style="text-align:center;">${certEntry.paid_date}</td>
-      <td style="text-align:right;">${certEntry.gross_amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
-      <td style="text-align:right;">${certEntry.wht_amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
-    </tr>
-    <tr style="font-weight:bold;">
-      <td colspan="2" style="text-align:center;">รวมเงินที่จ่ายและภาษีที่หักนำส่ง</td>
-      <td style="text-align:right;">${certEntry.gross_amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
-      <td style="text-align:right;">${certEntry.wht_amount.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</td>
-    </tr>
-  </tbody>
-</table>
-
-<div class="amount-text">
-  <p>รวมเงินภาษีที่หักนำส่ง (ตัวอักษร): <strong>${numberToThaiText(certEntry.wht_amount)}</strong></p>
-</div>
-
-<div style="margin:15px 0;">
-  <span class="checkbox checked">✓</span> หักภาษี ณ ที่จ่าย
-  &nbsp;&nbsp;
-  <span class="checkbox">&#x2003;</span> ออกภาษีให้ตลอดไป
-  &nbsp;&nbsp;
-  <span class="checkbox">&#x2003;</span> ออกภาษีให้ครั้งเดียว
-</div>
-
-<div class="sign-section">
-  <div class="sign-box">
-    <div class="sign-line">ผู้จ่ายเงิน</div>
-    <p style="font-size:12px;">วันที่ ........./........./.........</p>
-  </div>
-  <div class="sign-box">
-    <div class="sign-line">ผู้รับเงิน</div>
-    <p style="font-size:12px;">วันที่ ........./........./.........</p>
-  </div>
-</div>
-
-</body>
-</html>`;
-
-    const win = window.open("", "_blank");
-    if (win) {
-      win.document.write(html);
-      win.document.close();
-    }
-    setShowPayerDialog(false);
-    toast({ title: "สร้างหนังสือรับรองหัก ณ ที่จ่ายสำเร็จ" });
-  };
 
   const renderTable = (pndEntries: WhtEntry[], pndType: string, totalGross: number, totalWht: number) => (
     <div className="space-y-4">
