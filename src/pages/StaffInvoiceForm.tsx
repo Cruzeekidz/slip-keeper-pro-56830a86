@@ -37,7 +37,10 @@ const StaffInvoiceForm = () => {
     notes: "",
   });
 
-  const grossAmount = form.days_worked * form.daily_rate;
+  const [whtMode, setWhtMode] = useState<"inclusive" | "exclusive">("inclusive");
+
+  const baseAmount = form.days_worked * form.daily_rate;
+  const grossAmount = whtMode === "inclusive" ? baseAmount : Math.round(baseAmount / 0.97 * 100) / 100;
   const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
   const netAmount = grossAmount - whtAmount;
 
