@@ -137,6 +137,26 @@ const StaffPayments = () => {
 
       const { error } = await supabase.from("staff_invoices").update(updates as any).eq("id", id);
       if (error) throw error;
+
+      // Find the invoice to create WHT expense
+      const inv = invoices.find((i: any) => i.id === id);
+      if (inv && Number(inv.wht_amount) > 0) {
+        const whtExpenseType = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
+        await supabase.from("expenses").insert({
+          user_id: user.id,
+          amount: Number(inv.wht_amount),
+          category: "ภาษีหัก ณ ที่จ่าย",
+          subcategory: "WHT 3%",
+          description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
+          expense_date: new Date().toISOString().split("T")[0],
+          transaction_direction: "EXPENSE",
+          transaction_type: "เครดิต",
+          staff_name: inv.staff_profiles?.staff_name || null,
+          event_name: inv.event_name || null,
+          receiver: "สรรพากร",
+          memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number} - จ่ายด้วย${whtExpenseType}`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
