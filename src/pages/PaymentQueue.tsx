@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Copy, Check, Banknote } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon } from "lucide-react";
 
 interface PaymentItem {
   id: string;
@@ -21,7 +22,11 @@ interface PaymentItem {
   gross_amount: number;
   bonus_amount: number;
   wht_rate: number;
+  wht_amount: number;
+  net_amount: number;
   status: string;
+  payment_slip_url: string | null;
+  matched_expense_id: string | null;
   staff_profiles: {
     staff_name: string;
     nickname: string | null;
@@ -40,9 +45,13 @@ const PaymentQueue = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [whtEnabled, setWhtEnabled] = useState<Record<string, boolean>>({});
   const [vatEnabled, setVatEnabled] = useState<Record<string, boolean>>({});
+  const [payDialog, setPayDialog] = useState<PaymentItem | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -53,9 +62,40 @@ const PaymentQueue = () => {
         .in("status", ["submitted", "approved"])
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return data as PaymentItem[];
+      return (data as any[]) as PaymentItem[];
     },
     enabled: !!user,
+  });
+
+  const markPaidMutation = useMutation({
+    mutationFn: async ({ invoiceId, slipFile }: { invoiceId: string; slipFile: File }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Upload slip to receipts bucket
+      const ext = slipFile.name.split(".").pop() || "jpg";
+      const path = `payment-slips/${user.id}/${Date.now()}_${invoiceId}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
+        contentType: slipFile.type,
+      });
+      if (uploadErr) throw uploadErr;
+
+      // Update invoice
+      const { error } = await supabase.from("staff_invoices").update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_slip_url: path,
+      } as any).eq("id", invoiceId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      setPayDialog(null);
+      toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
+    },
   });
 
   const copyAccount = (id: string, account: string) => {
@@ -73,10 +113,7 @@ const PaymentQueue = () => {
 
     const vatAmount = hasVat ? Math.round(baseAmount * 0.07 * 100) / 100 : 0;
     const totalBeforeWht = baseAmount + vatAmount;
-
-    // WHT 3% คิดจากยอดก่อน VAT เสมอ
     const whtAmount = hasWht ? Math.round(baseAmount * 0.03 * 100) / 100 : 0;
-
     const netPayable = totalBeforeWht - whtAmount;
 
     return { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable };
@@ -93,6 +130,20 @@ const PaymentQueue = () => {
     },
     { gross: 0, wht: 0, net: 0 }
   );
+
+  const handleSlipUpload = (inv: PaymentItem) => {
+    setPayDialog(inv);
+  };
+
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !payDialog) return;
+    setUploading(true);
+    markPaidMutation.mutate(
+      { invoiceId: payDialog.id, slipFile: file },
+      { onSettled: () => setUploading(false) }
+    );
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -162,9 +213,16 @@ const PaymentQueue = () => {
                           {inv.event_name || "ไม่ระบุอีเวนท์"} • {inv.invoice_number}
                         </p>
                       </div>
-                      <Badge variant={inv.status === "approved" ? "default" : "secondary"}>
-                        {inv.status === "approved" ? "อนุมัติแล้ว" : "ส่งแล้ว"}
-                      </Badge>
+                      <div className="flex gap-1">
+                        {inv.matched_expense_id && (
+                          <Badge variant="outline" className="text-xs border-green-300 text-green-700 bg-green-50">
+                            จับคู่อัตโนมัติ
+                          </Badge>
+                        )}
+                        <Badge variant={inv.status === "approved" ? "default" : "secondary"}>
+                          {inv.status === "approved" ? "อนุมัติแล้ว" : "ส่งแล้ว"}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -259,24 +317,74 @@ const PaymentQueue = () => {
                       </div>
                     </div>
 
-                    {/* Copy net amount */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => {
-                        navigator.clipboard.writeText(netPayable.toFixed(2));
-                        toast({ title: "คัดลอกยอดโอน", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
-                      }}
-                    >
-                      <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
-                    </Button>
+                    {/* Action buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => {
+                          navigator.clipboard.writeText(netPayable.toFixed(2));
+                          toast({ title: "คัดลอกยอดโอน", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => handleSlipUpload(inv)}
+                      >
+                        <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );
             })}
           </div>
         )}
+
+        {/* Mark as Paid Dialog */}
+        <Dialog open={!!payDialog} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                ยืนยันการจ่ายเงิน
+              </DialogTitle>
+            </DialogHeader>
+            {payDialog && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-medium">{payDialog.staff_profiles?.staff_name}</p>
+                  <p className="text-muted-foreground">{payDialog.event_name || "ไม่ระบุอีเวนท์"}</p>
+                  <p className="text-primary font-bold text-lg">
+                    {Number(payDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                  >
+                    {uploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileSelected}
+                  />
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
