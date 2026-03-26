@@ -7,13 +7,14 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, FileText, Gift } from "lucide-react";
-import jsPDF from "jspdf";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -37,14 +38,57 @@ const StaffPayments = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
   const [bonusValue, setBonusValue] = useState(0);
+  const [createDialog, setCreateDialog] = useState(false);
+  const [lineDialog, setLineDialog] = useState<{ staffName: string; lineUserId: string | null } | null>(null);
+  const [lineMessage, setLineMessage] = useState("");
+
+  // Create invoice form state
+  const [createForm, setCreateForm] = useState({
+    staff_id: "",
+    event_name: "",
+    days_worked: 1,
+    daily_rate: 0,
+    work_start_date: "",
+    work_end_date: "",
+    notes: "",
+    wht_mode: "inclusive" as "inclusive" | "exclusive",
+  });
 
   const { data: invoices = [], isLoading } = useQuery({
     queryKey: ["staff-invoices"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_invoices")
-        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account, tax_id, email, address)")
+        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account, tax_id, email, address, line_user_id, phone)")
         .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["staff-profiles-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_profiles")
+        .select("id, staff_name, nickname, daily_rate, line_user_id")
+        .eq("is_active", true)
+        .order("staff_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const { data: events = [] } = useQuery({
+    queryKey: ["event-registry-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("event_registry")
+        .select("id, event_name")
+        .eq("is_active", true)
+        .order("event_name");
       if (error) throw error;
       return data;
     },
@@ -97,68 +141,81 @@ const StaffPayments = () => {
     },
   });
 
-  const generateWhtCert = (inv: any) => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const createInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      if (!createForm.staff_id) throw new Error("กรุณาเลือกทีมงาน");
 
-    // Header
-    doc.setFontSize(16);
-    doc.text("Withholding Tax Certificate", 105, 20, { align: "center" });
-    doc.text("(Phor.Ngor.Dor. 3)", 105, 28, { align: "center" });
-    doc.setFontSize(10);
-    doc.text("No.: " + inv.invoice_number, 150, 40);
+      const baseAmount = createForm.days_worked * createForm.daily_rate;
+      const grossAmount = createForm.wht_mode === "inclusive"
+        ? baseAmount
+        : Math.round(baseAmount / 0.97 * 100) / 100;
+      const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+      const netAmount = grossAmount - whtAmount;
 
-    // Payer info
-    doc.setFontSize(11);
-    doc.text("Payer:", 20, 55);
-    doc.text("(Company Name)", 50, 55);
+      const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
-    // Payee info
-    doc.text("Payee:", 20, 70);
-    doc.text(inv.staff_profiles?.staff_name || "-", 50, 70);
-    doc.text("Tax ID:", 20, 78);
-    doc.text(inv.staff_profiles?.tax_id || "-", 50, 78);
-    doc.text("Address:", 20, 86);
-    doc.text(inv.staff_profiles?.address || "-", 50, 86);
+      const { error } = await supabase.from("staff_invoices").insert({
+        user_id: user.id,
+        staff_id: createForm.staff_id,
+        invoice_number: invoiceNumber,
+        event_name: createForm.event_name || null,
+        days_worked: createForm.days_worked,
+        daily_rate: createForm.daily_rate,
+        gross_amount: grossAmount,
+        wht_rate: 3,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        work_start_date: createForm.work_start_date || null,
+        work_end_date: createForm.work_end_date || null,
+        notes: createForm.notes || null,
+        status: "draft",
+        submitted_via: "admin",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      setCreateDialog(false);
+      setCreateForm({ staff_id: "", event_name: "", days_worked: 1, daily_rate: 0, work_start_date: "", work_end_date: "", notes: "", wht_mode: "inclusive" });
+      toast({ title: "สร้างรายการค่าใช้จ่ายสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
 
-    // Table
-    const y = 105;
-    doc.setFontSize(10);
-    doc.rect(20, y, 170, 8);
-    doc.text("Type of Income", 25, y + 6);
-    doc.text("Amount Paid", 110, y + 6);
-    doc.text("WHT Amount", 150, y + 6);
+  const sendLineMutation = useMutation({
+    mutationFn: async ({ lineUserId, message }: { lineUserId: string; message: string }) => {
+      const { error } = await supabase.functions.invoke("send-reminder-line", {
+        body: { lineUserId, message },
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setLineDialog(null);
+      setLineMessage("");
+      toast({ title: "ส่งข้อความ LINE สำเร็จ" });
+    },
+    onError: () => {
+      toast({ title: "ส่งข้อความไม่สำเร็จ", variant: "destructive" });
+    },
+  });
 
-    doc.rect(20, y + 8, 170, 10);
-    doc.text("40(2) Service Fee / Freelance", 25, y + 14);
-    doc.text(Number(inv.gross_amount).toLocaleString(), 120, y + 14, { align: "right" });
-    doc.text(Number(inv.wht_amount).toLocaleString(), 170, y + 14, { align: "right" });
-
-    // Total
-    doc.rect(20, y + 18, 170, 10);
-    doc.setFont(undefined as any, "bold");
-    doc.text("Total", 25, y + 24);
-    doc.text(Number(inv.gross_amount).toLocaleString(), 120, y + 24, { align: "right" });
-    doc.text(Number(inv.wht_amount).toLocaleString(), 170, y + 24, { align: "right" });
-
-    // WHT rate
-    doc.setFont(undefined as any, "normal");
-    doc.text(`WHT Rate: ${inv.wht_rate}%`, 20, y + 40);
-    doc.text(`Event: ${inv.event_name || "-"}`, 20, y + 48);
-    doc.text(`Work Period: ${inv.work_start_date || "-"} to ${inv.work_end_date || "-"}`, 20, y + 56);
-
-    // Signatures
-    const sigY = y + 80;
-    doc.text("Signature (Payer)", 50, sigY, { align: "center" });
-    doc.line(25, sigY - 5, 75, sigY - 5);
-    doc.text("Signature (Payee)", 155, sigY, { align: "center" });
-    doc.line(130, sigY - 5, 180, sigY - 5);
-
-    doc.text(`Date: _______________`, 50, sigY + 10, { align: "center" });
-    doc.text(`Date: _______________`, 155, sigY + 10, { align: "center" });
-
-    doc.save(`WHT-${inv.invoice_number}.pdf`);
-    toast({ title: "สร้างเอกสารหัก ณ ที่จ่ายสำเร็จ" });
+  // Auto-fill daily_rate when staff selected
+  const handleStaffSelect = (staffId: string) => {
+    const staff = staffList.find((s) => s.id === staffId);
+    setCreateForm((prev) => ({
+      ...prev,
+      staff_id: staffId,
+      daily_rate: staff ? Number(staff.daily_rate) : 0,
+    }));
   };
+
+  const createBaseAmount = createForm.days_worked * createForm.daily_rate;
+  const createGross = createForm.wht_mode === "inclusive" ? createBaseAmount : Math.round(createBaseAmount / 0.97 * 100) / 100;
+  const createWht = Math.round(createGross * 0.03 * 100) / 100;
+  const createNet = createGross - createWht;
 
   const filtered = filterStatus === "all" ? invoices : invoices.filter((i: any) => i.status === filterStatus);
 
@@ -175,6 +232,11 @@ const StaffPayments = () => {
           </Button>
           <CreditCard className="h-6 w-6" />
           <h1 className="text-xl font-bold">จัดการจ่ายเงินทีมงาน</h1>
+          <div className="ml-auto">
+            <Button onClick={() => setCreateDialog(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <Plus className="h-4 w-4 mr-1" />สร้างรายการ
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -183,19 +245,19 @@ const StaffPayments = () => {
         <div className="grid grid-cols-3 gap-3">
           <Card>
             <CardContent className="pt-4 text-center">
-              <p className="text-sm text-muted-foreground">ค่าแรงรวม</p>
+              <p className="text-sm text-muted-foreground">ค่าแรงรวม (Gross)</p>
               <p className="text-xl font-bold">{totalGross.toLocaleString()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 text-center">
-              <p className="text-sm text-muted-foreground">หัก ณ ที่จ่าย</p>
+              <p className="text-sm text-muted-foreground">หัก ณ ที่จ่าย 3%</p>
               <p className="text-xl font-bold text-destructive">{totalWht.toLocaleString()}</p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-4 text-center">
-              <p className="text-sm text-muted-foreground">ยอดจ่ายสุทธิ</p>
+              <p className="text-sm text-muted-foreground">ยอดจ่ายสุทธิ (Net)</p>
               <p className="text-xl font-bold text-primary">{totalNet.toLocaleString()}</p>
             </CardContent>
           </Card>
@@ -232,14 +294,14 @@ const StaffPayments = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead>เลขที่</TableHead>
-                      <TableHead>ทีมงาน</TableHead>
+                      <TableHead>ทีมงาน / เลขผู้เสียภาษี</TableHead>
                       <TableHead>อีเวนท์</TableHead>
                       <TableHead className="text-right">วัน</TableHead>
                       <TableHead className="text-right">ค่าแรง/วัน</TableHead>
                       <TableHead className="text-right">โบนัส</TableHead>
-                      <TableHead className="text-right">รวม</TableHead>
+                      <TableHead className="text-right">Gross</TableHead>
                       <TableHead className="text-right">หัก 3%</TableHead>
-                      <TableHead className="text-right">สุทธิ</TableHead>
+                      <TableHead className="text-right">Net</TableHead>
                       <TableHead>สถานะ</TableHead>
                       <TableHead className="text-right">จัดการ</TableHead>
                     </TableRow>
@@ -255,6 +317,9 @@ const StaffPayments = () => {
                               <span className="text-muted-foreground text-xs ml-1">({inv.staff_profiles.nickname})</span>
                             )}
                           </div>
+                          {inv.staff_profiles?.tax_id && (
+                            <div className="text-xs text-muted-foreground font-mono">{inv.staff_profiles.tax_id}</div>
+                          )}
                         </TableCell>
                         <TableCell>{inv.event_name || "-"}</TableCell>
                         <TableCell className="text-right">{inv.days_worked}</TableCell>
@@ -293,9 +358,15 @@ const StaffPayments = () => {
                                 <CreditCard className="h-3 w-3 mr-1" />จ่ายแล้ว
                               </Button>
                             )}
-                            {inv.staff_profiles?.tax_id && (
-                              <Button size="sm" variant="outline" onClick={() => generateWhtCert(inv)} title="สร้างเอกสารหัก ณ ที่จ่าย">
-                                <FileText className="h-3 w-3 mr-1" />หัก ณ ที่จ่าย
+                            {inv.staff_profiles?.line_user_id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setLineDialog({ staffName: inv.staff_profiles?.staff_name || "", lineUserId: inv.staff_profiles?.line_user_id })}
+                                title="แชท LINE"
+                                className="text-green-600 border-green-300 hover:bg-green-50"
+                              >
+                                <MessageCircle className="h-3 w-3" />
                               </Button>
                             )}
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
@@ -325,6 +396,149 @@ const StaffPayments = () => {
               </div>
               <Button className="w-full" onClick={() => bonusDialog && updateBonusMutation.mutate({ id: bonusDialog.id, bonus: bonusValue })} disabled={updateBonusMutation.isPending}>
                 {updateBonusMutation.isPending ? "กำลังบันทึก..." : "บันทึกโบนัส"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Invoice Dialog */}
+        <Dialog open={createDialog} onOpenChange={setCreateDialog}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>สร้างรายการค่าใช้จ่ายทีมงาน</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>ทีมงาน *</Label>
+                <Select value={createForm.staff_id} onValueChange={handleStaffSelect}>
+                  <SelectTrigger><SelectValue placeholder="เลือกทีมงาน" /></SelectTrigger>
+                  <SelectContent>
+                    {staffList.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.staff_name} {s.nickname ? `(${s.nickname})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>อีเวนท์</Label>
+                <Select value={createForm.event_name} onValueChange={(v) => setCreateForm((p) => ({ ...p, event_name: v }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกอีเวนท์ (ไม่บังคับ)" /></SelectTrigger>
+                  <SelectContent>
+                    {events.map((e) => (
+                      <SelectItem key={e.id} value={e.event_name}>{e.event_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>จำนวนวัน</Label>
+                  <Input type="number" min={0.5} step={0.5} value={createForm.days_worked} onChange={(e) => setCreateForm((p) => ({ ...p, days_worked: Number(e.target.value) }))} />
+                </div>
+                <div>
+                  <Label>ค่าแรง/วัน</Label>
+                  <Input type="number" min={0} value={createForm.daily_rate} onChange={(e) => setCreateForm((p) => ({ ...p, daily_rate: Number(e.target.value) }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>วันเริ่มงาน</Label>
+                  <Input type="date" value={createForm.work_start_date} onChange={(e) => setCreateForm((p) => ({ ...p, work_start_date: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>วันสิ้นสุด</Label>
+                  <Input type="date" value={createForm.work_end_date} onChange={(e) => setCreateForm((p) => ({ ...p, work_end_date: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* WHT Mode */}
+              <div>
+                <Label>โหมดคำนวณภาษี</Label>
+                <RadioGroup value={createForm.wht_mode} onValueChange={(v) => setCreateForm((p) => ({ ...p, wht_mode: v as any }))} className="flex gap-4 mt-1">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="inclusive" id="wht-inc" />
+                    <Label htmlFor="wht-inc" className="font-normal">รวมภาษีแล้ว</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="exclusive" id="wht-exc" />
+                    <Label htmlFor="wht-exc" className="font-normal">ไม่รวมภาษี</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Calculation Summary */}
+              {createForm.daily_rate > 0 && (
+                <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span>ฐานค่าแรง ({createForm.days_worked} × {createForm.daily_rate.toLocaleString()})</span>
+                    <span>{createBaseAmount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span>Gross (บันทึกค่าใช้จ่าย)</span>
+                    <span>{createGross.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-destructive">
+                    <span>หัก ณ ที่จ่าย 3%</span>
+                    <span>-{createWht.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-primary border-t pt-1">
+                    <span>Net (ยอดโอน)</span>
+                    <span>{createNet.toLocaleString()}</span>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <Label>หมายเหตุ</Label>
+                <Textarea value={createForm.notes} onChange={(e) => setCreateForm((p) => ({ ...p, notes: e.target.value }))} rows={2} />
+              </div>
+
+              <Button className="w-full" onClick={() => createInvoiceMutation.mutate()} disabled={createInvoiceMutation.isPending || !createForm.staff_id}>
+                {createInvoiceMutation.isPending ? "กำลังบันทึก..." : "สร้างรายการ"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* LINE Chat Dialog */}
+        <Dialog open={!!lineDialog} onOpenChange={(open) => { if (!open) { setLineDialog(null); setLineMessage(""); } }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageCircle className="h-5 w-5 text-green-600" />
+                แชท LINE - {lineDialog?.staffName}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>ข้อความ</Label>
+                <Textarea
+                  value={lineMessage}
+                  onChange={(e) => setLineMessage(e.target.value)}
+                  rows={4}
+                  placeholder="พิมพ์ข้อความหรือวางลิงก์เอกสาร..."
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLineMessage((prev) => prev + (prev ? "\n" : "") + window.location.origin + "/portal?view=staff-invoice&owner=" + user?.id)}
+                >
+                  📎 แนบลิงก์ฟอร์มเรียกเก็บ
+                </Button>
+              </div>
+              <Button
+                className="w-full bg-green-600 hover:bg-green-700"
+                onClick={() => lineDialog?.lineUserId && sendLineMutation.mutate({ lineUserId: lineDialog.lineUserId, message: lineMessage })}
+                disabled={sendLineMutation.isPending || !lineMessage.trim()}
+              >
+                {sendLineMutation.isPending ? "กำลังส่ง..." : "ส่งข้อความ LINE"}
               </Button>
             </div>
           </DialogContent>
