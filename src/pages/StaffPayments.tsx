@@ -102,7 +102,6 @@ const StaffPayments = () => {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const updates: Record<string, unknown> = { status };
-      // Don't set paid_at here — paid status requires slip upload
       const { error } = await supabase.from("staff_invoices").update(updates).eq("id", id);
       if (error) throw error;
     },
@@ -110,6 +109,40 @@ const StaffPayments = () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       toast({ title: "อัปเดตสถานะสำเร็จ" });
+    },
+  });
+
+  const toggleWhtModeMutation = useMutation({
+    mutationFn: async ({ id, mode }: { id: string; mode: "inclusive" | "exclusive" }) => {
+      const inv = invoices.find((i: any) => i.id === id);
+      if (!inv) throw new Error("Not found");
+      const baseAmount = Number(inv.days_worked) * Number(inv.daily_rate) + Number(inv.bonus_amount || 0);
+      let grossAmount: number;
+      let whtAmount: number;
+      let netAmount: number;
+      if (mode === "inclusive") {
+        // baseAmount = gross
+        grossAmount = baseAmount;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      } else {
+        // baseAmount = net, calculate gross back
+        grossAmount = Math.round(baseAmount / 0.97 * 100) / 100;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      }
+      const { error } = await supabase.from("staff_invoices").update({
+        gross_amount: grossAmount,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        notes: `WHT mode: ${mode}`,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      toast({ title: "คำนวณภาษีใหม่แล้ว" });
     },
   });
 
