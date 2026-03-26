@@ -5,10 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon } from "lucide-react";
@@ -47,8 +45,6 @@ const PaymentQueue = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [whtEnabled, setWhtEnabled] = useState<Record<string, boolean>>({});
-  const [vatEnabled, setVatEnabled] = useState<Record<string, boolean>>({});
   const [payDialog, setPayDialog] = useState<PaymentItem | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,7 +67,6 @@ const PaymentQueue = () => {
     mutationFn: async ({ invoiceId, slipFile }: { invoiceId: string; slipFile: File }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Upload slip to receipts bucket
       const ext = slipFile.name.split(".").pop() || "jpg";
       const path = `payment-slips/${user.id}/${Date.now()}_${invoiceId}.${ext}`;
       const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
@@ -79,13 +74,33 @@ const PaymentQueue = () => {
       });
       if (uploadErr) throw uploadErr;
 
-      // Update invoice
+      // Find the invoice to check WHT
+      const inv = pendingInvoices.find((i) => i.id === invoiceId);
+
       const { error } = await supabase.from("staff_invoices").update({
         status: "paid",
         paid_at: new Date().toISOString(),
         payment_slip_url: path,
       } as any).eq("id", invoiceId);
       if (error) throw error;
+
+      // If WHT > 0, create a paired WHT expense as credit
+      if (inv && Number(inv.wht_amount) > 0) {
+        await supabase.from("expenses").insert({
+          user_id: user.id,
+          amount: Number(inv.wht_amount),
+          category: "ภาษีหัก ณ ที่จ่าย",
+          subcategory: "WHT 3%",
+          description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
+          expense_date: new Date().toISOString().split("T")[0],
+          transaction_direction: "EXPENSE",
+          transaction_type: "เครดิต",
+          staff_name: inv.staff_profiles?.staff_name || null,
+          event_name: inv.event_name || null,
+          receiver: "สรรพากร",
+          memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number}`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
@@ -106,34 +121,14 @@ const PaymentQueue = () => {
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
   };
 
-  const calcPayment = (inv: PaymentItem) => {
-    const baseAmount = Number(inv.days_worked) * Number(inv.daily_rate) + Number(inv.bonus_amount || 0);
-    const hasVat = vatEnabled[inv.id] || false;
-    const hasWht = whtEnabled[inv.id] || false;
-
-    const vatAmount = hasVat ? Math.round(baseAmount * 0.07 * 100) / 100 : 0;
-    const totalBeforeWht = baseAmount + vatAmount;
-    const whtAmount = hasWht ? Math.round(baseAmount * 0.03 * 100) / 100 : 0;
-    const netPayable = totalBeforeWht - whtAmount;
-
-    return { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable };
-  };
-
   const totals = pendingInvoices.reduce(
-    (acc, inv) => {
-      const calc = calcPayment(inv);
-      return {
-        gross: acc.gross + calc.totalBeforeWht,
-        wht: acc.wht + calc.whtAmount,
-        net: acc.net + calc.netPayable,
-      };
-    },
+    (acc, inv) => ({
+      gross: acc.gross + Number(inv.gross_amount),
+      wht: acc.wht + Number(inv.wht_amount),
+      net: acc.net + Number(inv.net_amount),
+    }),
     { gross: 0, wht: 0, net: 0 }
   );
-
-  const handleSlipUpload = (inv: PaymentItem) => {
-    setPayDialog(inv);
-  };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -193,23 +188,24 @@ const PaymentQueue = () => {
         ) : (
           <div className="space-y-3">
             {pendingInvoices.map((inv) => {
-              const { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable } = calcPayment(inv);
+              const grossAmount = Number(inv.gross_amount);
+              const whtAmount = Number(inv.wht_amount);
+              const netAmount = Number(inv.net_amount);
               const cleanAcct = cleanAccountNumber(inv.staff_profiles?.bank_account);
-              const hasWht = whtEnabled[inv.id] || false;
-              const hasVat = vatEnabled[inv.id] || false;
 
               return (
                 <Card key={inv.id}>
-                  <CardHeader className="pb-2">
+                  <CardContent className="pt-4 space-y-3">
+                    {/* Header */}
                     <div className="flex items-start justify-between">
                       <div>
-                        <CardTitle className="text-base">
+                        <p className="font-medium">
                           {inv.staff_profiles?.staff_name}
                           {inv.staff_profiles?.nickname && (
                             <span className="text-muted-foreground font-normal text-sm ml-1">({inv.staff_profiles.nickname})</span>
                           )}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
+                        </p>
+                        <p className="text-sm text-muted-foreground">
                           {inv.event_name || "ไม่ระบุอีเวนท์"} • {inv.invoice_number}
                         </p>
                       </div>
@@ -220,12 +216,11 @@ const PaymentQueue = () => {
                           </Badge>
                         )}
                         <Badge variant={inv.status === "approved" ? "default" : "secondary"}>
-                          {inv.status === "approved" ? "อนุมัติแล้ว" : "ส่งแล้ว"}
+                          {inv.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
                         </Badge>
                       </div>
                     </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
+
                     {/* Bank account with copy */}
                     {inv.staff_profiles?.bank_name && cleanAcct && (
                       <div className="flex items-center justify-between bg-muted rounded-lg p-3">
@@ -263,48 +258,15 @@ const PaymentQueue = () => {
 
                     <Separator />
 
-                    {/* VAT & WHT toggles */}
-                    <div className="flex flex-col gap-3">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`vat-${inv.id}`} className="text-sm cursor-pointer">
-                          VAT 7%
-                        </Label>
-                        <Switch
-                          id={`vat-${inv.id}`}
-                          checked={hasVat}
-                          onCheckedChange={(v) => setVatEnabled((prev) => ({ ...prev, [inv.id]: v }))}
-                        />
-                      </div>
-                      {hasVat && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">ภาษีมูลค่าเพิ่ม 7%</span>
-                          <span>+{vatAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor={`wht-${inv.id}`} className="text-sm cursor-pointer">
-                          หัก ณ ที่จ่าย 3% {hasVat && <span className="text-muted-foreground">(คิดจากยอดก่อน VAT)</span>}
-                        </Label>
-                        <Switch
-                          id={`wht-${inv.id}`}
-                          checked={hasWht}
-                          onCheckedChange={(v) => setWhtEnabled((prev) => ({ ...prev, [inv.id]: v }))}
-                        />
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    {/* Gross / WHT / Net breakdown */}
+                    {/* Gross / WHT / Net breakdown from invoice data */}
                     <div className="bg-muted rounded-lg p-3 space-y-2 text-sm">
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">บันทึกค่าใช้จ่าย (Gross)</span>
-                        <span className="font-medium">{totalBeforeWht.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        <span className="font-medium">{grossAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                       </div>
-                      {hasWht && (
+                      {whtAmount > 0 && (
                         <div className="flex justify-between text-destructive">
-                          <span>หัก ณ ที่จ่าย 3%{hasVat ? ` (จาก ${baseAmount.toLocaleString()})` : ""}</span>
+                          <span>หัก ณ ที่จ่าย {Number(inv.wht_rate)}%</span>
                           <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                         </div>
                       )}
@@ -312,7 +274,7 @@ const PaymentQueue = () => {
                       <div className="flex justify-between items-center">
                         <span className="font-bold">ยอดโอนจริง (Net)</span>
                         <span className="font-bold text-primary">
-                          {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                          {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
                         </span>
                       </div>
                     </div>
@@ -324,8 +286,8 @@ const PaymentQueue = () => {
                         size="sm"
                         className="flex-1"
                         onClick={() => {
-                          navigator.clipboard.writeText(netPayable.toFixed(2));
-                          toast({ title: "คัดลอกยอดโอน", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
+                          navigator.clipboard.writeText(netAmount.toFixed(2));
+                          toast({ title: "คัดลอกยอดโอน", description: `${netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
                         }}
                       >
                         <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
@@ -333,7 +295,7 @@ const PaymentQueue = () => {
                       <Button
                         size="sm"
                         className="flex-1"
-                        onClick={() => handleSlipUpload(inv)}
+                        onClick={() => setPayDialog(inv)}
                       >
                         <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                       </Button>
@@ -359,10 +321,28 @@ const PaymentQueue = () => {
                 <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
                   <p className="font-medium">{payDialog.staff_profiles?.staff_name}</p>
                   <p className="text-muted-foreground">{payDialog.event_name || "ไม่ระบุอีเวนท์"}</p>
-                  <p className="text-primary font-bold text-lg">
-                    {Number(payDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
-                  </p>
+                  <div className="space-y-1 mt-2">
+                    <div className="flex justify-between">
+                      <span>Gross</span>
+                      <span>{Number(payDialog.gross_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {Number(payDialog.wht_amount) > 0 && (
+                      <div className="flex justify-between text-destructive">
+                        <span>WHT {Number(payDialog.wht_rate)}%</span>
+                        <span>-{Number(payDialog.wht_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-primary border-t pt-1">
+                      <span>ยอดโอน</span>
+                      <span>{Number(payDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
+                    </div>
+                  </div>
                 </div>
+                {Number(payDialog.wht_amount) > 0 && (
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded p-2">
+                    ⚠️ ระบบจะบันทึกภาษีหัก ณ ที่จ่าย {Number(payDialog.wht_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท เป็นค่าใช้จ่ายเครดิต (รอนำส่งสรรพากร)
+                  </p>
+                )}
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
