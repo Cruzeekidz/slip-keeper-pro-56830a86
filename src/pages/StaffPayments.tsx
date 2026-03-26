@@ -386,8 +386,8 @@ const StaffPayments = () => {
                               </Button>
                             )}
                             {inv.status === "approved" && (
-                              <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "paid" })}>
-                                <CreditCard className="h-3 w-3 mr-1" />จ่ายแล้ว
+                              <Button size="sm" onClick={() => setPaySlipDialog(inv)}>
+                                <Upload className="h-3 w-3 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                             )}
                             {inv.staff_profiles?.line_user_id && (
