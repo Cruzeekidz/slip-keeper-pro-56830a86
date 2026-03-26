@@ -15,6 +15,7 @@ interface PaymentItem {
   id: string;
   invoice_number: string;
   event_name: string | null;
+  event_id: string | null;
   days_worked: number;
   daily_rate: number;
   gross_amount: number;
