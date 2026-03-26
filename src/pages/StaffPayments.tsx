@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -43,6 +43,7 @@ const StaffPayments = () => {
   const [lineMessage, setLineMessage] = useState("");
   const [paySlipDialog, setPaySlipDialog] = useState<any | null>(null);
   const [slipUploading, setSlipUploading] = useState(false);
+  const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
 
   // Create invoice form state
@@ -112,27 +113,36 @@ const StaffPayments = () => {
     },
   });
 
-  const markPaidWithSlipMutation = useMutation({
-    mutationFn: async ({ id, slipFile }: { id: string; slipFile: File }) => {
+  const markPaidMutation = useMutation({
+    mutationFn: async ({ id, slipFile, paymentMethod }: { id: string; slipFile?: File; paymentMethod: string }) => {
       if (!user) throw new Error("Not authenticated");
-      const ext = slipFile.name.split(".").pop() || "jpg";
-      const path = `payment-slips/${user.id}/${Date.now()}_${id}.${ext}`;
-      const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
-        contentType: slipFile.type,
-      });
-      if (uploadErr) throw uploadErr;
+      let slipPath: string | null = null;
 
-      const { error } = await supabase.from("staff_invoices").update({
+      if (slipFile) {
+        const ext = slipFile.name.split(".").pop() || "jpg";
+        const path = `payment-slips/${user.id}/${Date.now()}_${id}.${ext}`;
+        const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
+          contentType: slipFile.type,
+        });
+        if (uploadErr) throw uploadErr;
+        slipPath = path;
+      }
+
+      const updates: Record<string, unknown> = {
         status: "paid",
         paid_at: new Date().toISOString(),
-        payment_slip_url: path,
-      } as any).eq("id", id);
+        notes: paymentMethod !== "transfer" ? `จ่ายด้วย: ${paymentMethod === "cash" ? "เงินสด" : "เครดิต"}` : undefined,
+      };
+      if (slipPath) updates.payment_slip_url = slipPath;
+
+      const { error } = await supabase.from("staff_invoices").update(updates as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       setPaySlipDialog(null);
+      setPayMethod("transfer");
       toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
     },
     onError: (err: any) => {
