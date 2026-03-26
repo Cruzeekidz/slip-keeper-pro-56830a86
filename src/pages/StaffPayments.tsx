@@ -575,6 +575,55 @@ const StaffPayments = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Pay with Slip Dialog */}
+        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) setPaySlipDialog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                ยืนยันการจ่ายเงิน
+              </DialogTitle>
+            </DialogHeader>
+            {paySlipDialog && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-medium">{paySlipDialog.staff_profiles?.staff_name}</p>
+                  <p className="text-muted-foreground">{paySlipDialog.event_name || "ไม่ระบุอีเวนท์"}</p>
+                  <p className="text-primary font-bold text-lg">
+                    {Number(paySlipDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => slipFileRef.current?.click()}
+                    disabled={slipUploading}
+                  >
+                    {slipUploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
+                  </Button>
+                  <input
+                    ref={slipFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !paySlipDialog) return;
+                      setSlipUploading(true);
+                      markPaidWithSlipMutation.mutate(
+                        { id: paySlipDialog.id, slipFile: file },
+                        { onSettled: () => setSlipUploading(false) }
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );
