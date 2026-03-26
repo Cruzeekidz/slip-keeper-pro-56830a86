@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, CheckCircle } from "lucide-react";
 
@@ -37,7 +38,10 @@ const StaffInvoiceForm = () => {
     notes: "",
   });
 
-  const grossAmount = form.days_worked * form.daily_rate;
+  const [whtMode, setWhtMode] = useState<"inclusive" | "exclusive">("inclusive");
+
+  const baseAmount = form.days_worked * form.daily_rate;
+  const grossAmount = whtMode === "inclusive" ? baseAmount : Math.round(baseAmount / 0.97 * 100) / 100;
   const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
   const netAmount = grossAmount - whtAmount;
 
