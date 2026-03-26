@@ -587,11 +587,11 @@ const StaffPayments = () => {
         </Dialog>
 
         {/* Pay with Slip Dialog */}
-        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) setPaySlipDialog(null); }}>
+        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) { setPaySlipDialog(null); setPayMethod("transfer"); } }}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Upload className="h-5 w-5" />
+                <Wallet className="h-5 w-5" />
                 ยืนยันการจ่ายเงิน
               </DialogTitle>
             </DialogHeader>
@@ -604,32 +604,87 @@ const StaffPayments = () => {
                     {Number(paySlipDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
                   </p>
                 </div>
-                <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => slipFileRef.current?.click()}
-                    disabled={slipUploading}
-                  >
-                    {slipUploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
-                  </Button>
-                  <input
-                    ref={slipFileRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || !paySlipDialog) return;
-                      setSlipUploading(true);
-                      markPaidWithSlipMutation.mutate(
-                        { id: paySlipDialog.id, slipFile: file },
-                        { onSettled: () => setSlipUploading(false) }
-                      );
-                    }}
-                  />
+
+                {/* Payment method selector */}
+                <div>
+                  <Label className="text-sm font-medium mb-2 block">ช่องทางการจ่าย</Label>
+                  <RadioGroup value={payMethod} onValueChange={(v) => setPayMethod(v as any)} className="grid grid-cols-3 gap-2">
+                    <div>
+                      <RadioGroupItem value="transfer" id="pm-transfer" className="peer sr-only" />
+                      <Label
+                        htmlFor="pm-transfer"
+                        className="flex flex-col items-center gap-1 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <Upload className="h-5 w-5" />
+                        <span className="text-xs">โอนเงิน</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="cash" id="pm-cash" className="peer sr-only" />
+                      <Label
+                        htmlFor="pm-cash"
+                        className="flex flex-col items-center gap-1 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <Banknote className="h-5 w-5" />
+                        <span className="text-xs">เงินสด</span>
+                      </Label>
+                    </div>
+                    <div>
+                      <RadioGroupItem value="credit" id="pm-credit" className="peer sr-only" />
+                      <Label
+                        htmlFor="pm-credit"
+                        className="flex flex-col items-center gap-1 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary"
+                      >
+                        <CreditCard className="h-5 w-5" />
+                        <span className="text-xs">เครดิต</span>
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
+
+                {/* Transfer: upload slip */}
+                {payMethod === "transfer" && (
+                  <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                    <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
+                    <Button
+                      variant="outline"
+                      onClick={() => slipFileRef.current?.click()}
+                      disabled={slipUploading}
+                    >
+                      {slipUploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
+                    </Button>
+                    <input
+                      ref={slipFileRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file || !paySlipDialog) return;
+                        setSlipUploading(true);
+                        markPaidMutation.mutate(
+                          { id: paySlipDialog.id, slipFile: file, paymentMethod: "transfer" },
+                          { onSettled: () => setSlipUploading(false) }
+                        );
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground mt-2">หรือส่งสลิปผ่าน LINE ระบบจะจับคู่อัตโนมัติ</p>
+                  </div>
+                )}
+
+                {/* Cash / Credit: just confirm */}
+                {(payMethod === "cash" || payMethod === "credit") && (
+                  <Button
+                    className="w-full"
+                    onClick={() => {
+                      markPaidMutation.mutate({ id: paySlipDialog.id, paymentMethod: payMethod });
+                    }}
+                    disabled={markPaidMutation.isPending}
+                  >
+                    {markPaidMutation.isPending ? "กำลังบันทึก..." : `ยืนยันจ่ายด้วย${payMethod === "cash" ? "เงินสด" : "เครดิต"}`}
+                  </Button>
+                )}
               </div>
             )}
           </DialogContent>
