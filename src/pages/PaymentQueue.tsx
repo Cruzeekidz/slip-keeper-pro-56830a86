@@ -82,9 +82,17 @@ const PaymentQueue = () => {
     return { baseAmount, vatAmount, whtAmount, totalBeforeWht, netPayable };
   };
 
-  const totalPayable = pendingInvoices.reduce((sum, inv) => {
-    return sum + calcPayment(inv).netPayable;
-  }, 0);
+  const totals = pendingInvoices.reduce(
+    (acc, inv) => {
+      const calc = calcPayment(inv);
+      return {
+        gross: acc.gross + calc.totalBeforeWht,
+        wht: acc.wht + calc.whtAmount,
+        net: acc.net + calc.netPayable,
+      };
+    },
+    { gross: 0, wht: 0, net: 0 }
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -101,12 +109,25 @@ const PaymentQueue = () => {
       <main className="max-w-3xl mx-auto p-4 space-y-4">
         {/* Summary */}
         <Card>
-          <CardContent className="pt-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">รวมยอดที่ต้องจ่าย</p>
-              <p className="text-2xl font-bold text-primary">{totalPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</p>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-muted-foreground">สรุปรวม</p>
+              <Badge variant="secondary">{pendingInvoices.length} รายการ</Badge>
             </div>
-            <Badge variant="secondary">{pendingInvoices.length} รายการ</Badge>
+            <div className="grid grid-cols-3 gap-3 text-center">
+              <div className="bg-muted rounded-lg p-3">
+                <p className="text-xs text-muted-foreground">บันทึกค่าใช้จ่าย (Gross)</p>
+                <p className="text-sm font-bold">{totals.gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="bg-destructive/10 rounded-lg p-3">
+                <p className="text-xs text-destructive">หัก ณ ที่จ่าย 3%</p>
+                <p className="text-sm font-bold text-destructive">{totals.wht.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div className="bg-primary/10 rounded-lg p-3">
+                <p className="text-xs text-primary">ยอดโอนจริง (Net)</p>
+                <p className="text-sm font-bold text-primary">{totals.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -180,10 +201,6 @@ const PaymentQueue = () => {
                           <span>+{Number(inv.bonus_amount).toLocaleString()}</span>
                         </div>
                       )}
-                      <div className="flex justify-between font-medium">
-                        <span>ยอดค่าแรง</span>
-                        <span>{baseAmount.toLocaleString()}</span>
-                      </div>
                     </div>
 
                     <Separator />
@@ -217,36 +234,42 @@ const PaymentQueue = () => {
                           onCheckedChange={(v) => setWhtEnabled((prev) => ({ ...prev, [inv.id]: v }))}
                         />
                       </div>
-                      {hasWht && (
-                        <div className="flex justify-between text-sm text-destructive">
-                          <span>หัก ณ ที่จ่าย 3% (จาก {baseAmount.toLocaleString()})</span>
-                          <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      )}
                     </div>
 
                     <Separator />
 
-                    {/* Net payable */}
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-lg">ยอดที่ต้องโอน</span>
-                      <span className="font-bold text-lg text-primary">
-                        {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
-                      </span>
+                    {/* Gross / WHT / Net breakdown */}
+                    <div className="bg-muted rounded-lg p-3 space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">บันทึกค่าใช้จ่าย (Gross)</span>
+                        <span className="font-medium">{totalBeforeWht.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      {hasWht && (
+                        <div className="flex justify-between text-destructive">
+                          <span>หัก ณ ที่จ่าย 3%{hasVat ? ` (จาก ${baseAmount.toLocaleString()})` : ""}</span>
+                          <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                      <Separator />
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold">ยอดโอนจริง (Net)</span>
+                        <span className="font-bold text-primary">
+                          {netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                        </span>
+                      </div>
                     </div>
 
-                    {/* Copy amount */}
+                    {/* Copy net amount */}
                     <Button
                       variant="outline"
                       size="sm"
                       className="w-full"
                       onClick={() => {
                         navigator.clipboard.writeText(netPayable.toFixed(2));
-                        toast({ title: "คัดลอกยอดเงินแล้ว", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
+                        toast({ title: "คัดลอกยอดโอน", description: `${netPayable.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
                       }}
                     >
-                      <Copy className="h-4 w-4 mr-1" />คัดลอกยอดเงิน
-                    </Button>
+                      <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
                   </CardContent>
                 </Card>
               );

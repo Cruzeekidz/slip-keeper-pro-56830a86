@@ -233,18 +233,26 @@ const StaffInvoiceForm = () => {
               <Separator />
 
               <div className="bg-muted rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>ค่าแรง ({form.days_worked} วัน × {form.daily_rate.toLocaleString()})</span>
+                  <span>{baseAmount.toLocaleString()} บาท</span>
+                </div>
+                <Separator />
                 <div className="flex justify-between">
-                  <span>ค่าแรงรวม ({form.days_worked} วัน × {form.daily_rate.toLocaleString()})</span>
-                  <span className="font-medium">{grossAmount.toLocaleString()} บาท</span>
+                  <span>บันทึกค่าใช้จ่าย (Gross)</span>
+                  <span className="font-medium">{grossAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
                 </div>
                 <div className="flex justify-between text-destructive">
                   <span>หัก ณ ที่จ่าย 3%</span>
-                  <span>-{whtAmount.toLocaleString()} บาท</span>
+                  <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>(นำส่งสรรพากรสิ้นเดือน)</span>
                 </div>
                 <Separator />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>ยอดสุทธิ</span>
-                  <span>{netAmount.toLocaleString()} บาท</span>
+                <div className="flex justify-between text-lg font-bold text-primary">
+                  <span>ยอดโอนจริง (Net)</span>
+                  <span>{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
                 </div>
               </div>
 
