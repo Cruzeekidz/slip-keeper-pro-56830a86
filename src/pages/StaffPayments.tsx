@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,9 @@ const StaffPayments = () => {
   const [createDialog, setCreateDialog] = useState(false);
   const [lineDialog, setLineDialog] = useState<{ staffName: string; lineUserId: string | null } | null>(null);
   const [lineMessage, setLineMessage] = useState("");
+  const [paySlipDialog, setPaySlipDialog] = useState<any | null>(null);
+  const [slipUploading, setSlipUploading] = useState(false);
+  const slipFileRef = useRef<HTMLInputElement>(null);
 
   // Create invoice form state
   const [createForm, setCreateForm] = useState({
@@ -98,13 +101,42 @@ const StaffPayments = () => {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const updates: Record<string, unknown> = { status };
-      if (status === "paid") updates.paid_at = new Date().toISOString();
+      // Don't set paid_at here — paid status requires slip upload
       const { error } = await supabase.from("staff_invoices").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       toast({ title: "อัปเดตสถานะสำเร็จ" });
+    },
+  });
+
+  const markPaidWithSlipMutation = useMutation({
+    mutationFn: async ({ id, slipFile }: { id: string; slipFile: File }) => {
+      if (!user) throw new Error("Not authenticated");
+      const ext = slipFile.name.split(".").pop() || "jpg";
+      const path = `payment-slips/${user.id}/${Date.now()}_${id}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
+        contentType: slipFile.type,
+      });
+      if (uploadErr) throw uploadErr;
+
+      const { error } = await supabase.from("staff_invoices").update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_slip_url: path,
+      } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      setPaySlipDialog(null);
+      toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
     },
   });
 
