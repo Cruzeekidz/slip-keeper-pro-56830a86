@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileText, CheckCircle, Search } from "lucide-react";
 
@@ -275,6 +276,22 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
             </div>
           </div>
           <div>
+                <Label>รูปแบบหัก ณ ที่จ่าย 3%</Label>
+                <RadioGroup value={whtMode} onValueChange={(v) => setWhtMode(v as "inclusive" | "exclusive")} className="flex gap-4 mt-1">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="inclusive" id="wht-inc-pub" />
+                    <Label htmlFor="wht-inc-pub" className="font-normal">รวมแล้ว (ค่าแรง = Gross)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="exclusive" id="wht-exc-pub" />
+                    <Label htmlFor="wht-exc-pub" className="font-normal">ไม่รวม (ค่าแรง = Net)</Label>
+                  </div>
+                </RadioGroup>
+                {whtMode === "exclusive" && (
+                  <p className="text-xs text-muted-foreground mt-1">ค่าแรง/วัน คือยอดสุทธิที่ทีมงานได้รับ ระบบจะคำนวณ Gross = {form.daily_rate}/0.97</p>
+                )}
+              </div>
+          <div>
             <Label>หมายเหตุ</Label>
             <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} placeholder="รายละเอียดเพิ่มเติม" />
           </div>
@@ -282,8 +299,14 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
           <Separator />
 
           <div className="bg-muted rounded-lg p-4 space-y-2">
+            {whtMode === "exclusive" && (
+              <div className="flex justify-between text-muted-foreground text-sm">
+                <span>ค่าแรงสุทธิ ({form.days_worked} วัน × {form.daily_rate.toLocaleString()})</span>
+                <span>{baseAmount.toLocaleString()} บาท</span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span>ค่าแรงรวม ({form.days_worked} วัน × {form.daily_rate.toLocaleString()})</span>
+              <span>ค่าแรง Gross{whtMode === "exclusive" ? ` (${form.daily_rate}/0.97)` : ` (${form.days_worked} วัน × ${form.daily_rate.toLocaleString()})`}</span>
               <span className="font-medium">{grossAmount.toLocaleString()} บาท</span>
             </div>
             <div className="flex justify-between text-destructive">
