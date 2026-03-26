@@ -15,6 +15,7 @@ interface PaymentItem {
   id: string;
   invoice_number: string;
   event_name: string | null;
+  event_id: string | null;
   days_worked: number;
   daily_rate: number;
   gross_amount: number;
@@ -86,15 +87,26 @@ const PaymentQueue = () => {
 
       // If WHT > 0, create a paired WHT expense as credit
       if (inv && Number(inv.wht_amount) > 0) {
+        let projectTag: string | null = null;
+        if (inv.event_id) {
+          const { data: evReg } = await supabase
+            .from("event_registry")
+            .select("project_tag")
+            .eq("id", inv.event_id)
+            .maybeSingle();
+          if (evReg) projectTag = evReg.project_tag;
+        }
         await supabase.from("expenses").insert({
           user_id: user.id,
           amount: Number(inv.wht_amount),
           category: "ภาษีหัก ณ ที่จ่าย",
-          subcategory: "WHT 3%",
+          subcategory: "Staff",
           description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
           expense_date: new Date().toISOString().split("T")[0],
           transaction_direction: "EXPENSE",
-          transaction_type: "เครดิต",
+          transaction_type: "BUSINESS",
+          category_group: "EVENT",
+          project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
           receiver: "สรรพากร",

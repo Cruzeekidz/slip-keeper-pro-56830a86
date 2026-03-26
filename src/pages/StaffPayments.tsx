@@ -175,15 +175,27 @@ const StaffPayments = () => {
       const inv = invoices.find((i: any) => i.id === id);
       if (inv && Number(inv.wht_amount) > 0) {
         const whtExpenseType = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
+        // Look up project_tag from event_registry if event_id exists
+        let projectTag: string | null = null;
+        if (inv.event_id) {
+          const { data: evReg } = await supabase
+            .from("event_registry")
+            .select("project_tag")
+            .eq("id", inv.event_id)
+            .maybeSingle();
+          if (evReg) projectTag = evReg.project_tag;
+        }
         await supabase.from("expenses").insert({
           user_id: user.id,
           amount: Number(inv.wht_amount),
           category: "ภาษีหัก ณ ที่จ่าย",
-          subcategory: "WHT 3%",
+          subcategory: "Staff",
           description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
           expense_date: new Date().toISOString().split("T")[0],
           transaction_direction: "EXPENSE",
-          transaction_type: "เครดิต",
+          transaction_type: "BUSINESS",
+          category_group: "EVENT",
+          project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
           receiver: "สรรพากร",
