@@ -1,50 +1,27 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  useVendorProfiles,
+  useVendorInvoices,
+  useVendorSummaries,
+  useUpdateInvoiceStatus,
+  useLinkInvoiceToVendor,
+  useDeleteVendor,
+  useDeleteInvoice,
+  useAutoLinkInvoices,
+} from "@/hooks/useVendorData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-
-interface VendorProfile {
-  id: string;
-  vendor_type: string;
-  company_name: string;
-  tax_id: string | null;
-  contact_name: string | null;
-  phone: string | null;
-  email: string | null;
-  address: string | null;
-  bank_name: string | null;
-  bank_account: string | null;
-  tax_doc_url: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
-interface VendorInvoice {
-  id: string;
-  vendor_id: string | null;
-  invoice_number: string | null;
-  invoice_date: string | null;
-  due_date: string | null;
-  amount: number;
-  vat_amount: number;
-  wht_amount: number;
-  net_amount: number;
-  description: string | null;
-  file_url: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string;
-}
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "รอตรวจสอบ", variant: "secondary" },
@@ -56,90 +33,26 @@ const VendorManagement = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [vendors, setVendors] = useState<VendorProfile[]>([]);
-  const [invoices, setInvoices] = useState<VendorInvoice[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
-  useEffect(() => {
-    if (authLoading) return;
-    if (!user) { navigate("/auth"); return; }
-    fetchData();
-  }, [user, authLoading]);
+  const { data: vendors = [], isLoading: vendorsLoading } = useVendorProfiles();
+  const { data: invoices = [], isLoading: invoicesLoading } = useVendorInvoices();
+  const vendorSummaries = useVendorSummaries(vendors, invoices);
+  const updateStatusMutation = useUpdateInvoiceStatus();
+  const linkMutation = useLinkInvoiceToVendor();
+  const deleteVendorMutation = useDeleteVendor();
+  const deleteInvoiceMutation = useDeleteInvoice();
+  const autoLinkInvoices = useAutoLinkInvoices(vendors, invoices);
 
-  const fetchData = async () => {
-    if (!user) return;
-    setLoading(true);
-    const [vendorRes, invoiceRes] = await Promise.all([
-      supabase.from("vendor_profiles").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-      supabase.from("vendor_invoices").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-    ]);
-    if (vendorRes.data) setVendors(vendorRes.data);
-    if (invoiceRes.data) setInvoices(invoiceRes.data);
-    setLoading(false);
-  };
-
-  // Auto-link unlinked invoices to vendors by matching company name in description
-  const autoLinkInvoices = useCallback(async () => {
-    if (!user || vendors.length === 0) return;
-    const unlinked = invoices.filter((inv) => !inv.vendor_id && inv.description);
-    if (unlinked.length === 0) {
-      toast({ title: "ไม่มีบิลที่ต้องเชื่อม", description: "บิลทั้งหมดเชื่อมกับคู่ค้าแล้ว" });
-      return;
-    }
-
-    let linked = 0;
-    for (const inv of unlinked) {
-      const desc = (inv.description || "").toLowerCase();
-      const match = vendors.find((v) =>
-        desc.includes(v.company_name.toLowerCase()) ||
-        (v.tax_id && desc.includes(v.tax_id))
-      );
-      if (match) {
-        const { error } = await supabase
-          .from("vendor_invoices")
-          .update({ vendor_id: match.id })
-          .eq("id", inv.id);
-        if (!error) linked++;
-      }
-    }
-
-    toast({
-      title: `เชื่อมบิลอัตโนมัติสำเร็จ`,
-      description: `เชื่อมได้ ${linked} จาก ${unlinked.length} รายการ`,
-    });
-    if (linked > 0) fetchData();
-  }, [invoices, vendors, user]);
+  const loading = vendorsLoading || invoicesLoading;
 
   const copyAccount = (account: string) => {
     const clean = account.replace(/[-\s]/g, "");
     navigator.clipboard.writeText(clean);
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
-  };
-
-  const updateInvoiceStatus = async (id: string, status: string) => {
-    const updates: any = { status };
-    if (status === "paid") updates.paid_at = new Date().toISOString();
-    const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
-    if (error) {
-      toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" });
-    } else {
-      toast({ title: `อัปเดตสถานะเป็น "${statusMap[status]?.label}" แล้ว` });
-      fetchData();
-    }
-  };
-
-  const deleteVendor = async (id: string) => {
-    const { error } = await supabase.from("vendor_profiles").delete().eq("id", id);
-    if (!error) { toast({ title: "ลบคู่ค้าแล้ว" }); fetchData(); }
-  };
-
-  const deleteInvoice = async (id: string) => {
-    const { error } = await supabase.from("vendor_invoices").delete().eq("id", id);
-    if (!error) { toast({ title: "ลบบิลแล้ว" }); fetchData(); }
   };
 
   const viewFile = async (filePath: string) => {
@@ -149,17 +62,6 @@ const VendorManagement = () => {
       setPreviewOpen(true);
     }
   };
-
-  // Compute vendor summaries
-  const vendorSummaries = vendors.map((v) => {
-    const vInvoices = invoices.filter((inv) => inv.vendor_id === v.id);
-    const pending = vInvoices.filter((i) => i.status === "pending");
-    const approved = vInvoices.filter((i) => i.status === "approved");
-    const paid = vInvoices.filter((i) => i.status === "paid");
-    const totalOutstanding = [...pending, ...approved].reduce((s, i) => s + i.net_amount, 0);
-    const totalPaid = paid.reduce((s, i) => s + i.net_amount, 0);
-    return { vendor: v, invoiceCount: vInvoices.length, pendingCount: pending.length, approvedCount: approved.length, paidCount: paid.length, totalOutstanding, totalPaid };
-  });
 
   const unlinkedCount = invoices.filter((i) => !i.vendor_id).length;
 
@@ -191,7 +93,6 @@ const VendorManagement = () => {
       </header>
 
       <main className="max-w-7xl mx-auto p-4 space-y-4">
-        {/* Unlinked invoices alert */}
         {unlinkedCount > 0 && (
           <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
             <CardContent className="py-3 flex items-center justify-between">
@@ -217,12 +118,11 @@ const VendorManagement = () => {
             </TabsTrigger>
           </TabsList>
 
-          {/* Summary Tab */}
           <TabsContent value="summary" className="space-y-3">
             {vendorSummaries.length === 0 ? (
               <Card><CardContent className="py-8 text-center text-muted-foreground">ยังไม่มีคู่ค้า</CardContent></Card>
             ) : (
-              vendorSummaries.map(({ vendor, invoiceCount, pendingCount, approvedCount, paidCount, totalOutstanding, totalPaid }) => (
+              vendorSummaries.map(({ vendor, invoiceCount, pendingCount, approvedCount, paidCount, totalOutstanding }) => (
                 <Card key={vendor.id}>
                   <CardContent className="py-4">
                     <div className="flex items-start justify-between gap-3">
@@ -234,7 +134,6 @@ const VendorManagement = () => {
                           </Badge>
                           <Badge variant="outline">{invoiceCount} บิล</Badge>
                         </div>
-
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3">
                           <div className="text-center p-2 rounded-lg bg-muted/50">
                             <p className="text-xs text-muted-foreground">รอตรวจสอบ</p>
@@ -253,7 +152,6 @@ const VendorManagement = () => {
                             <p className="font-bold text-destructive">{totalOutstanding.toLocaleString()} ฿</p>
                           </div>
                         </div>
-
                         {vendor.bank_name && vendor.bank_account && (
                           <div className="flex items-center gap-2 mt-2 text-sm text-muted-foreground">
                             <span>🏦 {vendor.bank_name}: {vendor.bank_account}</span>
@@ -268,8 +166,6 @@ const VendorManagement = () => {
                 </Card>
               ))
             )}
-
-            {/* Unlinked invoices summary */}
             {unlinkedCount > 0 && (
               <Card className="border-dashed">
                 <CardContent className="py-4">
@@ -288,7 +184,6 @@ const VendorManagement = () => {
             )}
           </TabsContent>
 
-          {/* Vendors Tab */}
           <TabsContent value="vendors" className="space-y-4">
             <div className="flex gap-2">
               <div className="relative flex-1">
@@ -296,7 +191,6 @@ const VendorManagement = () => {
                 <Input placeholder="ค้นหาชื่อ, เลขภาษี..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
               </div>
             </div>
-
             {filteredVendors.length === 0 ? (
               <Card><CardContent className="py-8 text-center text-muted-foreground">ยังไม่มีคู่ค้าลงทะเบียน</CardContent></Card>
             ) : (
@@ -346,7 +240,7 @@ const VendorManagement = () => {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => deleteVendor(v.id)}>ลบ</AlertDialogAction>
+                                <AlertDialogAction onClick={() => deleteVendorMutation.mutate(v.id)}>ลบ</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -359,7 +253,6 @@ const VendorManagement = () => {
             )}
           </TabsContent>
 
-          {/* Invoices Tab */}
           <TabsContent value="invoices" className="space-y-4">
             <div className="flex gap-2">
               <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -372,7 +265,6 @@ const VendorManagement = () => {
                 </SelectContent>
               </Select>
             </div>
-
             {filteredInvoices.length === 0 ? (
               <Card><CardContent className="py-8 text-center text-muted-foreground">ยังไม่มีบิลเข้า</CardContent></Card>
             ) : (
@@ -398,14 +290,9 @@ const VendorManagement = () => {
                               {inv.wht_amount > 0 && <p>หัก ณ ที่จ่าย: {inv.wht_amount.toLocaleString()} บาท</p>}
                               <p className="text-xs">สร้างเมื่อ: {new Date(inv.created_at).toLocaleDateString("th-TH")}</p>
                             </div>
-
-                            {/* Manual link dropdown for unlinked invoices */}
                             {!inv.vendor_id && vendors.length > 0 && (
                               <div className="mt-2">
-                                <Select onValueChange={async (vendorId) => {
-                                  const { error } = await supabase.from("vendor_invoices").update({ vendor_id: vendorId }).eq("id", inv.id);
-                                  if (!error) { toast({ title: "เชื่อมคู่ค้าสำเร็จ" }); fetchData(); }
-                                }}>
+                                <Select onValueChange={(vendorId) => linkMutation.mutate({ invoiceId: inv.id, vendorId })}>
                                   <SelectTrigger className="w-48 h-8 text-xs">
                                     <SelectValue placeholder="เลือกคู่ค้าเพื่อเชื่อม..." />
                                   </SelectTrigger>
@@ -425,12 +312,12 @@ const VendorManagement = () => {
                               </Button>
                             )}
                             {inv.status === "pending" && (
-                              <Button size="sm" onClick={() => updateInvoiceStatus(inv.id, "approved")}>
+                              <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "approved" })}>
                                 <CheckCircle className="h-4 w-4 mr-1" /> อนุมัติ
                               </Button>
                             )}
                             {inv.status === "approved" && (
-                              <Button size="sm" variant="outline" onClick={() => updateInvoiceStatus(inv.id, "paid")}>
+                              <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "paid" })}>
                                 <CheckCircle className="h-4 w-4 mr-1" /> จ่ายแล้ว
                               </Button>
                             )}
@@ -445,7 +332,7 @@ const VendorManagement = () => {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => deleteInvoice(inv.id)}>ลบ</AlertDialogAction>
+                                  <AlertDialogAction onClick={() => deleteInvoiceMutation.mutate(inv.id)}>ลบ</AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
