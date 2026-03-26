@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
+import { useStaffProfiles, useSaveStaff, useDeleteStaff, emptyStaffForm, type StaffFormValues } from "@/hooks/useStaffData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,138 +11,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
-
-interface StaffProfile {
-  id: string;
-  user_id: string;
-  staff_name: string;
-  nickname: string | null;
-  position: string | null;
-  tax_id: string | null;
-  daily_rate: number;
-  phone: string | null;
-  line_user_id: string | null;
-  bank_name: string | null;
-  bank_account: string | null;
-  address: string | null;
-  id_card_url: string | null;
-  email: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
-const emptyForm = {
-  staff_name: "",
-  nickname: "",
-  position: "",
-  tax_id: "",
-  daily_rate: 0,
-  phone: "",
-  email: "",
-  bank_name: "",
-  bank_account: "",
-  address: "",
-};
+import { useToast } from "@/hooks/use-toast";
 
 const StaffManagement = () => {
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState<StaffFormValues>(emptyStaffForm);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: staffList = [], isLoading } = useQuery({
-    queryKey: ["staff-profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("staff_profiles")
-        .select("*")
-        .order("staff_name");
-      if (error) throw error;
-      return data as StaffProfile[];
-    },
-    enabled: !!user,
-  });
+  const { data: staffList = [], isLoading } = useStaffProfiles();
+  const saveMutation = useSaveStaff(editingId, idCardFile);
+  const deleteMutation = useDeleteStaff();
 
-  const uploadIdCard = async (staffId: string): Promise<string | null> => {
-    if (!idCardFile || !user) return null;
-    const ext = idCardFile.name.split(".").pop();
-    const path = `${user.id}/id-cards/${staffId}.${ext}`;
-    const { error } = await supabase.storage.from("documents").upload(path, idCardFile, { upsert: true });
-    if (error) { console.error(error); return null; }
-    return path;
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveMutation.mutate(form, {
+      onSuccess: () => {
+        setDialogOpen(false);
+        setEditingId(null);
+        setForm(emptyStaffForm);
+        setIdCardFile(null);
+      },
+    });
   };
 
-  const saveMutation = useMutation({
-    mutationFn: async (values: typeof emptyForm) => {
-      if (!user) throw new Error("Not authenticated");
-      setUploading(true);
-
-      if (editingId) {
-        const updatePayload: Record<string, unknown> = {
-          ...values,
-          daily_rate: Number(values.daily_rate),
-        };
-        if (idCardFile) {
-          const url = await uploadIdCard(editingId);
-          if (url) updatePayload.id_card_url = url;
-        }
-        const { error } = await supabase.from("staff_profiles").update(updatePayload).eq("id", editingId);
-        if (error) throw error;
-      } else {
-        const { data, error } = await supabase.from("staff_profiles").insert({
-          staff_name: values.staff_name,
-          nickname: values.nickname || null,
-          position: values.position || null,
-          tax_id: values.tax_id || null,
-          daily_rate: Number(values.daily_rate),
-          phone: values.phone || null,
-          email: values.email || null,
-          bank_name: values.bank_name || null,
-          bank_account: values.bank_account || null,
-          address: values.address || null,
-          user_id: user.id,
-        }).select("id").single();
-        if (error) throw error;
-        if (idCardFile && data) {
-          const url = await uploadIdCard(data.id);
-          if (url) {
-            await supabase.from("staff_profiles").update({ id_card_url: url }).eq("id", data.id);
-          }
-        }
-      }
-      setUploading(false);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
-      toast({ title: editingId ? "แก้ไขสำเร็จ" : "เพิ่มทีมงานสำเร็จ" });
-      setDialogOpen(false);
-      setEditingId(null);
-      setForm(emptyForm);
-      setIdCardFile(null);
-    },
-    onError: () => { setUploading(false); toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from("staff_profiles").delete().eq("id", id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["staff-profiles"] });
-      toast({ title: "ลบทีมงานสำเร็จ" });
-    },
-  });
-
-  const openEdit = (staff: StaffProfile) => {
+  const openEdit = (staff: typeof staffList[0]) => {
     setEditingId(staff.id);
     setForm({
       staff_name: staff.staff_name,
@@ -172,9 +68,7 @@ const StaffManagement = () => {
 
   const viewIdCard = async (path: string) => {
     const { data } = await supabase.storage.from("documents").createSignedUrl(path, 3600);
-    if (data?.signedUrl) {
-      setPreviewUrl(data.signedUrl);
-    }
+    if (data?.signedUrl) setPreviewUrl(data.signedUrl);
   };
 
   return (
@@ -191,7 +85,7 @@ const StaffManagement = () => {
 
       <main className="max-w-5xl mx-auto p-4 space-y-4">
         <div className="flex justify-end">
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingId(null); setForm(emptyForm); setIdCardFile(null); } }}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingId(null); setForm(emptyStaffForm); setIdCardFile(null); } }}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />เพิ่มทีมงานใหม่</Button>
             </DialogTrigger>
@@ -199,7 +93,7 @@ const StaffManagement = () => {
               <DialogHeader>
                 <DialogTitle>{editingId ? "แก้ไขข้อมูลทีมงาน" : "เพิ่มทีมงานใหม่"}</DialogTitle>
               </DialogHeader>
-              <form onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }} className="space-y-3">
+              <form onSubmit={handleSave} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>ชื่อ-นามสกุล *</Label>
@@ -237,13 +131,7 @@ const StaffManagement = () => {
                 <div>
                   <Label>อัปโหลดหน้าบัตรประชาชน</Label>
                   <div className="flex gap-2 items-center mt-1">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => setIdCardFile(e.target.files?.[0] || null)}
-                    />
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => setIdCardFile(e.target.files?.[0] || null)} />
                     <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
                       <Upload className="h-4 w-4 mr-1" />{idCardFile ? "เปลี่ยนไฟล์" : "เลือกไฟล์"}
                     </Button>
@@ -264,8 +152,8 @@ const StaffManagement = () => {
                   <Label>ที่อยู่</Label>
                   <Textarea value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} rows={2} />
                 </div>
-                <Button type="submit" className="w-full" disabled={saveMutation.isPending || uploading}>
-                  {saveMutation.isPending || uploading ? "กำลังบันทึก..." : editingId ? "บันทึกการแก้ไข" : "เพิ่มทีมงาน"}
+                <Button type="submit" className="w-full" disabled={saveMutation.isPending}>
+                  {saveMutation.isPending ? "กำลังบันทึก..." : editingId ? "บันทึกการแก้ไข" : "เพิ่มทีมงาน"}
                 </Button>
               </form>
             </DialogContent>
@@ -340,7 +228,6 @@ const StaffManagement = () => {
           </CardContent>
         </Card>
 
-        {/* ID Card Preview Dialog */}
         <Dialog open={!!previewUrl} onOpenChange={(open) => { if (!open) setPreviewUrl(null); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
