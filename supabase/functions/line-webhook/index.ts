@@ -694,7 +694,21 @@ serve(async (req) => {
 
         console.log("Insert success:", JSON.stringify(insertData));
 
-        // 7. Forward to recipients
+        const insertedExpenseId = insertData?.[0]?.id || null;
+
+        // 7a. Auto-Match Payment: check if this slip matches a pending staff/vendor invoice
+        let autoMatchMsg = '';
+        if (mapping?.supabase_user_id && extractedData?.amount) {
+          autoMatchMsg = await autoMatchPayment(
+            supabase,
+            mapping.supabase_user_id,
+            extractedData,
+            storagePath,
+            insertedExpenseId
+          );
+        }
+
+        // 7b. Forward to recipients
         await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
 
         // 8. Reply to user with rich info
@@ -711,7 +725,7 @@ serve(async (req) => {
         const reviewFlag = confidence < 75 ? '\n⚠️ ต้องตรวจสอบ (confidence ต่ำ)' : '';
 
         await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-          `✅ บันทึกสำเร็จ!\n💰 ${amount}\n📂 ${cat}${group}${sub}${tag}${staff}${days}${eventInfo}${memoInfo}\n📝 ${extractedData?.description || '-'}${reviewFlag}`
+          `✅ บันทึกสำเร็จ!\n💰 ${amount}\n📂 ${cat}${group}${sub}${tag}${staff}${days}${eventInfo}${memoInfo}\n📝 ${extractedData?.description || '-'}${reviewFlag}${autoMatchMsg}`
         );
 
       } catch (err) {
@@ -773,6 +787,108 @@ async function pushMessage(token: string, to: string, messages: Array<{type: str
   } catch (e) {
     console.error("Push error:", e);
   }
+}
+
+async function autoMatchPayment(
+  supabase: ReturnType<typeof createClient>,
+  ownerUserId: string,
+  extractedData: Record<string, unknown>,
+  slipUrl: string,
+  expenseId: string | null
+): Promise<string> {
+  const slipAmount = Number(extractedData.amount) || 0;
+  if (slipAmount <= 0) return '';
+
+  const tolerance = 2; // ±2 baht
+  let matchMsg = '';
+
+  try {
+    // --- Staff Invoice matching ---
+    const staffName = (extractedData.staff_name as string || '').trim().toLowerCase();
+    const receiver = (extractedData.receiver as string || '').trim().toLowerCase();
+    const eventName = (extractedData.event_name as string || '').trim().toLowerCase();
+
+    if (staffName || (extractedData.subcategory === 'Staff' && receiver)) {
+      const { data: pendingStaff } = await supabase
+        .from('staff_invoices')
+        .select('id, net_amount, event_name, staff_profiles(staff_name, nickname)')
+        .eq('user_id', ownerUserId)
+        .in('status', ['submitted', 'approved'])
+        .is('payment_slip_url', null);
+
+      if (pendingStaff && pendingStaff.length > 0) {
+        const matches = pendingStaff.filter((inv: any) => {
+          const invNet = Number(inv.net_amount);
+          if (Math.abs(invNet - slipAmount) > tolerance) return false;
+
+          const invStaffName = (inv.staff_profiles?.staff_name || '').toLowerCase();
+          const invNickname = (inv.staff_profiles?.nickname || '').toLowerCase();
+          const searchName = staffName || receiver;
+
+          const nameMatch = searchName && (
+            invStaffName.includes(searchName) || searchName.includes(invStaffName) ||
+            (invNickname && (invNickname.includes(searchName) || searchName.includes(invNickname)))
+          );
+
+          return nameMatch;
+        });
+
+        if (matches.length === 1) {
+          const matched = matches[0];
+          await supabase.from('staff_invoices').update({
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            payment_slip_url: slipUrl,
+            matched_expense_id: expenseId,
+          } as any).eq('id', matched.id);
+
+          const matchedName = (matched as any).staff_profiles?.staff_name || 'ทีมงาน';
+          matchMsg = `\n\n✅ จับคู่การจ่ายเงินอัตโนมัติ: ${matchedName} — ${slipAmount.toLocaleString()} บาท`;
+          console.log(`Auto-matched staff invoice ${matched.id} with expense ${expenseId}`);
+        } else if (matches.length > 1) {
+          console.log(`Multiple staff invoice matches (${matches.length}), skipping auto-match`);
+        }
+      }
+    }
+
+    // --- Vendor Invoice matching ---
+    if (!matchMsg && receiver) {
+      const { data: pendingVendor } = await supabase
+        .from('vendor_invoices')
+        .select('id, net_amount, vendor_profiles(company_name)')
+        .eq('user_id', ownerUserId)
+        .in('status', ['pending', 'approved'])
+        .is('payment_slip_url', null);
+
+      if (pendingVendor && pendingVendor.length > 0) {
+        const matches = pendingVendor.filter((inv: any) => {
+          const invNet = Number(inv.net_amount);
+          if (Math.abs(invNet - slipAmount) > tolerance) return false;
+
+          const companyName = (inv.vendor_profiles?.company_name || '').toLowerCase();
+          return companyName && (companyName.includes(receiver) || receiver.includes(companyName));
+        });
+
+        if (matches.length === 1) {
+          const matched = matches[0];
+          await supabase.from('vendor_invoices').update({
+            status: 'paid',
+            paid_at: new Date().toISOString(),
+            payment_slip_url: slipUrl,
+            matched_expense_id: expenseId,
+          } as any).eq('id', matched.id);
+
+          const matchedName = (matched as any).vendor_profiles?.company_name || 'คู่ค้า';
+          matchMsg = `\n\n✅ จับคู่การจ่ายเงินอัตโนมัติ: ${matchedName} — ${slipAmount.toLocaleString()} บาท`;
+          console.log(`Auto-matched vendor invoice ${matched.id} with expense ${expenseId}`);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Auto-match error:', err);
+  }
+
+  return matchMsg;
 }
 
 async function forwardToRecipients(

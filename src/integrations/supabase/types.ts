@@ -813,9 +813,11 @@ export type Database = {
           gross_amount: number
           id: string
           invoice_number: string
+          matched_expense_id: string | null
           net_amount: number
           notes: string | null
           paid_at: string | null
+          payment_slip_url: string | null
           staff_id: string
           status: string
           submitted_at: string | null
@@ -836,9 +838,11 @@ export type Database = {
           gross_amount?: number
           id?: string
           invoice_number: string
+          matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
           paid_at?: string | null
+          payment_slip_url?: string | null
           staff_id: string
           status?: string
           submitted_at?: string | null
@@ -859,9 +863,11 @@ export type Database = {
           gross_amount?: number
           id?: string
           invoice_number?: string
+          matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
           paid_at?: string | null
+          payment_slip_url?: string | null
           staff_id?: string
           status?: string
           submitted_at?: string | null
@@ -977,10 +983,12 @@ export type Database = {
           id: string
           invoice_date: string | null
           invoice_number: string | null
+          matched_expense_id: string | null
           net_amount: number
           notes: string | null
           ocr_data: Json | null
           paid_at: string | null
+          payment_slip_url: string | null
           status: string
           user_id: string
           vat_amount: number
@@ -996,10 +1004,12 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
           ocr_data?: Json | null
           paid_at?: string | null
+          payment_slip_url?: string | null
           status?: string
           user_id: string
           vat_amount?: number
@@ -1015,10 +1025,12 @@ export type Database = {
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
           ocr_data?: Json | null
           paid_at?: string | null
+          payment_slip_url?: string | null
           status?: string
           user_id?: string
           vat_amount?: number

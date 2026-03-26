@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -41,6 +41,9 @@ const StaffPayments = () => {
   const [createDialog, setCreateDialog] = useState(false);
   const [lineDialog, setLineDialog] = useState<{ staffName: string; lineUserId: string | null } | null>(null);
   const [lineMessage, setLineMessage] = useState("");
+  const [paySlipDialog, setPaySlipDialog] = useState<any | null>(null);
+  const [slipUploading, setSlipUploading] = useState(false);
+  const slipFileRef = useRef<HTMLInputElement>(null);
 
   // Create invoice form state
   const [createForm, setCreateForm] = useState({
@@ -98,13 +101,42 @@ const StaffPayments = () => {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const updates: Record<string, unknown> = { status };
-      if (status === "paid") updates.paid_at = new Date().toISOString();
+      // Don't set paid_at here — paid status requires slip upload
       const { error } = await supabase.from("staff_invoices").update(updates).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       toast({ title: "อัปเดตสถานะสำเร็จ" });
+    },
+  });
+
+  const markPaidWithSlipMutation = useMutation({
+    mutationFn: async ({ id, slipFile }: { id: string; slipFile: File }) => {
+      if (!user) throw new Error("Not authenticated");
+      const ext = slipFile.name.split(".").pop() || "jpg";
+      const path = `payment-slips/${user.id}/${Date.now()}_${id}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
+        contentType: slipFile.type,
+      });
+      if (uploadErr) throw uploadErr;
+
+      const { error } = await supabase.from("staff_invoices").update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        payment_slip_url: path,
+      } as any).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      setPaySlipDialog(null);
+      toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
     },
   });
 
@@ -354,8 +386,8 @@ const StaffPayments = () => {
                               </Button>
                             )}
                             {inv.status === "approved" && (
-                              <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "paid" })}>
-                                <CreditCard className="h-3 w-3 mr-1" />จ่ายแล้ว
+                              <Button size="sm" onClick={() => setPaySlipDialog(inv)}>
+                                <Upload className="h-3 w-3 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                             )}
                             {inv.staff_profiles?.line_user_id && (
@@ -541,6 +573,55 @@ const StaffPayments = () => {
                 {sendLineMutation.isPending ? "กำลังส่ง..." : "ส่งข้อความ LINE"}
               </Button>
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Pay with Slip Dialog */}
+        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) setPaySlipDialog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                ยืนยันการจ่ายเงิน
+              </DialogTitle>
+            </DialogHeader>
+            {paySlipDialog && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-medium">{paySlipDialog.staff_profiles?.staff_name}</p>
+                  <p className="text-muted-foreground">{paySlipDialog.event_name || "ไม่ระบุอีเวนท์"}</p>
+                  <p className="text-primary font-bold text-lg">
+                    {Number(paySlipDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                  </p>
+                </div>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => slipFileRef.current?.click()}
+                    disabled={slipUploading}
+                  >
+                    {slipUploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
+                  </Button>
+                  <input
+                    ref={slipFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !paySlipDialog) return;
+                      setSlipUploading(true);
+                      markPaidWithSlipMutation.mutate(
+                        { id: paySlipDialog.id, slipFile: file },
+                        { onSettled: () => setSlipUploading(false) }
+                      );
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       </main>
