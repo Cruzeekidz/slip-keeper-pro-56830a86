@@ -270,6 +270,7 @@ const PaymentQueue = () => {
                       }}
                     >
                       <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
+                    </Button>
                   </CardContent>
                 </Card>
               );
