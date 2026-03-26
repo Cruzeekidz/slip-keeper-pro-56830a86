@@ -102,7 +102,6 @@ const StaffPayments = () => {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const updates: Record<string, unknown> = { status };
-      // Don't set paid_at here — paid status requires slip upload
       const { error } = await supabase.from("staff_invoices").update(updates).eq("id", id);
       if (error) throw error;
     },
@@ -110,6 +109,40 @@ const StaffPayments = () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       toast({ title: "อัปเดตสถานะสำเร็จ" });
+    },
+  });
+
+  const toggleWhtModeMutation = useMutation({
+    mutationFn: async ({ id, mode }: { id: string; mode: "inclusive" | "exclusive" }) => {
+      const inv = invoices.find((i: any) => i.id === id);
+      if (!inv) throw new Error("Not found");
+      const baseAmount = Number(inv.days_worked) * Number(inv.daily_rate) + Number(inv.bonus_amount || 0);
+      let grossAmount: number;
+      let whtAmount: number;
+      let netAmount: number;
+      if (mode === "inclusive") {
+        // baseAmount = gross
+        grossAmount = baseAmount;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      } else {
+        // baseAmount = net, calculate gross back
+        grossAmount = Math.round(baseAmount / 0.97 * 100) / 100;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      }
+      const { error } = await supabase.from("staff_invoices").update({
+        gross_amount: grossAmount,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        notes: `WHT mode: ${mode}`,
+      }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      toast({ title: "คำนวณภาษีใหม่แล้ว" });
     },
   });
 
@@ -137,6 +170,26 @@ const StaffPayments = () => {
 
       const { error } = await supabase.from("staff_invoices").update(updates as any).eq("id", id);
       if (error) throw error;
+
+      // Find the invoice to create WHT expense
+      const inv = invoices.find((i: any) => i.id === id);
+      if (inv && Number(inv.wht_amount) > 0) {
+        const whtExpenseType = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
+        await supabase.from("expenses").insert({
+          user_id: user.id,
+          amount: Number(inv.wht_amount),
+          category: "ภาษีหัก ณ ที่จ่าย",
+          subcategory: "WHT 3%",
+          description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
+          expense_date: new Date().toISOString().split("T")[0],
+          transaction_direction: "EXPENSE",
+          transaction_type: "เครดิต",
+          staff_name: inv.staff_profiles?.staff_name || null,
+          event_name: inv.event_name || null,
+          receiver: "สรรพากร",
+          memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number} - จ่ายด้วย${whtExpenseType}`,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
@@ -381,7 +434,25 @@ const StaffPayments = () => {
                           </Button>
                         </TableCell>
                         <TableCell className="text-right">{Number(inv.gross_amount).toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-destructive">{Number(inv.wht_amount).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center gap-1 justify-end">
+                            <span className="text-destructive">{Number(inv.wht_amount).toLocaleString()}</span>
+                            {inv.status !== "paid" && (
+                              <Select
+                                value={inv.notes?.includes("exclusive") ? "exclusive" : "inclusive"}
+                                onValueChange={(v) => toggleWhtModeMutation.mutate({ id: inv.id, mode: v as any })}
+                              >
+                                <SelectTrigger className="h-6 w-16 text-[10px] px-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="inclusive">Gross</SelectItem>
+                                  <SelectItem value="exclusive">Net</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-medium">{Number(inv.net_amount).toLocaleString()}</TableCell>
                         <TableCell>
                           <Badge variant={statusColors[inv.status] as any}>
