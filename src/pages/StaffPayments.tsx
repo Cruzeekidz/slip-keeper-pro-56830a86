@@ -434,7 +434,25 @@ const StaffPayments = () => {
                           </Button>
                         </TableCell>
                         <TableCell className="text-right">{Number(inv.gross_amount).toLocaleString()}</TableCell>
-                        <TableCell className="text-right text-destructive">{Number(inv.wht_amount).toLocaleString()}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center gap-1 justify-end">
+                            <span className="text-destructive">{Number(inv.wht_amount).toLocaleString()}</span>
+                            {inv.status !== "paid" && (
+                              <Select
+                                value={inv.notes?.includes("exclusive") ? "exclusive" : "inclusive"}
+                                onValueChange={(v) => toggleWhtModeMutation.mutate({ id: inv.id, mode: v as any })}
+                              >
+                                <SelectTrigger className="h-6 w-16 text-[10px] px-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="inclusive">Gross</SelectItem>
+                                  <SelectItem value="exclusive">Net</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-right font-medium">{Number(inv.net_amount).toLocaleString()}</TableCell>
                         <TableCell>
                           <Badge variant={statusColors[inv.status] as any}>
