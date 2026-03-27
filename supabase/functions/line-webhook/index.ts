@@ -867,6 +867,35 @@ async function autoMatchPayment(
           const matchedName = (matched as any).staff_profiles?.staff_name || 'ทีมงาน';
           matchMsg = `\n\n✅ จับคู่การจ่ายเงินอัตโนมัติ: ${matchedName} — ${slipAmount.toLocaleString()} บาท`;
           console.log(`Auto-matched staff invoice ${matched.id} with expense ${expenseId}`);
+
+          // Forward slip to staff via LINE
+          const staffLineId = (matched as any).staff_profiles?.line_user_id;
+          if (staffLineId && lineToken) {
+            try {
+              // Create signed URL for the slip image
+              const { data: signedData } = await supabase.storage
+                .from('receipts')
+                .createSignedUrl(slipUrl, 86400); // 24 hours
+              const slipImageUrl = signedData?.signedUrl || null;
+
+              const thankYouMessages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}> = [];
+              if (slipImageUrl) {
+                thankYouMessages.push({
+                  type: "image",
+                  originalContentUrl: slipImageUrl,
+                  previewImageUrl: slipImageUrl,
+                });
+              }
+              thankYouMessages.push({
+                type: "text",
+                text: `โอนเงินเรียบร้อย 💰 ${slipAmount.toLocaleString()} บาท\nขอบคุณที่มาช่วยกันจัดงานดีๆให้เด็กๆนะคะ 🙏❤️`,
+              });
+              await pushMessage(lineToken, staffLineId, thankYouMessages);
+              console.log(`Sent payment confirmation to staff LINE: ${staffLineId}`);
+            } catch (notifyErr) {
+              console.error('Failed to notify staff via LINE:', notifyErr);
+            }
+          }
         } else if (matches.length > 1) {
           console.log(`Multiple staff invoice matches (${matches.length}), skipping auto-match`);
         }
