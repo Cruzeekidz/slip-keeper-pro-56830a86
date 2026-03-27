@@ -63,8 +63,8 @@ const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
       // Upload bill file
       const fileName = `vendor-bills/${ownerId}/${Date.now()}-${billFile.name}`;
       const { error: uploadError } = await supabase.storage
-        .from("documents")
-        .upload(fileName, billFile);
+        .from("receipts")
+        .upload(fileName, billFile, { upsert: false });
       if (uploadError) throw uploadError;
 
       // Create vendor invoice record

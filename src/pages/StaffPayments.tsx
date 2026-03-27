@@ -153,7 +153,7 @@ const StaffPayments = () => {
 
       if (slipFile) {
         const ext = slipFile.name.split(".").pop() || "jpg";
-        const path = `payment-slips/${user.id}/${Date.now()}_${id}.${ext}`;
+        const path = `${user.id}/payment-slips/${Date.now()}_${id}.${ext}`;
         const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
           contentType: slipFile.type,
         });
