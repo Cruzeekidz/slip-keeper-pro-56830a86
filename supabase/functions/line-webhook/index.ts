@@ -818,7 +818,7 @@ async function autoMatchPayment(
     if (staffName || (extractedData.subcategory === 'Staff' && receiver)) {
       const { data: pendingStaff } = await supabase
         .from('staff_invoices')
-        .select('id, net_amount, event_name, staff_profiles(staff_name, nickname)')
+        .select('id, net_amount, event_name, staff_id, staff_profiles(staff_name, nickname, line_user_id)')
         .eq('user_id', ownerUserId)
         .in('status', ['submitted', 'approved'])
         .is('payment_slip_url', null);
