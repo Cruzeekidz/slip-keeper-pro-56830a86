@@ -155,6 +155,15 @@ const Index = () => {
                 <span className="hidden sm:inline">สรุปภาพรวม</span>
                 <span className="sm:hidden">สรุป</span>
               </Button>
+              <Button 
+                onClick={() => navigate('/payment-queue')}
+                className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
+                size="sm"
+              >
+                <DollarSign className="h-4 w-4 mr-1.5" />
+                <span className="hidden sm:inline">รอจ่ายเงิน</span>
+                <span className="sm:hidden">รอจ่าย</span>
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button 
@@ -182,42 +191,10 @@ const Index = () => {
 
                   <DropdownMenuSeparator />
 
-                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 ทีมงาน & คู่ค้า</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/staff-management')}>
-                    <Users className="h-4 w-4 mr-2" />
-                    จัดการทะเบียนทีมงาน
-                  </DropdownMenuItem>
+                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">💰 การเงิน & ภาษี</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/staff-payments')}>
                     <CreditCard className="h-4 w-4 mr-2" />
                     ใบเรียกเก็บ/จ่ายเงิน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/payment-queue')}>
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    รายการรอจ่ายเงิน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?view=staff-register&owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนทีมงาน" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์ลงทะเบียนทีมงาน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?view=vendor-register&owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนคู่ค้า" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์ลงทะเบียนคู่ค้า
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์พอร์ทัลหลัก (เมนูรวม)" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์พอร์ทัลหลัก
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/vendor-management')}>
                     <Building2 className="h-4 w-4 mr-2" />
@@ -230,6 +207,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/wht-certificates')}>
                     <FileText className="h-4 w-4 mr-2" />
                     ติดตามหัก ณ ที่จ่าย
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/wht-remittance')}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    สรุปภาษีรอนำส่ง
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
@@ -292,6 +273,38 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/data-migration')}>
                     <Database className="h-4 w-4 mr-2" />
                     แปลงข้อมูล
+                  </DropdownMenuItem>
+
+                  <DropdownMenuSeparator />
+
+                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 ทะเบียนทีมงาน & คู่ค้า</DropdownMenuLabel>
+                  <DropdownMenuItem onClick={() => navigate('/staff-management')}>
+                    <Users className="h-4 w-4 mr-2" />
+                    จัดการทะเบียนทีมงาน
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?view=staff-register&owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนทีมงาน" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์ลงทะเบียนทีมงาน
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?view=vendor-register&owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนคู่ค้า" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์ลงทะเบียนคู่ค้า
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => {
+                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
+                    navigator.clipboard.writeText(portalUrl);
+                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์พอร์ทัลหลัก (เมนูรวม)" });
+                  }}>
+                    <Link2 className="h-4 w-4 mr-2" />
+                    คัดลอกลิงก์พอร์ทัลหลัก
                   </DropdownMenuItem>
 
                   {isSuperAdmin && (

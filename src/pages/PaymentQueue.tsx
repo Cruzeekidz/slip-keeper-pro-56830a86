@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2 } from "lucide-react";
 
 interface PaymentItem {
   id: string;
@@ -161,6 +161,14 @@ const PaymentQueue = () => {
           </Button>
           <Banknote className="h-6 w-6" />
           <h1 className="text-xl font-bold">รายการรอจ่ายเงิน</h1>
+          <div className="ml-auto flex items-center gap-2">
+            <Button onClick={() => navigate("/staff-payments")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <CreditCard className="h-4 w-4 mr-1" />จ่ายเงิน
+            </Button>
+            <Button onClick={() => navigate("/vendor-management")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <Building2 className="h-4 w-4 mr-1" />คู่ค้า
+            </Button>
+          </div>
         </div>
       </header>
 

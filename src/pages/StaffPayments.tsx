@@ -351,7 +351,10 @@ const StaffPayments = () => {
           </Button>
           <CreditCard className="h-6 w-6" />
           <h1 className="text-xl font-bold">จัดการจ่ายเงินทีมงาน</h1>
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-2">
+            <Button onClick={() => navigate("/payment-queue")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <Banknote className="h-4 w-4 mr-1" />รอจ่ายเงิน
+            </Button>
             <Button onClick={() => setCreateDialog(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Plus className="h-4 w-4 mr-1" />สร้างรายการ
             </Button>
