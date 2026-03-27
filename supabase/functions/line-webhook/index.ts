@@ -704,7 +704,8 @@ serve(async (req) => {
             mapping.supabase_user_id,
             extractedData,
             storagePath,
-            insertedExpenseId
+            insertedExpenseId,
+            LINE_CHANNEL_ACCESS_TOKEN
           );
         }
 
@@ -794,7 +795,8 @@ async function autoMatchPayment(
   ownerUserId: string,
   extractedData: Record<string, unknown>,
   slipUrl: string,
-  expenseId: string | null
+  expenseId: string | null,
+  lineToken: string
 ): Promise<string> {
   const slipAmount = Number(extractedData.amount) || 0;
   if (slipAmount <= 0) return '';
