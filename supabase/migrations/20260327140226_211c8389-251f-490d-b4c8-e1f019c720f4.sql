@@ -1,0 +1,1 @@
+UPDATE expenses SET expense_date = '2026-03-27' WHERE id = '19a97706-251a-46bb-95ba-ebdbf3f0cbd1' AND expense_date = '2023-03-27';
