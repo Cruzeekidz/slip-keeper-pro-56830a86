@@ -802,11 +802,16 @@ async function autoMatchPayment(
   const tolerance = 2; // ±2 baht
   let matchMsg = '';
 
+  // Helper: strip Thai honorific prefixes for better matching
+  const stripPrefix = (name: string) => name.replace(/^(น้อง|พี่|ครู|อาจารย์|คุณ|นาย|นาง|น\.ส\.|นางสาว)\s*/i, '').trim();
+
   try {
     // --- Staff Invoice matching ---
     const staffName = (extractedData.staff_name as string || '').trim().toLowerCase();
     const receiver = (extractedData.receiver as string || '').trim().toLowerCase();
     const eventName = (extractedData.event_name as string || '').trim().toLowerCase();
+
+    console.log(`Auto-match: staffName="${staffName}", receiver="${receiver}", amount=${slipAmount}`);
 
     if (staffName || (extractedData.subcategory === 'Staff' && receiver)) {
       const { data: pendingStaff } = await supabase
@@ -816,6 +821,8 @@ async function autoMatchPayment(
         .in('status', ['submitted', 'approved'])
         .is('payment_slip_url', null);
 
+      console.log(`Auto-match: found ${pendingStaff?.length || 0} pending staff invoices`);
+
       if (pendingStaff && pendingStaff.length > 0) {
         const matches = pendingStaff.filter((inv: any) => {
           const invNet = Number(inv.net_amount);
@@ -823,12 +830,25 @@ async function autoMatchPayment(
 
           const invStaffName = (inv.staff_profiles?.staff_name || '').toLowerCase();
           const invNickname = (inv.staff_profiles?.nickname || '').toLowerCase();
-          const searchName = staffName || receiver;
+          const strippedStaffName = stripPrefix(staffName);
+          const strippedInvName = stripPrefix(invStaffName);
 
-          const nameMatch = searchName && (
-            invStaffName.includes(searchName) || searchName.includes(invStaffName) ||
-            (invNickname && (invNickname.includes(searchName) || searchName.includes(invNickname)))
-          );
+          // Try matching with staffName first, then receiver
+          const candidates = [staffName, strippedStaffName, receiver].filter(Boolean);
+
+          const nameMatch = candidates.some(searchName => {
+            const strippedSearch = stripPrefix(searchName);
+            return (
+              invStaffName.includes(searchName) || searchName.includes(invStaffName) ||
+              invStaffName.includes(strippedSearch) || strippedSearch.includes(strippedInvName) ||
+              (invNickname && (invNickname.includes(searchName) || searchName.includes(invNickname) ||
+                invNickname.includes(strippedSearch) || strippedSearch.includes(invNickname)))
+            );
+          });
+
+          if (!nameMatch) {
+            console.log(`Auto-match: no name match for inv ${inv.id} (staff="${invStaffName}", nick="${invNickname}")`);
+          }
 
           return nameMatch;
         });
