@@ -224,10 +224,6 @@ const Index = () => {
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Forward สลิป
-                  </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
 
@@ -273,6 +269,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/data-migration')}>
                     <Database className="h-4 w-4 mr-2" />
                     แปลงข้อมูล
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Forward สลิป
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
