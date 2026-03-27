@@ -202,6 +202,18 @@ const StaffPayments = () => {
           memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number} - จ่ายด้วย${whtExpenseType}`,
         });
       }
+
+      // Notify staff via LINE (fire-and-forget)
+      if (inv) {
+        supabase.functions.invoke("notify-staff-payment", {
+          body: {
+            staff_id: inv.staff_id,
+            amount: Number(inv.net_amount),
+            payment_slip_path: slipPath,
+            payment_method: paymentMethod,
+          },
+        }).catch((err: any) => console.error("LINE notify error:", err));
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
