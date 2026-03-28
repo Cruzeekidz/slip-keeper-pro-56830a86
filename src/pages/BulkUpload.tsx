@@ -33,6 +33,7 @@ export default function BulkUpload() {
   const isPausedRef = useRef(false);
   const [isPausedState, setIsPausedState] = useState(false);
   const isAutoStartRef = useRef(false);
+  const [sourceFolderName, setSourceFolderName] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -196,6 +197,13 @@ export default function BulkUpload() {
   const handleFolderSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const folderFiles = Array.from(e.target.files || []);
     if (folderFiles.length === 0) return;
+    
+    // Extract folder name from webkitRelativePath (e.g. "MyFolder/subfolder/file.jpg")
+    const firstFile = folderFiles[0] as any;
+    const relativePath = firstFile.webkitRelativePath || '';
+    const folderName = relativePath.split('/')[0] || null;
+    setSourceFolderName(folderName);
+    
     isAutoStartRef.current = true;
     addFiles(folderFiles, true);
     e.target.value = '';
