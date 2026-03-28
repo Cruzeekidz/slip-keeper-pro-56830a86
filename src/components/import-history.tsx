@@ -299,7 +299,13 @@ export function ImportHistory() {
                           <span className="font-semibold text-red-600">{record.error_count}</span>
                         </div>
                       )}
-                    </div>
+                     </div>
+
+                    {record.notes && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        📋 {record.notes}
+                      </p>
+                    )}
 
                     {record.rolled_back_at && (
                       <p className="text-xs text-muted-foreground mt-2">
