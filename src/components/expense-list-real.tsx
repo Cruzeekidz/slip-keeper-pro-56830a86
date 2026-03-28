@@ -344,14 +344,18 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+        <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
           <div className="text-center">
-            <div className="text-sm text-muted-foreground">รายการ WHT (เครดิต)</div>
-            <div className="font-bold">{summaryStats.count} รายการ</div>
+            <div className="text-sm text-muted-foreground">รอนำส่ง</div>
+            <div className="font-bold">{whtStats.count} รายการ</div>
           </div>
           <div className="text-center">
-            <div className="text-sm text-muted-foreground">ยอดรวมรอนำส่ง</div>
+            <div className="text-sm text-muted-foreground">ยอดค้างจ่าย</div>
             <div className="font-bold text-amber-600">฿{whtStats.total.toLocaleString()}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">นำส่งแล้ว</div>
+            <div className="font-bold text-emerald-600">฿{whtStats.settledTotal.toLocaleString()}</div>
           </div>
         </div>
       )}
