@@ -378,12 +378,29 @@ export default function BulkUpload() {
     const dupCount = updatedFiles.filter(f => f.status === 'duplicate').length;
     const lowConfCount = updatedFiles.filter(f => f.status === 'success' && f.confidence != null && f.confidence < 75).length;
 
+    // Save import history with folder name
+    if (successCount + dupCount + errorCount > 0) {
+      await supabase.from('import_history').insert({
+        user_id: user.id,
+        file_name: sourceFolderName ? `📁 ${sourceFolderName}` : 'Bulk Upload (ไฟล์)',
+        source_folder: sourceFolderName,
+        total_rows: pendingIndices.length,
+        success_count: successCount,
+        update_count: dupCount,
+        error_count: errorCount,
+        import_type: 'bulk_image',
+        status: 'completed',
+        notes: lowConfCount > 0 ? `${lowConfCount} รายการรอตรวจสอบ` : null,
+      });
+    }
+
     let desc = `สำเร็จ ${successCount} ไฟล์`;
     if (dupCount > 0) desc += `, ซ้ำ ${dupCount}`;
     if (errorCount > 0) desc += `, ล้มเหลว ${errorCount}`;
     if (lowConfCount > 0) desc += ` | ⚠️ ${lowConfCount} รายการรอตรวจสอบ`;
 
     toast({ title: "อัพโหลดเสร็จสิ้น", description: desc });
+    setSourceFolderName(null);
   };
 
   const getStatusIcon = (status: UploadedFile['status']) => {
