@@ -1,83 +1,129 @@
 
 
-## แผนปรับปรุงระบบภาษีหัก ณ ที่จ่าย และรายการเคลื่อนไหว
+## แผนปรับโครงสร้างระบบภาษีหัก ณ ที่จ่าย (WHT) ให้ถูกต้องตามหลักบัญชี
 
-### สรุปปัญหาและแนวทาง
+### วิเคราะห์สถานะปัจจุบัน
 
-ผู้ใช้ระบุ 3 ประเด็นหลัก:
+**ปัญหาทางบัญชีที่พบ:**
 
-1. **รายการเคลื่อนไหวหน้าหลัก** แสดงรายการ WHT (เครดิต) ปนกับรายการเงินสดจริง → ต้องแยกออก
-2. **หน้า WHT 3 หน้าซ้ำซ้อน** (รายงาน ภ.ง.ด. / ติดตาม WHT / สรุปรอนำส่ง) → รวมเป็นหน้าเดียว
-3. **P&L ครบหรือยัง** → ตรวจสอบแล้ว P&L ดึง expenses ที่ match event ทั้งหมดรวม WHT อยู่แล้ว (category = "ภาษีหัก ณ ที่จ่าย" มี project_tag ตรงกับอีเวนท์)
+1. **WHT ถูกบันทึกเป็น Expense แต่จริงๆ คือ Liability** — ตอนจ่ายเงินทีมงาน ระบบสร้างรายการใน `expenses` ด้วย category "ภาษีหัก ณ ที่จ่าย" ซึ่งในทางบัญชี WHT ที่หักไว้คือ **ภาษีค้างจ่าย (WHT Payable)** ไม่ใช่ค่าใช้จ่ายของกิจการ — แต่ในบริบทนี้มันถูกใช้เพื่อ track ต้นทุนใน P&L ซึ่งก็สมเหตุผลเพราะ WHT เป็นส่วนหนึ่งของ Gross pay
+2. **ไม่มีกลไก Settlement** — ไม่มีขั้นตอน "รวบรวมรายการ → สร้างใบนำส่ง → จ่ายเงินให้สรรพากร → หักลบเครดิต"
+3. **ตาราง `wht_certificates` ซ้ำซ้อน** — เก็บข้อมูลเดียวกับที่ดึงจาก `staff_invoices`/`vendor_invoices` แต่ต้องสร้างแยกด้วยมือ
+
+**สิ่งที่ถูกต้องแล้ว:**
+- WHT expense ถูกสร้างอัตโนมัติเมื่อจ่ายเงินทีมงาน (ใน `StaffPayments.tsx`)
+- P&L ดึง WHT ไปคำนวณต้นทุนครบ (ผ่าน `project_tag`)
 
 ---
 
-### ขั้นตอนที่ 1: แยกรายการ WHT ออกจากรายการเคลื่อนไหว
+### หลักการบัญชีที่ควรใช้
 
-**ไฟล์:** `src/components/expense-list-real.tsx`
+```text
+เมื่อจ่ายค่าจ้าง:
+  Dr. ค่าจ้าง (Expense)     = Gross Amount    ← บันทึกใน expenses
+  Cr. เงินสด/ธนาคาร         = Net Amount      ← เงินที่โอนจริง
+  Cr. ภาษีหัก ณ ที่จ่ายค้างจ่าย = WHT Amount   ← เครดิตรอนำส่ง
 
-- เพิ่มตัวกรองเริ่มต้น: ซ่อนรายการที่ `category === "ภาษีหัก ณ ที่จ่าย"` จากรายการหลัก
-- เพิ่มแท็บ/ปุ่มสลับ **"เงินสด"** vs **"เครดิต (WHT)"** เพื่อให้ดูรายการ WHT แยกได้
-- แท็บ "เครดิต" จะกรองเฉพาะ `category === "ภาษีหัก ณ ที่จ่าย"`
-- ยอดสรุปด้านบนจะแยกแสดงทั้ง 2 ประเภท
+เมื่อนำส่งสรรพากร (เดือนถัดไป):
+  Dr. ภาษีหัก ณ ที่จ่ายค้างจ่าย = WHT Amount   ← ล้างเครดิต
+  Cr. เงินสด/ธนาคาร         = WHT Amount      ← จ่ายเงินจริง
+```
 
-### ขั้นตอนที่ 2: รวมหน้า WHT 3 หน้าเป็นหน้าเดียว
+---
 
-**เป้าหมาย:** รวม `/wht-report`, `/wht-certificates`, `/wht-remittance` เป็นหน้าเดียวที่ `/wht-report`
+### แผนปรับปรุง
 
-**ไฟล์:** `src/pages/WhtReport.tsx` (ปรับใหม่ทั้งหมด)
+#### 1. สร้างตาราง `wht_remittance_batches` (ใบนำส่ง)
 
-หน้ารวมจะมี 3 แท็บภายในหน้าเดียว:
+ตารางสำหรับรวบรวมรายการ WHT เป็นชุดนำส่งสรรพากรรายเดือน
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid | PK |
+| user_id | uuid | เจ้าของ |
+| batch_month | text | เดือนภาษี เช่น "2026-03" |
+| pnd_type | text | "3" หรือ "53" |
+| total_tax | numeric | ยอดภาษีรวม |
+| status | text | draft → filed → paid |
+| filed_at | timestamptz | วันที่ยื่นแบบ |
+| paid_at | timestamptz | วันที่จ่ายเงิน |
+| paid_expense_id | uuid | อ้างอิง expense ที่บันทึกเงินสดจ่ายออก |
+| notes | text | หมายเหตุ |
+| created_at | timestamptz | |
+
+#### 2. สร้างตาราง `wht_remittance_items` (รายการในใบนำส่ง)
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid | PK |
+| batch_id | uuid | FK → wht_remittance_batches |
+| source_type | text | "staff_invoice" หรือ "vendor_invoice" |
+| source_id | uuid | ID ของ staff_invoices/vendor_invoices |
+| payee_name | text | ชื่อผู้ถูกหัก |
+| gross_amount | numeric | ยอดจ่าย |
+| wht_amount | numeric | ภาษีหัก |
+| flowaccount_url | text | ลิงก์ FA ของรายการนี้ |
+
+#### 3. ปรับหน้า WhtReport.tsx — เหลือ 2 แท็บ
 
 ```text
 ┌──────────────────────────────────────────────┐
 │  รายงานภาษีหัก ณ ที่จ่าย                      │
 │  [เดือน ▼] [ปี ▼]                             │
 ├──────────────────────────────────────────────┤
-│  Tab: รายงาน ภ.ง.ด. | ติดตาม FA | รอนำส่ง    │
+│  Tab: รายงาน ภ.ง.ด. | นำส่งสรรพากร            │
 ├──────────────────────────────────────────────┤
-│  แท็บ 1: ตาราง ภ.ง.ด.3/53 + CSV export       │
-│  แท็บ 2: รายการ WHT cert + ใส่ลิงก์ FA        │
-│           + ปุ่ม "ส่งให้คู่ค้าใน LINE"          │
-│  แท็บ 3: สรุปรอนำส่ง (เดิมจาก WhtRemittance)  │
+│  แท็บ 1: ตาราง ภ.ง.ด.3/53                    │
+│    - แสดงรายการจาก staff/vendor invoices       │
+│    - ปุ่มใส่ลิงก์ FA + ส่ง LINE ในแต่ละแถว     │
+│    - CSV export                               │
+│    - ลบปุ่ม Printer / สร้างเอกสาร             │
+│                                              │
+│  แท็บ 2: นำส่งสรรพากร                         │
+│    - เลือกติ๊กรายการ → สร้างใบนำส่ง (Batch)    │
+│    - แสดง Batches ที่มี + สถานะ               │
+│    - ปุ่ม "ยื่นแบบแล้ว" → status = filed       │
+│    - ปุ่ม "จ่ายเงินแล้ว" → status = paid       │
+│      → สร้าง expense เงินสดจ่ายจริง            │
+│      → ลบ/หักลบ WHT expense เครดิตที่ค้างอยู่  │
 └──────────────────────────────────────────────┘
 ```
 
-- **แท็บ "รายงาน ภ.ง.ด."**: เนื้อหาจาก WhtReport เดิม (ตาราง ภ.ง.ด.3/53 + สรุปการ์ด + CSV export)
-- **แท็บ "ติดตาม FA"**: เนื้อหาจาก WhtCertificateList (ใส่ลิงก์ FlowAccount, ติดตามสถานะ)
-  - เพิ่ม: เมื่อกด "ส่งให้คู่ค้า" → เรียก edge function ส่งลิงก์ FA ไปให้คู่ค้า/ทีมงานใน LINE
-- **แท็บ "รอนำส่ง"**: เนื้อหาจาก WhtRemittance (ยอดรวมรายเดือน, ปีภาษี)
+#### 4. ลบฟังก์ชันที่ไม่ต้องการ
 
-### ขั้นตอนที่ 3: ส่งลิงก์ FlowAccount ให้คู่ค้าผ่าน LINE
+- ลบปุ่ม Printer (สร้างเอกสาร WHT) ออกจากแท็บรายงาน
+- ลบแท็บ "ติดตาม FA" แยก — ย้ายปุ่มใส่ลิงก์ FA เข้าไปในตารางแท็บรายงาน ภ.ง.ด. โดยตรง
+- ลบปุ่ม "บันทึกรายการ WHT" (Plus) ด้านบน เพราะ WHT ถูกสร้างอัตโนมัติเมื่อจ่ายเงินแล้ว
+- คงไว้ `wht_certificates` table + `WhtCertificateForm` ไว้ก่อน (ไม่ลบ schema) แต่ไม่แสดงลิงก์ไปจากหน้ารายงาน
 
-**ไฟล์:** `supabase/functions/notify-staff-payment/index.ts` (เพิ่ม handler)  
-หรือสร้าง function ใหม่ `send-wht-link`
+#### 5. Flow การจ่ายเงินนำส่งสรรพากร
 
-- รับ `cert_id` → ดึง `payee_name` จาก `wht_certificates`
-- ค้นหา `line_user_id` จาก `staff_profiles` หรือ `vendor_profiles` โดย match ชื่อ
-- ส่ง LINE push message พร้อมลิงก์ FlowAccount
+เมื่อกด **"จ่ายเงินแล้ว"** ในใบนำส่ง:
 
-### ขั้นตอนที่ 4: อัปเดตเมนูและ routing
+1. สร้าง `expense` ใหม่ 1 รายการ:
+   - category: "โอนเงิน" (เงินสดจ่ายจริงให้สรรพากร)
+   - amount: ยอดรวม WHT ของ Batch
+   - description: "นำส่งภาษีหัก ณ ที่จ่าย ภ.ง.ด.X เดือน Y/XXXX"
+   - receiver: "สรรพากร"
+2. Mark WHT expense items ที่เกี่ยวข้อง (category = "ภาษีหัก ณ ที่จ่าย") ว่า settled — เพิ่ม field `settled_batch_id` ใน expenses table
+3. อัปเดต batch status → "paid"
 
-**ไฟล์:**
-- `src/pages/Index.tsx`: ลบเมนู "ติดตามหัก ณ ที่จ่าย" และ "สรุปภาษีรอนำส่ง" เหลือแค่ "รายงานภาษีหัก ณ ที่จ่าย"
-- `src/App.tsx`: redirect `/wht-certificates` และ `/wht-remittance` → `/wht-report` หรือลบ routes ออก
+#### 6. แท็บเครดิตภาษี (หน้าหลัก) สัมพันธ์กับข้อมูลจริง
 
-### ขั้นตอนที่ 5: ยืนยัน P&L คำนวณ WHT ครบ
-
-**ผลตรวจสอบ:** `useLocalExpenses` ใน `useEventPnLData.ts` ดึง expenses ทั้งหมดที่ match event/project_tag โดยไม่กรอง category ออก → **รายการ WHT ถูกรวมใน P&L อยู่แล้ว** ไม่ต้องแก้ไข
+แท็บ "เครดิต (WHT)" ใน expense-list-real.tsx จะ:
+- แสดงเฉพาะรายการที่ยังไม่ settled (`settled_batch_id IS NULL`)
+- รายการที่ settled แล้วจะไม่แสดง (เพราะถูกหักลบแล้ว)
+- เพิ่มแสดงยอดคงเหลือ: ยอดเครดิตทั้งหมด - ยอดที่ settled แล้ว
 
 ---
 
 ### รายละเอียดทางเทคนิค
 
-| ไฟล์ | การเปลี่ยนแปลง |
+| ไฟล์/ส่วน | การเปลี่ยนแปลง |
 |---|---|
-| `expense-list-real.tsx` | เพิ่มแท็บ เงินสด/เครดิต กรอง category WHT |
-| `WhtReport.tsx` | เขียนใหม่ รวม 3 หน้าเป็น Tabs component |
-| `WhtCertificateList.tsx` | ย้ายเป็น component ภายใน WhtReport |
-| `WhtRemittance.tsx` | ย้ายเป็น component ภายใน WhtReport |
-| `App.tsx` | ลบ routes `/wht-certificates`, `/wht-remittance` |
-| `Index.tsx` | ลบเมนู 2 รายการ เหลือเมนู "รายงานภาษี" อันเดียว |
-| Edge function (ใหม่/ปรับ) | ส่งลิงก์ FA ไป LINE ให้คู่ค้า |
+| **Migration** | สร้างตาราง `wht_remittance_batches` + `wht_remittance_items` + เพิ่ม column `settled_batch_id` ใน `expenses` + RLS policies |
+| **WhtReport.tsx** | เขียนใหม่เหลือ 2 แท็บ: รายงาน ภ.ง.ด. (รวมลิงก์ FA inline) + นำส่งสรรพากร (Batch management) |
+| **expense-list-real.tsx** | แท็บ "เครดิต" แสดงเฉพาะ unsettled + เพิ่มยอดคงเหลือ |
+| **WhtCertificateForm.tsx** | ลบลิงก์จากหน้ารายงาน (ไม่ลบไฟล์ แต่ไม่มีทางเข้าถึง) |
+| **App.tsx** | ลบ route `/wht-certificate` |
 
