@@ -1,93 +1,83 @@
 
 
-# Auto-Match สลิปโอนเงินกับรายการเรียกเก็บ (Staff & Vendor Invoices)
+## แผนปรับปรุงระบบภาษีหัก ณ ที่จ่าย และรายการเคลื่อนไหว
 
-## แนวคิดหลัก
+### สรุปปัญหาและแนวทาง
 
-เมื่ออัปโหลดสลิปโอนเงินผ่าน LINE (หรือเว็บ) → ระบบบันทึก expense ตามปกติ + **ตรวจจับอัตโนมัติว่าสลิปนี้ตรงกับ invoice ของทีมงานหรือคู่ค้าหรือไม่** → ถ้าตรง → อัปเดตสถานะเป็น `paid` + แนบสลิปให้ทันที
+ผู้ใช้ระบุ 3 ประเด็นหลัก:
 
-## สิ่งที่จะทำ
+1. **รายการเคลื่อนไหวหน้าหลัก** แสดงรายการ WHT (เครดิต) ปนกับรายการเงินสดจริง → ต้องแยกออก
+2. **หน้า WHT 3 หน้าซ้ำซ้อน** (รายงาน ภ.ง.ด. / ติดตาม WHT / สรุปรอนำส่ง) → รวมเป็นหน้าเดียว
+3. **P&L ครบหรือยัง** → ตรวจสอบแล้ว P&L ดึง expenses ที่ match event ทั้งหมดรวม WHT อยู่แล้ว (category = "ภาษีหัก ณ ที่จ่าย" มี project_tag ตรงกับอีเวนท์)
 
-### 1. Database Migration
-- เพิ่มคอลัมน์ `payment_slip_url text` และ `matched_expense_id uuid` ในตาราง `staff_invoices`
-- เพิ่มคอลัมน์ `payment_slip_url text` และ `matched_expense_id uuid` ในตาราง `vendor_invoices`
+---
 
-### 2. ปรับ LINE Webhook (`line-webhook/index.ts`)
-หลังบันทึก expense สำเร็จ → เพิ่ม logic **Auto-Match Payment**:
+### ขั้นตอนที่ 1: แยกรายการ WHT ออกจากรายการเคลื่อนไหว
 
-**สำหรับ Staff Invoices:**
-- ถ้า subcategory = "Staff" และมี `staff_name` + `event_name` → ค้นหา staff_invoices ที่:
-  - status = `submitted` หรือ `approved`
-  - staff_profiles.staff_name หรือ nickname ตรงกับ staff_name จากสลิป
-  - event_name ตรงกับ event_name จากสลิป
-  - net_amount ใกล้เคียงกับ amount ในสลิป (±1 บาท เผื่อปัดเศษ)
-- ถ้าเจอ → อัปเดต status = `paid`, paid_at, payment_slip_url, matched_expense_id
+**ไฟล์:** `src/components/expense-list-real.tsx`
 
-**สำหรับ Vendor Invoices:**
-- ถ้ามี `receiver` → ค้นหา vendor_invoices ที่:
-  - status = `pending` หรือ `approved`
-  - net_amount ใกล้เคียงกับ amount ในสลิป
-  - vendor_profiles.company_name คล้ายกับ receiver ในสลิป
-- ถ้าเจอ → อัปเดต status = `paid`, paid_at, payment_slip_url, matched_expense_id
+- เพิ่มตัวกรองเริ่มต้น: ซ่อนรายการที่ `category === "ภาษีหัก ณ ที่จ่าย"` จากรายการหลัก
+- เพิ่มแท็บ/ปุ่มสลับ **"เงินสด"** vs **"เครดิต (WHT)"** เพื่อให้ดูรายการ WHT แยกได้
+- แท็บ "เครดิต" จะกรองเฉพาะ `category === "ภาษีหัก ณ ที่จ่าย"`
+- ยอดสรุปด้านบนจะแยกแสดงทั้ง 2 ประเภท
 
-### 3. ปรับ Payment Queue (`PaymentQueue.tsx`)
-- เพิ่มปุ่ม "จ่ายแล้ว" (Mark as Paid) ในแต่ละการ์ด → เปิด dialog ให้แนบสลิป
-- อัปโหลดสลิปไป Storage → อัปเดต status = `paid` + `payment_slip_url` + `paid_at`
-- แสดง badge "จับคู่สลิปอัตโนมัติ" สำหรับรายการที่ระบบจับคู่ให้แล้ว
+### ขั้นตอนที่ 2: รวมหน้า WHT 3 หน้าเป็นหน้าเดียว
 
-### 4. ปรับ Staff Payments (`StaffPayments.tsx`)
-- ปุ่ม "จ่ายแล้ว" → เปิด dialog แนบสลิปแทนการเปลี่ยนสถานะทันที
-- แสดงรูปสลิปที่แนบแล้ว (ถ้ามี) ในตาราง
-- เพิ่มลิงก์ไปหน้า Payment Queue สำหรับรายการ approved
+**เป้าหมาย:** รวม `/wht-report`, `/wht-certificates`, `/wht-remittance` เป็นหน้าเดียวที่ `/wht-report`
 
-### 5. LINE Reply Enhancement
-- เมื่อจับคู่สลิปกับ invoice สำเร็จ → ตอบกลับ LINE เพิ่มเติม:
-  `✅ จับคู่การจ่ายเงินอัตโนมัติ: [ชื่อทีมงาน/คู่ค้า] — ยอด X บาท`
+**ไฟล์:** `src/pages/WhtReport.tsx` (ปรับใหม่ทั้งหมด)
 
-## Workflow สรุป
+หน้ารวมจะมี 3 แท็บภายในหน้าเดียว:
 
 ```text
-สลิปโอนเงิน (LINE/Web)
-        │
-        ▼
-  AI วิเคราะห์สลิป
-        │
-        ▼
-  บันทึก Expense ────────────────────┐
-        │                             │
-        ▼                             ▼
-  Auto-Match                    เก็บสลิป
-  staff_invoices               (receipts bucket)
-  vendor_invoices
-        │
-    ┌───┴───┐
-    │match  │no match
-    ▼       ▼
-  paid    ยังคงรอจ่าย
-  +สลิป   (จับคู่ manual ภายหลัง)
+┌──────────────────────────────────────────────┐
+│  รายงานภาษีหัก ณ ที่จ่าย                      │
+│  [เดือน ▼] [ปี ▼]                             │
+├──────────────────────────────────────────────┤
+│  Tab: รายงาน ภ.ง.ด. | ติดตาม FA | รอนำส่ง    │
+├──────────────────────────────────────────────┤
+│  แท็บ 1: ตาราง ภ.ง.ด.3/53 + CSV export       │
+│  แท็บ 2: รายการ WHT cert + ใส่ลิงก์ FA        │
+│           + ปุ่ม "ส่งให้คู่ค้าใน LINE"          │
+│  แท็บ 3: สรุปรอนำส่ง (เดิมจาก WhtRemittance)  │
+└──────────────────────────────────────────────┘
 ```
 
-## Technical Details
+- **แท็บ "รายงาน ภ.ง.ด."**: เนื้อหาจาก WhtReport เดิม (ตาราง ภ.ง.ด.3/53 + สรุปการ์ด + CSV export)
+- **แท็บ "ติดตาม FA"**: เนื้อหาจาก WhtCertificateList (ใส่ลิงก์ FlowAccount, ติดตามสถานะ)
+  - เพิ่ม: เมื่อกด "ส่งให้คู่ค้า" → เรียก edge function ส่งลิงก์ FA ไปให้คู่ค้า/ทีมงานใน LINE
+- **แท็บ "รอนำส่ง"**: เนื้อหาจาก WhtRemittance (ยอดรวมรายเดือน, ปีภาษี)
 
-**Migration SQL:**
-```sql
-ALTER TABLE public.staff_invoices
-  ADD COLUMN payment_slip_url text,
-  ADD COLUMN matched_expense_id uuid;
+### ขั้นตอนที่ 3: ส่งลิงก์ FlowAccount ให้คู่ค้าผ่าน LINE
 
-ALTER TABLE public.vendor_invoices
-  ADD COLUMN payment_slip_url text,
-  ADD COLUMN matched_expense_id uuid;
-```
+**ไฟล์:** `supabase/functions/notify-staff-payment/index.ts` (เพิ่ม handler)  
+หรือสร้าง function ใหม่ `send-wht-link`
 
-**Matching Logic (in line-webhook):**
-- ใช้ fuzzy match ชื่อ (lowercase + trim) เพื่อจับคู่ staff_name กับ staff_profiles
-- ใช้ tolerance ±2 บาท สำหรับยอดเงิน เพื่อรองรับการปัดเศษ
-- จับคู่ได้เฉพาะ 1:1 (ถ้ามีหลายรายการตรง → ข้าม ให้ admin จับคู่ manual)
+- รับ `cert_id` → ดึง `payee_name` จาก `wht_certificates`
+- ค้นหา `line_user_id` จาก `staff_profiles` หรือ `vendor_profiles` โดย match ชื่อ
+- ส่ง LINE push message พร้อมลิงก์ FlowAccount
 
-**Files ที่แก้ไข:**
-1. `supabase/functions/line-webhook/index.ts` — เพิ่ม auto-match logic หลัง insert expense
-2. `src/pages/PaymentQueue.tsx` — เพิ่มปุ่มแนบสลิป + แสดงสถานะจับคู่
-3. `src/pages/StaffPayments.tsx` — ปุ่มจ่ายแล้วต้องแนบสลิป
-4. Database migration — เพิ่ม 2 คอลัมน์ใน 2 ตาราง
+### ขั้นตอนที่ 4: อัปเดตเมนูและ routing
+
+**ไฟล์:**
+- `src/pages/Index.tsx`: ลบเมนู "ติดตามหัก ณ ที่จ่าย" และ "สรุปภาษีรอนำส่ง" เหลือแค่ "รายงานภาษีหัก ณ ที่จ่าย"
+- `src/App.tsx`: redirect `/wht-certificates` และ `/wht-remittance` → `/wht-report` หรือลบ routes ออก
+
+### ขั้นตอนที่ 5: ยืนยัน P&L คำนวณ WHT ครบ
+
+**ผลตรวจสอบ:** `useLocalExpenses` ใน `useEventPnLData.ts` ดึง expenses ทั้งหมดที่ match event/project_tag โดยไม่กรอง category ออก → **รายการ WHT ถูกรวมใน P&L อยู่แล้ว** ไม่ต้องแก้ไข
+
+---
+
+### รายละเอียดทางเทคนิค
+
+| ไฟล์ | การเปลี่ยนแปลง |
+|---|---|
+| `expense-list-real.tsx` | เพิ่มแท็บ เงินสด/เครดิต กรอง category WHT |
+| `WhtReport.tsx` | เขียนใหม่ รวม 3 หน้าเป็น Tabs component |
+| `WhtCertificateList.tsx` | ย้ายเป็น component ภายใน WhtReport |
+| `WhtRemittance.tsx` | ย้ายเป็น component ภายใน WhtReport |
+| `App.tsx` | ลบ routes `/wht-certificates`, `/wht-remittance` |
+| `Index.tsx` | ลบเมนู 2 รายการ เหลือเมนู "รายงานภาษี" อันเดียว |
+| Edge function (ใหม่/ปรับ) | ส่งลิงก์ FA ไป LINE ให้คู่ค้า |
 
