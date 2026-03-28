@@ -378,8 +378,28 @@ export default function BulkUpload() {
     const dupCount = updatedFiles.filter(f => f.status === 'duplicate').length;
     const lowConfCount = updatedFiles.filter(f => f.status === 'success' && f.confidence != null && f.confidence < 75).length;
 
+    // Collect date range from successful uploads
+    const successIds = updatedFiles.filter(f => f.status === 'success' && f.id).map(f => f.id!);
+    let dateRangeNote = '';
+    if (successIds.length > 0) {
+      const { data: dateRange } = await supabase
+        .from('expenses')
+        .select('expense_date')
+        .in('id', successIds)
+        .order('expense_date', { ascending: true });
+      if (dateRange && dateRange.length > 0) {
+        const minDate = dateRange[0].expense_date;
+        const maxDate = dateRange[dateRange.length - 1].expense_date;
+        dateRangeNote = `สลิป ${minDate} ถึง ${maxDate}`;
+      }
+    }
+
     // Save import history with folder name
     if (successCount + dupCount + errorCount > 0) {
+      const noteParts: string[] = [];
+      if (dateRangeNote) noteParts.push(dateRangeNote);
+      if (lowConfCount > 0) noteParts.push(`${lowConfCount} รายการรอตรวจสอบ`);
+
       await supabase.from('import_history').insert({
         user_id: user.id,
         file_name: sourceFolderName ? `📁 ${sourceFolderName}` : 'Bulk Upload (ไฟล์)',
@@ -390,7 +410,7 @@ export default function BulkUpload() {
         error_count: errorCount,
         import_type: 'bulk_image',
         status: 'completed',
-        notes: lowConfCount > 0 ? `${lowConfCount} รายการรอตรวจสอบ` : null,
+        notes: noteParts.length > 0 ? noteParts.join(' | ') : null,
       });
     }
 
