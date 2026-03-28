@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -87,6 +88,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const { toast } = useToast();
 
   // UI state
+  const [cashCreditTab, setCashCreditTab] = useState<"cash" | "credit">("cash");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterGroup, setFilterGroup] = useState("all");
@@ -202,9 +204,23 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
   const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
 
+  // WHT stats for credit tab
+  const whtStats = useMemo(() => {
+    const whtItems = expenses.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย");
+    return { count: whtItems.length, total: whtItems.reduce((s, e) => s + e.amount, 0) };
+  }, [expenses]);
+
   // Filtering + sorting as useMemo (no more setState)
   const filteredExpenses = useMemo(() => {
     let filtered = expenses;
+
+    // Cash/Credit tab filter
+    if (cashCreditTab === "cash") {
+      filtered = filtered.filter(e => e.category !== "ภาษีหัก ณ ที่จ่าย");
+    } else {
+      filtered = filtered.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย");
+    }
+
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(e =>
@@ -228,7 +244,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  }, [expenses, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
@@ -278,7 +294,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   return (
     <Card className="p-6 bg-gradient-card shadow-elevated">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-semibold text-foreground">รายการเคลื่อนไหว</h2>
         <div className="flex items-center gap-2">
           <div className="flex border rounded-lg overflow-hidden">
@@ -292,25 +308,46 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       </div>
 
+      {/* Cash / Credit Tab */}
+      <Tabs value={cashCreditTab} onValueChange={(v) => setCashCreditTab(v as "cash" | "credit")} className="mb-4">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="cash">💵 เงินสด</TabsTrigger>
+          <TabsTrigger value="credit">📋 เครดิต WHT ({whtStats.count})</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Summary */}
-      <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
-        <div className="text-center">
-          <div className="text-sm text-muted-foreground">รายจ่ายจริง</div>
-          <div className="font-bold text-expense">฿{summaryStats.totalExpense.toLocaleString()}</div>
+      {cashCreditTab === "cash" ? (
+        <div className="grid grid-cols-4 gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">รายจ่ายจริง</div>
+            <div className="font-bold text-expense">฿{summaryStats.totalExpense.toLocaleString()}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">รายรับ</div>
+            <div className="font-bold text-success">฿{summaryStats.totalIncome.toLocaleString()}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">โอนเงิน</div>
+            <div className="font-bold text-type-transfer">฿{summaryStats.transferTotal.toLocaleString()}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">จำนวน</div>
+            <div className="font-bold">{summaryStats.count} รายการ</div>
+          </div>
         </div>
-        <div className="text-center">
-          <div className="text-sm text-muted-foreground">รายรับ</div>
-          <div className="font-bold text-success">฿{summaryStats.totalIncome.toLocaleString()}</div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">รายการ WHT (เครดิต)</div>
+            <div className="font-bold">{summaryStats.count} รายการ</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">ยอดรวมรอนำส่ง</div>
+            <div className="font-bold text-amber-600">฿{whtStats.total.toLocaleString()}</div>
+          </div>
         </div>
-        <div className="text-center">
-          <div className="text-sm text-muted-foreground">โอนเงิน</div>
-          <div className="font-bold text-type-transfer">฿{summaryStats.transferTotal.toLocaleString()}</div>
-        </div>
-        <div className="text-center">
-          <div className="text-sm text-muted-foreground">จำนวน</div>
-          <div className="font-bold">{summaryStats.count} รายการ</div>
-        </div>
-      </div>
+      )}
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
