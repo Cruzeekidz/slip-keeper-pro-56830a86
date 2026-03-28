@@ -280,7 +280,7 @@ const WhtCertificateForm = () => {
       if (itemsError) throw itemsError;
 
       toast({ title: "บันทึกสำเร็จ" });
-      navigate("/wht-certificates");
+      navigate("/wht-report");
     } catch (err: any) {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
     } finally {
@@ -294,7 +294,7 @@ const WhtCertificateForm = () => {
     <div className="min-h-screen bg-background pb-24">
       <div className="bg-card border-b sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/wht-certificates")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/wht-report")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
