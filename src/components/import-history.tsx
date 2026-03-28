@@ -23,6 +23,7 @@ interface ImportHistory {
   id: string;
   imported_at: string;
   file_name: string | null;
+  source_folder: string | null;
   total_rows: number;
   success_count: number;
   update_count: number;
@@ -266,7 +267,12 @@ export function ImportHistory() {
                         {format(new Date(record.imported_at), 'dd/MM/yyyy HH:mm')}
                       </span>
                       {record.file_name && (
-                        <span className="text-xs text-muted-foreground">• {record.file_name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          • {record.file_name}
+                          {record.source_folder && (
+                            <span className="ml-1 font-medium text-foreground">({record.source_folder})</span>
+                          )}
+                        </span>
                       )}
                     </div>
 
