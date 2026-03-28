@@ -449,6 +449,7 @@ export type Database = {
           receipt_url: string | null
           receiver: string | null
           sender: string | null
+          settled_batch_id: string | null
           staff_name: string | null
           subcategory: string | null
           transaction_direction: string
@@ -479,6 +480,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
@@ -509,6 +511,7 @@ export type Database = {
           receipt_url?: string | null
           receiver?: string | null
           sender?: string | null
+          settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
           transaction_direction?: string
@@ -517,7 +520,15 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "expenses_settled_batch_id_fkey"
+            columns: ["settled_batch_id"]
+            isOneToOne: false
+            referencedRelation: "wht_remittance_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forward_recipients: {
         Row: {
@@ -1228,6 +1239,92 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      wht_remittance_batches: {
+        Row: {
+          batch_month: string
+          created_at: string
+          filed_at: string | null
+          id: string
+          notes: string | null
+          paid_at: string | null
+          paid_expense_id: string | null
+          pnd_type: string
+          status: string
+          total_tax: number
+          user_id: string
+        }
+        Insert: {
+          batch_month: string
+          created_at?: string
+          filed_at?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          paid_expense_id?: string | null
+          pnd_type?: string
+          status?: string
+          total_tax?: number
+          user_id: string
+        }
+        Update: {
+          batch_month?: string
+          created_at?: string
+          filed_at?: string | null
+          id?: string
+          notes?: string | null
+          paid_at?: string | null
+          paid_expense_id?: string | null
+          pnd_type?: string
+          status?: string
+          total_tax?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      wht_remittance_items: {
+        Row: {
+          batch_id: string
+          created_at: string
+          flowaccount_url: string | null
+          gross_amount: number
+          id: string
+          payee_name: string
+          source_id: string
+          source_type: string
+          wht_amount: number
+        }
+        Insert: {
+          batch_id: string
+          created_at?: string
+          flowaccount_url?: string | null
+          gross_amount?: number
+          id?: string
+          payee_name: string
+          source_id: string
+          source_type?: string
+          wht_amount?: number
+        }
+        Update: {
+          batch_id?: string
+          created_at?: string
+          flowaccount_url?: string | null
+          gross_amount?: number
+          id?: string
+          payee_name?: string
+          source_id?: string
+          source_type?: string
+          wht_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wht_remittance_items_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "wht_remittance_batches"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

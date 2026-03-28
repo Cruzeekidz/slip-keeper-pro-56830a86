@@ -47,6 +47,7 @@ interface Expense {
   transaction_direction: string | null;
   payee_group: string | null;
   event_name: string | null;
+  settled_batch_id: string | null;
 }
 
 // Query functions
@@ -204,10 +205,16 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
   const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
 
-  // WHT stats for credit tab
+  // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
-    const whtItems = expenses.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย");
-    return { count: whtItems.length, total: whtItems.reduce((s, e) => s + e.amount, 0) };
+    const whtItems = expenses.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && !e.settled_batch_id);
+    const settledItems = expenses.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && e.settled_batch_id);
+    return {
+      count: whtItems.length,
+      total: whtItems.reduce((s, e) => s + e.amount, 0),
+      settledCount: settledItems.length,
+      settledTotal: settledItems.reduce((s, e) => s + e.amount, 0),
+    };
   }, [expenses]);
 
   // Filtering + sorting as useMemo (no more setState)
@@ -218,7 +225,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     if (cashCreditTab === "cash") {
       filtered = filtered.filter(e => e.category !== "ภาษีหัก ณ ที่จ่าย");
     } else {
-      filtered = filtered.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย");
+      filtered = filtered.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && !e.settled_batch_id);
     }
 
     if (searchTerm) {
@@ -337,14 +344,18 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+        <div className="grid grid-cols-3 gap-3 mb-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
           <div className="text-center">
-            <div className="text-sm text-muted-foreground">รายการ WHT (เครดิต)</div>
-            <div className="font-bold">{summaryStats.count} รายการ</div>
+            <div className="text-sm text-muted-foreground">รอนำส่ง</div>
+            <div className="font-bold">{whtStats.count} รายการ</div>
           </div>
           <div className="text-center">
-            <div className="text-sm text-muted-foreground">ยอดรวมรอนำส่ง</div>
+            <div className="text-sm text-muted-foreground">ยอดค้างจ่าย</div>
             <div className="font-bold text-amber-600">฿{whtStats.total.toLocaleString()}</div>
+          </div>
+          <div className="text-center">
+            <div className="text-sm text-muted-foreground">นำส่งแล้ว</div>
+            <div className="font-bold text-emerald-600">฿{whtStats.settledTotal.toLocaleString()}</div>
           </div>
         </div>
       )}
