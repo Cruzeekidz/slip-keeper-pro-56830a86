@@ -204,14 +204,6 @@ const Index = () => {
                     <FileText className="h-4 w-4 mr-2" />
                     รายงานภาษีหัก ณ ที่จ่าย
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/wht-certificates')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    ติดตามหัก ณ ที่จ่าย
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/wht-remittance')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    สรุปภาษีรอนำส่ง
-                  </DropdownMenuItem>
 
                   <DropdownMenuSeparator />
 

@@ -40,7 +40,6 @@ const VendorManagement   = lazy(() => import("./pages/VendorManagement"));
 const WhtReport          = lazy(() => import("./pages/WhtReport"));
 const WhtCertificateForm = lazy(() => import("./pages/WhtCertificateForm"));
 const WhtCertificateList = lazy(() => import("./pages/WhtCertificateList"));
-const WhtRemittance      = lazy(() => import("./pages/WhtRemittance"));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -99,7 +98,6 @@ const App = () => (
               <Route path="/wht-report" element={<WhtReport />} />
               <Route path="/wht-certificate" element={<WhtCertificateForm />} />
               <Route path="/wht-certificates" element={<WhtCertificateList />} />
-              <Route path="/wht-remittance" element={<WhtRemittance />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
