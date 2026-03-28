@@ -1,0 +1,1 @@
+ALTER TABLE public.import_history ADD COLUMN source_folder text;

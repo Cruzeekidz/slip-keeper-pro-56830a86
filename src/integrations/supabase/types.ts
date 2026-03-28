@@ -572,6 +572,7 @@ export type Database = {
           imported_at: string
           notes: string | null
           rolled_back_at: string | null
+          source_folder: string | null
           status: string
           success_count: number
           total_rows: number
@@ -586,6 +587,7 @@ export type Database = {
           imported_at?: string
           notes?: string | null
           rolled_back_at?: string | null
+          source_folder?: string | null
           status?: string
           success_count?: number
           total_rows?: number
@@ -600,6 +602,7 @@ export type Database = {
           imported_at?: string
           notes?: string | null
           rolled_back_at?: string | null
+          source_folder?: string | null
           status?: string
           success_count?: number
           total_rows?: number
