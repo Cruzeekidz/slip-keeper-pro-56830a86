@@ -291,8 +291,9 @@ serve(async (req) => {
       throw new Error("Could not extract data from receipt");
     }
 
-    // Year validation: fix OCR year misreads
-    if (extractedData.date) {
+    // Year validation: fix OCR year misreads (only for non-bulk uploads)
+    // Bulk uploads may contain historical slips (2024, 2025) which are legitimate
+    if (extractedData.date && source !== 'bulk') {
       const currentYear = new Date().getFullYear();
       const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (match) {
@@ -300,6 +301,20 @@ serve(async (req) => {
         if (Math.abs(ocrYear - currentYear) > 1) {
           console.warn(`OCR year mismatch: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
           extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
+          extractedData.needs_review = true;
+          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
+            extractedData.confidence_score = 60;
+          }
+        }
+      }
+    }
+    // For bulk uploads: still flag far-future dates as suspicious
+    if (extractedData.date && source === 'bulk') {
+      const currentYear = new Date().getFullYear();
+      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (match) {
+        const ocrYear = parseInt(match[1], 10);
+        if (ocrYear > currentYear + 1) {
           extractedData.needs_review = true;
           if (extractedData.confidence_score && extractedData.confidence_score > 60) {
             extractedData.confidence_score = 60;

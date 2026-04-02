@@ -252,7 +252,7 @@ export default function BulkUpload() {
 
       try {
         const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
-          body: { storagePath: fileName, isPDF }
+          body: { storagePath: fileName, isPDF, source: 'bulk' }
         });
 
         // Rate limit detection
