@@ -268,24 +268,47 @@ serve(async (req) => {
     }
 
     const data = await response.json();
+    let extractedData: any = null;
+
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall?.function?.arguments) {
-      const extractedData = JSON.parse(toolCall.function.arguments);
-      return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      extractedData = JSON.parse(toolCall.function.arguments);
     }
 
-    const content = data.choices?.[0]?.message?.content;
-    if (content) {
-      try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const extractedData = JSON.parse(jsonMatch[0]);
-          return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!extractedData) {
+      const content = data.choices?.[0]?.message?.content;
+      if (content) {
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            extractedData = JSON.parse(jsonMatch[0]);
+          }
+        } catch (e) { console.error("Failed to parse JSON:", e); }
+      }
+    }
+
+    if (!extractedData) {
+      throw new Error("Could not extract data from receipt");
+    }
+
+    // Year validation: fix OCR year misreads
+    if (extractedData.date) {
+      const currentYear = new Date().getFullYear();
+      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (match) {
+        const ocrYear = parseInt(match[1], 10);
+        if (Math.abs(ocrYear - currentYear) > 1) {
+          console.warn(`OCR year mismatch: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
+          extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
+          extractedData.needs_review = true;
+          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
+            extractedData.confidence_score = 60;
+          }
         }
-      } catch (e) { console.error("Failed to parse JSON:", e); }
+      }
     }
 
-    throw new Error("Could not extract data from receipt");
+    return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
     console.error("Error:", error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
