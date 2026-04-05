@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getEntityFolder } from "@/lib/storage-path";
 import {
   Dialog,
   DialogContent,
