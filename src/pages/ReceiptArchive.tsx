@@ -126,14 +126,14 @@ const ReceiptArchive = () => {
 
   // Derived: files for selected month
   const currentFiles = useMemo(() => {
-    if (!selectedCategory || !selectedYear || !selectedMonth) return [];
+    if (!selectedEntity || !selectedYear || !selectedMonth) return [];
     return allReceipts.filter(
       (r) =>
-        normalizeCategory(r.category) === selectedCategory &&
+        getReceiptEntity(r) === selectedEntity &&
         r.expense_date.substring(0, 4) === selectedYear &&
         r.expense_date.substring(5, 7) === selectedMonth
     );
-  }, [allReceipts, selectedCategory, selectedYear, selectedMonth]);
+  }, [allReceipts, selectedEntity, selectedYear, selectedMonth]);
 
   // Load signed URLs when files change
   useEffect(() => {
