@@ -93,11 +93,11 @@ const ReceiptArchive = () => {
     load();
   }, [user]);
 
-  // Derived: categories
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    allReceipts.forEach((r) => cats.add(normalizeCategory(r.category)));
-    return Array.from(cats).sort();
+  // Derived: entities
+  const entities = useMemo(() => {
+    const ents = new Set<string>();
+    allReceipts.forEach((r) => ents.add(getReceiptEntity(r)));
+    return Array.from(ents).sort();
   }, [allReceipts]);
 
   // Derived: years for selected category
