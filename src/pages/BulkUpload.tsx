@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CSVPreviewDialog, type CSVRow } from "@/components/csv-preview-dialog";
 import { ImportHistory } from "@/components/import-history";
+import { buildReceiptPath } from "@/lib/storage-path";
 
 interface UploadedFile {
   file: File;
