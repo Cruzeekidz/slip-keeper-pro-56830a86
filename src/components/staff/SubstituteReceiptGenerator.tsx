@@ -38,7 +38,7 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
 
   const [claimantSig, setClaimantSig] = useState("");
   const [approverSig, setApproverSig] = useState("");
-  const [generating, setGenerating] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
 
   const generatePDF = async () => {
     setGenerating(true);
