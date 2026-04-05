@@ -20,8 +20,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+
+const docTypeMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  invoice: { label: "ใบแจ้งหนี้", variant: "outline" },
+  receipt: { label: "ใบเสร็จรับเงิน", variant: "secondary" },
+  tax_invoice: { label: "ใบกำกับภาษี", variant: "default" },
+  substitute_receipt: { label: "ใบรับรองแทนใบเสร็จ", variant: "destructive" },
+};
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   pending: { label: "รอตรวจสอบ", variant: "secondary" },
