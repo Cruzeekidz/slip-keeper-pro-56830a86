@@ -316,7 +316,7 @@ const ReceiptArchive = () => {
         <div className="flex items-center gap-1 text-sm flex-wrap">
           <button
             onClick={() => {
-              setSelectedCategory(null);
+              setSelectedEntity(null);
               setSelectedYear(null);
               setSelectedMonth(null);
             }}
