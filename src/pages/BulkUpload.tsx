@@ -309,6 +309,17 @@ export default function BulkUpload() {
           transactionType = d.transaction_type || null;
           categoryGroup = d.category_group || null;
           projectTag = d.project_tag || null;
+
+          // Re-build path with correct entity after AI analysis
+          const correctPath = buildReceiptPath(transactionType, categoryGroup, user.id, baseFileName, expenseDate);
+          if (correctPath !== fileName) {
+            // Move the file to correct entity folder
+            const { error: copyErr } = await supabase.storage.from('receipts').copy(fileName, correctPath);
+            if (!copyErr) {
+              await supabase.storage.from('receipts').remove([fileName]);
+              fileName = correctPath;
+            }
+          }
           subcategory = d.subcategory || null;
           staffName = d.staff_name || null;
           eventName = d.event_name || null;

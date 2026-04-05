@@ -62,7 +62,7 @@ const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
 
     try {
       // Upload bill file
-      const fileName = `vendor-bills/${ownerId}/${Date.now()}-${billFile.name}`;
+      const fileName = buildUploadPath("vendor-bills", ownerId, `${Date.now()}-${billFile.name}`);
       const { error: uploadError } = await supabase.storage
         .from("receipts")
         .upload(fileName, billFile, { upsert: false });

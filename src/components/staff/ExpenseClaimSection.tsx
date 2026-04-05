@@ -71,7 +71,7 @@ const ExpenseClaimSection = ({ items, onChange, staffId }: Props) => {
         initialQuality: 0.8,
       });
       const ext = file.name.split(".").pop() || "jpg";
-      const path = `expense-claims/${staffId}/${Date.now()}.${ext}`;
+      const path = buildUploadPath("expense-claims", staffId, `${Date.now()}.${ext}`);
       const { error } = await supabase.storage.from("receipts").upload(path, compressed);
       if (error) throw error;
 

@@ -70,7 +70,7 @@ const PaymentQueue = () => {
       if (!user) throw new Error("Not authenticated");
 
       const ext = slipFile.name.split(".").pop() || "jpg";
-      const path = `payment-slips/${user.id}/${Date.now()}_${invoiceId}.${ext}`;
+      const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_${invoiceId}.${ext}`);
       const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
         contentType: slipFile.type,
       });
