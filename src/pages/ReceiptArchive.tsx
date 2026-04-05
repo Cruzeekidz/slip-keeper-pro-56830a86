@@ -422,7 +422,7 @@ const ReceiptArchive = () => {
             {months.map((mo) => {
               const count = allReceipts.filter(
                 (r) =>
-                  normalizeCategory(r.category) === selectedCategory &&
+                  getReceiptEntity(r) === selectedEntity &&
                   r.expense_date.substring(0, 4) === selectedYear &&
                   r.expense_date.substring(5, 7) === mo
               ).length;
