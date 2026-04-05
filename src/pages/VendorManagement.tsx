@@ -294,6 +294,10 @@ const VendorManagement = () => {
                               {!inv.vendor_id && <Badge variant="destructive" className="text-xs">ยังไม่เชื่อม</Badge>}
                             </div>
                             <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
+                              {(() => {
+                                const dt = docTypeMap[(inv as any).document_type] || docTypeMap.invoice;
+                                return <Badge variant={dt.variant} className="text-xs">{dt.label}</Badge>;
+                              })()}
                               {inv.invoice_number && <p>เลขที่: {inv.invoice_number}</p>}
                               {vendor && <p>คู่ค้า: {vendor.company_name}</p>}
                               <p className="text-foreground font-semibold">ยอด: {inv.amount.toLocaleString()} บาท</p>
