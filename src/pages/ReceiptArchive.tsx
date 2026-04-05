@@ -359,24 +359,24 @@ const ReceiptArchive = () => {
           </div>
         )}
 
-        {/* Category level */}
-        {!loading && level === "category" && (
+        {/* Entity level */}
+        {!loading && level === "entity" && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(categories.length > 0 ? categories : ["BUSINESS", "PERSONAL", "TRANSFER"]).map((cat) => {
-              const info = CATEGORY_LABELS[cat];
-              const count = allReceipts.filter((r) => normalizeCategory(r.category) === cat).length;
+            {(entities.length > 0 ? entities : ["personal", "business", "bcc-next", "kukanang", "transfer"]).map((ent) => {
+              const info = ENTITY_LABELS[ent];
+              const count = allReceipts.filter((r) => getReceiptEntity(r) === ent).length;
               return (
                 <Card
-                  key={cat}
+                  key={ent}
                   className={`p-4 cursor-pointer hover:shadow-card transition-all hover:scale-[1.02] border-border/50 ${count === 0 ? "opacity-50" : ""}`}
-                  onClick={() => count > 0 && setSelectedCategory(cat)}
+                  onClick={() => count > 0 && setSelectedEntity(ent)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <FolderOpen className="h-5 w-5 text-primary" />
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
+                      {info?.icon || "📁"}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{info?.label || cat}</p>
+                      <p className="font-medium text-foreground">{info?.label || ent}</p>
                       <Badge variant="outline" className={`text-xs mt-1 ${info?.color || ""}`}>
                         {count} สลิป
                       </Badge>
