@@ -42,6 +42,7 @@ const VendorManagement = () => {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [docTypeFilter, setDocTypeFilter] = useState("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
 
