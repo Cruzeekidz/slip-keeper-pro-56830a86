@@ -337,6 +337,8 @@ const StaffInvoiceForm = () => {
         <SubstituteReceiptGenerator
           open={showSubstituteReceipt}
           onClose={() => setShowSubstituteReceipt(false)}
+          staffId={staffId || ""}
+          staffUserId={staffUserId}
           defaultData={{
             description: expenseClaims.find((c) => !c.has_formal_receipt)?.description || "",
             amount: expenseClaims.filter((c) => !c.has_formal_receipt).reduce((s, c) => s + c.amount, 0),

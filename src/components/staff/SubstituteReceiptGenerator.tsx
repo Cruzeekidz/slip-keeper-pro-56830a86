@@ -4,13 +4,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, Upload, CheckCircle } from "lucide-react";
 import SignatureCanvas from "./SignatureCanvas";
 import jsPDF from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  staffId?: string;
+  staffUserId?: string;
+  expenseClaimIds?: string[];
   defaultData?: {
     description: string;
     amount: number;
@@ -21,7 +25,7 @@ interface Props {
   onGenerated?: (pdfUrl: string) => void;
 }
 
-const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }: Props) => {
+const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expenseClaimIds, defaultData, onGenerated }: Props) => {
   const [form, setForm] = useState({
     description: defaultData?.description || "",
     amount: defaultData?.amount || 0,
@@ -35,6 +39,7 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
   const [claimantSig, setClaimantSig] = useState("");
   const [approverSig, setApproverSig] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
 
   const generatePDF = async () => {
     setGenerating(true);
@@ -43,7 +48,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       const w = doc.internal.pageSize.getWidth();
       let y = 20;
 
-      // Title
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("SUBSTITUTE RECEIPT", w / 2, y, { align: "center" });
@@ -52,7 +56,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       doc.text("(Substitute for Official Receipt)", w / 2, y, { align: "center" });
       y += 12;
 
-      // Doc number & date
       const docNo = `SR-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
@@ -60,12 +63,10 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       doc.text(`Date: ${form.date}`, w - 20, y, { align: "right" });
       y += 10;
 
-      // Line
       doc.setLineWidth(0.5);
       doc.line(20, y, w - 20, y);
       y += 8;
 
-      // Details
       doc.setFontSize(11);
       const details = [
         ["Event / Project:", form.eventName || "-"],
@@ -89,7 +90,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       doc.line(20, y, w - 20, y);
       y += 15;
 
-      // Signatures
       const sigW = 60;
       const sigH = 25;
 
@@ -111,7 +111,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       y += 4;
       doc.text(`(${form.staffName})`, 25 + sigW / 2, y, { align: "center" });
 
-      // Footer
       doc.setFontSize(8);
       doc.setTextColor(128);
       doc.text(
@@ -122,16 +121,45 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
       );
 
       const pdfBlob = doc.output("blob");
-      const url = URL.createObjectURL(pdfBlob);
 
-      // Download
+      // Upload to storage in monthly folder
+      const d = new Date(form.date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const userId = staffUserId || "unknown";
+      const storagePath = `substitute-receipts/${userId}/${year}/${month}/${docNo}.pdf`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("receipts")
+        .upload(storagePath, pdfBlob, { contentType: "application/pdf", upsert: false });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+      } else {
+        // Update expense claims with substitute_receipt_url
+        if (expenseClaimIds && expenseClaimIds.length > 0) {
+          for (const claimId of expenseClaimIds) {
+            await supabase
+              .from("staff_expense_claims")
+              .update({
+                substitute_receipt_url: storagePath,
+                claimant_signature_url: claimantSig || null,
+                approver_signature_url: approverSig || null,
+              })
+              .eq("id", claimId);
+          }
+        }
+        setUploaded(true);
+      }
+
+      // Also download locally
+      const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `substitute-receipt-${docNo}.pdf`;
       a.click();
 
-      onGenerated?.(url);
-      onClose();
+      onGenerated?.(storagePath);
     } catch (err) {
       console.error("PDF generation error:", err);
     }
@@ -191,13 +219,23 @@ const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }:
           <SignatureCanvas label="ลายเซ็นผู้เบิก" onSave={setClaimantSig} />
           <SignatureCanvas label="ลายเซ็นผู้อนุมัติ" onSave={setApproverSig} />
 
+          {uploaded && (
+            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded">
+              <CheckCircle className="h-4 w-4" />
+              อัพโหลดใบแทนใบเสร็จเข้าระบบเรียบร้อยแล้ว
+            </div>
+          )}
+
           <Button
             className="w-full"
             onClick={generatePDF}
-            disabled={generating || !form.description || !form.amount}
+            disabled={generating || uploaded || !form.description || !form.amount}
           >
-            <Download className="h-4 w-4 mr-2" />
-            {generating ? "กำลังสร้าง..." : "สร้างและดาวน์โหลด PDF"}
+            {uploaded ? (
+              <><CheckCircle className="h-4 w-4 mr-2" /> สร้างเสร็จแล้ว</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" /> {generating ? "กำลังสร้างและอัพโหลด..." : "สร้างใบแทนใบเสร็จ"}</>
+            )}
           </Button>
         </div>
       </DialogContent>
