@@ -38,6 +38,7 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
 
   const [claimantSig, setClaimantSig] = useState("");
   const [approverSig, setApproverSig] = useState("");
+  const [generating, setGenerating] = useState(false);
   const [uploaded, setUploaded] = useState(false);
 
   const generatePDF = async () => {
@@ -47,7 +48,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       const w = doc.internal.pageSize.getWidth();
       let y = 20;
 
-      // Title
       doc.setFontSize(18);
       doc.setFont("helvetica", "bold");
       doc.text("SUBSTITUTE RECEIPT", w / 2, y, { align: "center" });
@@ -56,7 +56,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       doc.text("(Substitute for Official Receipt)", w / 2, y, { align: "center" });
       y += 12;
 
-      // Doc number & date
       const docNo = `SR-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
@@ -64,12 +63,10 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       doc.text(`Date: ${form.date}`, w - 20, y, { align: "right" });
       y += 10;
 
-      // Line
       doc.setLineWidth(0.5);
       doc.line(20, y, w - 20, y);
       y += 8;
 
-      // Details
       doc.setFontSize(11);
       const details = [
         ["Event / Project:", form.eventName || "-"],
@@ -93,7 +90,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       doc.line(20, y, w - 20, y);
       y += 15;
 
-      // Signatures
       const sigW = 60;
       const sigH = 25;
 
@@ -115,7 +111,6 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       y += 4;
       doc.text(`(${form.staffName})`, 25 + sigW / 2, y, { align: "center" });
 
-      // Footer
       doc.setFontSize(8);
       doc.setTextColor(128);
       doc.text(
@@ -126,16 +121,45 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
       );
 
       const pdfBlob = doc.output("blob");
-      const url = URL.createObjectURL(pdfBlob);
 
-      // Download
+      // Upload to storage in monthly folder
+      const d = new Date(form.date);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const userId = staffUserId || "unknown";
+      const storagePath = `substitute-receipts/${userId}/${year}/${month}/${docNo}.pdf`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("receipts")
+        .upload(storagePath, pdfBlob, { contentType: "application/pdf", upsert: false });
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+      } else {
+        // Update expense claims with substitute_receipt_url
+        if (expenseClaimIds && expenseClaimIds.length > 0) {
+          for (const claimId of expenseClaimIds) {
+            await supabase
+              .from("staff_expense_claims")
+              .update({
+                substitute_receipt_url: storagePath,
+                claimant_signature_url: claimantSig || null,
+                approver_signature_url: approverSig || null,
+              })
+              .eq("id", claimId);
+          }
+        }
+        setUploaded(true);
+      }
+
+      // Also download locally
+      const url = URL.createObjectURL(pdfBlob);
       const a = document.createElement("a");
       a.href = url;
       a.download = `substitute-receipt-${docNo}.pdf`;
       a.click();
 
-      onGenerated?.(url);
-      onClose();
+      onGenerated?.(storagePath);
     } catch (err) {
       console.error("PDF generation error:", err);
     }
