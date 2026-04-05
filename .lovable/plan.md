@@ -1,73 +1,54 @@
 
 
-# การเชื่อมโยงสลิป กับ ใบเสร็จ/ใบกำกับภาษี — ออกแบบให้ไม่ซ้ำซ้อน
+# ปรับปรุงโครงสร้างโฟลเดอร์ Storage — แยกตาม Entity + เดือน/ปี
 
-## สถานะปัจจุบัน: ข้อมูลแยก 2 ชั้น
-
-ระบบปัจจุบันมีโครงสร้างที่ดีอยู่แล้ว:
+## โครงสร้าง Path ใหม่
 
 ```text
-ชั้นที่ 1: expenses (สลิปเงินโอน = หลักฐานการจ่าย)
-  └── เก็บ: ยอดเงิน, วันที่โอน, สลิปรูป, ผู้รับ, transaction_id
-
-ชั้นที่ 2: vendor_invoices (บิลจากคู่ค้า = เอกสารเรียกเก็บเงิน)
-  └── มี matched_expense_id → ชี้กลับไปที่ expenses
+receipts/
+├── personal/{userId}/{year}/{month}/{timestamp}.ext      ← ค่าใช้จ่ายส่วนตัว
+├── business/{userId}/{year}/{month}/{timestamp}.ext      ← ธุรกิจหลัก (เม้งซิน)
+├── bcc-next/{userId}/{year}/{month}/{timestamp}.ext      ← BCC Next
+├── kukanang/{userId}/{year}/{month}/{timestamp}.ext      ← คู่ขนาน
+├── transfer/{userId}/{year}/{month}/{timestamp}.ext      ← โอนเงิน
+├── vendor-bills/{ownerId}/{year}/{month}/{timestamp}.ext ← บิลคู่ค้า
+├── expense-claims/{staffId}/{year}/{month}/{timestamp}.ext ← เบิกค่าใช้จ่าย
+├── payment-slips/{userId}/{year}/{month}/{timestamp}.ext ← สลิปจ่ายค่าแรง
+├── substitute-receipts/...                               ← (มีแยกเดือน/ปีอยู่แล้ว ✓)
+└── line/...                                              ← (มีแยกเดือน/ปีอยู่แล้ว ✓)
 ```
 
-**ข้อมูลไม่ซ้ำ** เพราะแต่ละตารางเก็บคนละหน้าที่:
-- `expenses` = "จ่ายเงินไปเท่าไหร่ เมื่อไหร่ โอนให้ใคร" (หลักฐานการเงิน)
-- `vendor_invoices` / ใบเสร็จ = "เอกสารรับรองจากฝั่งผู้ขาย" (หลักฐานทางภาษี)
+Entity ถูกกำหนดจาก `transaction_type` + `category_group`:
+- **personal** = `PERSONAL`
+- **transfer** = `TRANSFER`
+- **bcc-next** = `BUSINESS` + `ENTITY_BCC_NEXT`
+- **kukanang** = `BUSINESS` + `ENTITY_KUKANANG`
+- **business** = `BUSINESS` + อื่น ๆ (EVENT, PROGRAM, VENUE, GENERAL)
 
-## แผนเพิ่มระบบใบเสร็จ/ใบกำกับภาษี
+## แผนงาน
 
-### หลักการ: ไม่สร้างตารางใหม่ — ขยาย `vendor_invoices` ที่มีอยู่
+### 1. สร้าง `src/lib/storage-path.ts` — helper กลาง
 
-ตาราง `vendor_invoices` มีโครงสร้างที่รองรับอยู่แล้ว (amount, vat_amount, file_url, ocr_data, matched_expense_id) เพียงเพิ่มคอลัมน์เล็กน้อย:
+ฟังก์ชัน `buildReceiptPath(type, categoryGroup, userId, fileName, refDate?)` คืน path ตามโครงสร้างใหม่ และ `buildUploadPath(docType, userId, fileName, refDate?)` สำหรับ vendor-bills, expense-claims, payment-slips
 
-```text
-vendor_invoices (เพิ่มคอลัมน์)
-  + document_type: 'invoice' | 'receipt' | 'tax_invoice' | 'substitute_receipt'
-  + tax_id: text           -- เลขผู้เสียภาษีของผู้ออกเอกสาร
-  + is_formal: boolean     -- เป็นเอกสารทางการหรือไม่
-```
+### 2. ปรับ 6 จุดอัพโหลดให้ใช้ path ใหม่
 
-### Flow การใช้งาน: ไม่ซ้ำซ้อน
+| ไฟล์ | เปลี่ยนจาก | เปลี่ยนเป็น |
+|------|-----------|-------------|
+| `expense-upload.tsx` | `{userId}/{ts}.ext` | `{entity}/{userId}/{Y}/{M}/{ts}.ext` |
+| `BulkUpload.tsx` | `{userId}/{ts}-{i}.ext` | `{entity}/{userId}/{Y}/{M}/{ts}-{i}.ext` |
+| `VendorBillUpload.tsx` | `vendor-bills/{owner}/{ts}-name` | `vendor-bills/{owner}/{Y}/{M}/{ts}-name` |
+| `ExpenseClaimSection.tsx` | `expense-claims/{staff}/{ts}.ext` | `expense-claims/{staff}/{Y}/{M}/{ts}.ext` |
+| `StaffPayments.tsx` | `{userId}/payment-slips/{ts}.ext` | `payment-slips/{userId}/{Y}/{M}/{ts}.ext` |
+| `PaymentQueue.tsx` | `payment-slips/{userId}/{ts}.ext` | `payment-slips/{userId}/{Y}/{M}/{ts}.ext` |
 
-```text
-1. ส่งสลิปผ่าน LINE
-   → บันทึกเป็น expenses (สลิปเงินโอน)
-   → เก็บรูปสลิปใน Storage
+### 3. ปรับหน้าคลังสลิป (ReceiptArchive) ให้แยกระดับ Entity
 
-2. ได้รับใบเสร็จ/ใบกำกับภาษีจากร้าน
-   → อัพโหลดเป็น vendor_invoices (document_type = 'receipt' หรือ 'tax_invoice')
-   → เก็บรูปใบเสร็จใน Storage
+เพิ่มระดับโฟลเดอร์ใหม่: **Entity** → ปี → เดือน → ไฟล์
 
-3. ผูกข้อมูล (Matching)
-   → vendor_invoices.matched_expense_id = expenses.id
-   → 1 สลิป สามารถมีใบเสร็จ 1+ ใบ ผูกกัน
-   → แสดง badge "มีใบเสร็จแล้ว" ในรายการสลิป
-```
+โดยใช้ข้อมูล `transaction_type` + `category_group` จากฐานข้อมูลในการจัดกลุ่ม (ไม่ต้อง scan storage)
 
-### ตัวอย่างจริง
+### 4. ไฟล์เก่าไม่กระทบ
 
-| ขั้นตอน | ตาราง | ข้อมูล |
-|---------|-------|--------|
-| จ่ายค่าเช่าบูธ 5,000 บาท | `expenses` | สลิปโอนเงิน, transaction_id |
-| ได้รับใบเสร็จจากห้าง | `vendor_invoices` | ใบเสร็จ PDF, matched_expense_id → expenses.id |
-| ได้ใบกำกับภาษี VAT | `vendor_invoices` | ใบกำกับภาษี, tax_id, vat_amount |
-
-### สิ่งที่ต้องทำ
-
-1. **Migration**: เพิ่ม 3 คอลัมน์ใน `vendor_invoices` (document_type, tax_id, is_formal) + default value
-2. **UI หน้าจัดการใบเสร็จ**: เพิ่มแท็บ "ใบเสร็จ/ใบกำกับภาษี" ในหน้า Vendor Management หรือสร้างหน้าใหม่
-3. **ปุ่มผูกข้อมูล**: ในรายการ expenses เพิ่มปุ่ม "แนบใบเสร็จ" → อัพโหลด + สร้าง vendor_invoices พร้อม matched_expense_id
-4. **OCR**: ปรับ analyze-receipt ให้ดึง tax_id และ VAT จากใบกำกับภาษี
-5. **Badge แสดงสถานะ**: ในรายการ expenses แสดงว่า "มีใบเสร็จแล้ว" / "ยังไม่มีใบเสร็จ"
-
-### ทำไมไม่ซ้ำซ้อน
-
-- **expenses** = บันทึกการจ่ายเงิน (Cashflow)
-- **vendor_invoices** = เอกสารรับรอง (Tax compliance)
-- ผูกกันด้วย `matched_expense_id` แบบ many-to-one
-- ไม่มีการบันทึกยอดเงินซ้ำในการคำนวณ P&L (ใช้แค่ expenses)
+ไฟล์ที่อัพโหลดไปแล้วยังเข้าถึงได้จาก URL เดิมในฐานข้อมูล เฉพาะไฟล์ใหม่เท่านั้นที่ใช้โครงสร้างใหม่
 
