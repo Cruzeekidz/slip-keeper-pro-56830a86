@@ -465,6 +465,7 @@ const VendorManagement = () => {
                 </div>
               );
             })()}
+          </TabsContent>
         </Tabs>
       </main>
 
