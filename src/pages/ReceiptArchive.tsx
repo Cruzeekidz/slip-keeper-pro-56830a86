@@ -194,7 +194,7 @@ const ReceiptArchive = () => {
       });
     }
     return items;
-  }, [selectedCategory, selectedYear, selectedMonth]);
+  }, [selectedEntity, selectedYear, selectedMonth]);
 
   const handleDownload = async (receipt: ReceiptRow) => {
     try {
