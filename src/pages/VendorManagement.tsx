@@ -116,13 +116,16 @@ const VendorManagement = () => {
         )}
 
         <Tabs defaultValue="summary">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="summary">📊 สรุปรายคู่ค้า</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="summary">📊 สรุป</TabsTrigger>
             <TabsTrigger value="vendors">
-              <Building2 className="h-4 w-4 mr-1" /> คู่ค้า ({vendors.length})
+              <Building2 className="h-4 w-4 mr-1" /> คู่ค้า
             </TabsTrigger>
             <TabsTrigger value="invoices">
-              <FileText className="h-4 w-4 mr-1" /> บิล ({invoices.length})
+              <FileText className="h-4 w-4 mr-1" /> บิล
+            </TabsTrigger>
+            <TabsTrigger value="documents">
+              <Receipt className="h-4 w-4 mr-1" /> เอกสาร
             </TabsTrigger>
           </TabsList>
 
