@@ -219,13 +219,23 @@ const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expen
           <SignatureCanvas label="ลายเซ็นผู้เบิก" onSave={setClaimantSig} />
           <SignatureCanvas label="ลายเซ็นผู้อนุมัติ" onSave={setApproverSig} />
 
+          {uploaded && (
+            <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 p-2 rounded">
+              <CheckCircle className="h-4 w-4" />
+              อัพโหลดใบแทนใบเสร็จเข้าระบบเรียบร้อยแล้ว
+            </div>
+          )}
+
           <Button
             className="w-full"
             onClick={generatePDF}
-            disabled={generating || !form.description || !form.amount}
+            disabled={generating || uploaded || !form.description || !form.amount}
           >
-            <Download className="h-4 w-4 mr-2" />
-            {generating ? "กำลังสร้าง..." : "สร้างและดาวน์โหลด PDF"}
+            {uploaded ? (
+              <><CheckCircle className="h-4 w-4 mr-2" /> สร้างเสร็จแล้ว</>
+            ) : (
+              <><Upload className="h-4 w-4 mr-2" /> {generating ? "กำลังสร้างและอัพโหลด..." : "สร้างใบแทนใบเสร็จ"}</>
+            )}
           </Button>
         </div>
       </DialogContent>
