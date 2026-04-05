@@ -102,13 +102,13 @@ const ReceiptArchive = () => {
 
   // Derived: years for selected category
   const years = useMemo(() => {
-    if (!selectedCategory) return [];
+    if (!selectedEntity) return [];
     const yrs = new Set<string>();
     allReceipts
-      .filter((r) => normalizeCategory(r.category) === selectedCategory)
+      .filter((r) => getReceiptEntity(r) === selectedEntity)
       .forEach((r) => yrs.add(r.expense_date.substring(0, 4)));
     return Array.from(yrs).sort((a, b) => b.localeCompare(a));
-  }, [allReceipts, selectedCategory]);
+  }, [allReceipts, selectedEntity]);
 
   // Derived: months for selected year
   const months = useMemo(() => {
