@@ -23,6 +23,8 @@ interface ReceiptRow {
   amount: number;
   description: string | null;
   subcategory: string | null;
+  transaction_type: string | null;
+  category_group: string | null;
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
