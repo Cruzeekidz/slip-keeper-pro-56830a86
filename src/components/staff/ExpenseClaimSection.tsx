@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Trash2, Camera, Receipt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import browserImageCompression from "browser-image-compression";
+import { buildUploadPath } from "@/lib/storage-path";
 
 export interface ExpenseClaimItem {
   id: string;
