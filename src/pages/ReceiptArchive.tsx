@@ -27,10 +27,12 @@ interface ReceiptRow {
   category_group: string | null;
 }
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-  BUSINESS: { label: "ธุรกิจ", color: "bg-blue-500/15 text-blue-700 border-blue-200" },
-  PERSONAL: { label: "ส่วนตัว", color: "bg-orange-500/15 text-orange-700 border-orange-200" },
-  TRANSFER: { label: "โอนเงิน", color: "bg-gray-500/15 text-gray-700 border-gray-200" },
+const ENTITY_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  personal: { label: "ส่วนตัว", color: "bg-orange-500/15 text-orange-700 border-orange-200", icon: "🧑" },
+  business: { label: "ธุรกิจหลัก (เม้งซิน)", color: "bg-blue-500/15 text-blue-700 border-blue-200", icon: "🏢" },
+  "bcc-next": { label: "BCC Next", color: "bg-purple-500/15 text-purple-700 border-purple-200", icon: "🚀" },
+  kukanang: { label: "คู่ขนาน", color: "bg-green-500/15 text-green-700 border-green-200", icon: "🎯" },
+  transfer: { label: "โอนเงิน", color: "bg-gray-500/15 text-gray-700 border-gray-200", icon: "💸" },
 };
 
 const MONTH_NAMES = [
