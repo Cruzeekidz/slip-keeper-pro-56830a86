@@ -168,11 +168,11 @@ const ReceiptArchive = () => {
   // Breadcrumbs
   const breadcrumbs = useMemo(() => {
     const items: { label: string; onClick: () => void }[] = [];
-    if (selectedCategory) {
+    if (selectedEntity) {
       items.push({
-        label: CATEGORY_LABELS[selectedCategory]?.label || selectedCategory,
+        label: ENTITY_LABELS[selectedEntity]?.label || selectedEntity,
         onClick: () => {
-          setSelectedCategory(null);
+          setSelectedEntity(null);
           setSelectedYear(null);
           setSelectedMonth(null);
         },
