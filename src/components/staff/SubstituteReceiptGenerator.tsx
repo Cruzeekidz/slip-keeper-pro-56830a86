@@ -12,6 +12,9 @@ import { supabase } from "@/integrations/supabase/client";
 interface Props {
   open: boolean;
   onClose: () => void;
+  staffId?: string;
+  staffUserId?: string;
+  expenseClaimIds?: string[];
   defaultData?: {
     description: string;
     amount: number;
