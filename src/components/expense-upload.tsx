@@ -16,6 +16,7 @@ import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
+import { buildReceiptPath } from "@/lib/storage-path";
 
 interface ExpenseUploadProps {
   onClose: () => void;
