@@ -291,7 +291,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
