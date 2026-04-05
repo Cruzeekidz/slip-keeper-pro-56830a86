@@ -234,8 +234,9 @@ export default function BulkUpload() {
     try {
       const fileExt = fileObj.file.name.split('.').pop();
       const baseFileName = `${Date.now()}-${index}.${fileExt}`;
-      // Will be updated with correct entity after AI analysis; use 'business' as default
+      // Will be updated with correct entity after AI analysis; use default
       let fileName = buildReceiptPath(null, null, user.id, baseFileName);
+      const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, fileObj.file);
       if (uploadError) throw uploadError;
 
       updatedFiles[index].status = 'analyzing';
