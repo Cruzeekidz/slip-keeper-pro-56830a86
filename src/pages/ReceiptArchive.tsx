@@ -40,13 +40,9 @@ const MONTH_NAMES = [
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ];
 
-// Normalize category names (some old data has Thai names)
-function normalizeCategory(cat: string): string {
-  const upper = cat.toUpperCase();
-  if (upper === "BUSINESS" || cat === "ธุรกิจ") return "BUSINESS";
-  if (upper === "PERSONAL" || cat === "ส่วนตัว") return "PERSONAL";
-  if (upper === "TRANSFER" || cat === "โอนเงิน" || cat === "Transfer") return "TRANSFER";
-  return upper;
+// Get entity key from receipt data
+function getReceiptEntity(r: ReceiptRow): string {
+  return getEntityFolder(r.transaction_type, r.category_group);
 }
 
 const ReceiptArchive = () => {
