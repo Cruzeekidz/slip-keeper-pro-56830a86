@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet } from "lucide-react";
+import { buildUploadPath } from "@/lib/storage-path";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
