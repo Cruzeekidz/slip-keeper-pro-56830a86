@@ -84,11 +84,34 @@ const fetchEventNamesList = async (): Promise<string[]> => {
   return Array.from(new Set((data || []).map(e => e.event_name))).filter(Boolean);
 };
 
+type EntityFilter = "all" | "personal" | "main_biz" | "bcc_next" | "kukanang";
+
+const ENTITY_FILTERS: { value: EntityFilter; label: string; icon: string }[] = [
+  { value: "all", label: "ทั้งหมด", icon: "📊" },
+  { value: "personal", label: "ส่วนตัว", icon: "👤" },
+  { value: "main_biz", label: "ธุรกิจหลัก", icon: "🏢" },
+  { value: "bcc_next", label: "BCC Next", icon: "🚀" },
+  { value: "kukanang", label: "คู่ขนาน", icon: "🎯" },
+];
+
+function matchesEntity(e: Expense, entity: EntityFilter): boolean {
+  if (entity === "all") return true;
+  if (entity === "personal") return e.transaction_type === "PERSONAL";
+  if (entity === "bcc_next") return e.transaction_type === "BUSINESS" && e.category_group === "ENTITY_BCC_NEXT";
+  if (entity === "kukanang") return e.transaction_type === "BUSINESS" && e.category_group === "ENTITY_KUKANANG";
+  if (entity === "main_biz") {
+    if (e.transaction_type !== "BUSINESS") return false;
+    return e.category_group !== "ENTITY_BCC_NEXT" && e.category_group !== "ENTITY_KUKANANG";
+  }
+  return true;
+}
+
 export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // UI state
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>("all");
   const [cashCreditTab, setCashCreditTab] = useState<"cash" | "credit">("cash");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
