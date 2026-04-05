@@ -241,8 +241,25 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   }, [expenses]);
 
   // Filtering + sorting as useMemo (no more setState)
+  // Entity counts for badge display
+  const entityCounts = useMemo(() => {
+    const cashExpenses = expenses.filter(e => e.category !== "ภาษีหัก ณ ที่จ่าย");
+    return {
+      all: cashExpenses.length,
+      personal: cashExpenses.filter(e => matchesEntity(e, "personal")).length,
+      main_biz: cashExpenses.filter(e => matchesEntity(e, "main_biz")).length,
+      bcc_next: cashExpenses.filter(e => matchesEntity(e, "bcc_next")).length,
+      kukanang: cashExpenses.filter(e => matchesEntity(e, "kukanang")).length,
+    };
+  }, [expenses]);
+
   const filteredExpenses = useMemo(() => {
     let filtered = expenses;
+
+    // Entity filter (applied before cash/credit)
+    if (entityFilter !== "all") {
+      filtered = filtered.filter(e => matchesEntity(e, entityFilter));
+    }
 
     // Cash/Credit tab filter
     if (cashCreditTab === "cash") {
