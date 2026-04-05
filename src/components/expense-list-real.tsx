@@ -84,11 +84,34 @@ const fetchEventNamesList = async (): Promise<string[]> => {
   return Array.from(new Set((data || []).map(e => e.event_name))).filter(Boolean);
 };
 
+type EntityFilter = "all" | "personal" | "main_biz" | "bcc_next" | "kukanang";
+
+const ENTITY_FILTERS: { value: EntityFilter; label: string; icon: string }[] = [
+  { value: "all", label: "ทั้งหมด", icon: "📊" },
+  { value: "personal", label: "ส่วนตัว", icon: "👤" },
+  { value: "main_biz", label: "ธุรกิจหลัก", icon: "🏢" },
+  { value: "bcc_next", label: "BCC Next", icon: "🚀" },
+  { value: "kukanang", label: "คู่ขนาน", icon: "🎯" },
+];
+
+function matchesEntity(e: Expense, entity: EntityFilter): boolean {
+  if (entity === "all") return true;
+  if (entity === "personal") return e.transaction_type === "PERSONAL";
+  if (entity === "bcc_next") return e.transaction_type === "BUSINESS" && e.category_group === "ENTITY_BCC_NEXT";
+  if (entity === "kukanang") return e.transaction_type === "BUSINESS" && e.category_group === "ENTITY_KUKANANG";
+  if (entity === "main_biz") {
+    if (e.transaction_type !== "BUSINESS") return false;
+    return e.category_group !== "ENTITY_BCC_NEXT" && e.category_group !== "ENTITY_KUKANANG";
+  }
+  return true;
+}
+
 export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   // UI state
+  const [entityFilter, setEntityFilter] = useState<EntityFilter>("all");
   const [cashCreditTab, setCashCreditTab] = useState<"cash" | "credit">("cash");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -218,8 +241,25 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   }, [expenses]);
 
   // Filtering + sorting as useMemo (no more setState)
+  // Entity counts for badge display
+  const entityCounts = useMemo(() => {
+    const cashExpenses = expenses.filter(e => e.category !== "ภาษีหัก ณ ที่จ่าย");
+    return {
+      all: cashExpenses.length,
+      personal: cashExpenses.filter(e => matchesEntity(e, "personal")).length,
+      main_biz: cashExpenses.filter(e => matchesEntity(e, "main_biz")).length,
+      bcc_next: cashExpenses.filter(e => matchesEntity(e, "bcc_next")).length,
+      kukanang: cashExpenses.filter(e => matchesEntity(e, "kukanang")).length,
+    };
+  }, [expenses]);
+
   const filteredExpenses = useMemo(() => {
     let filtered = expenses;
+
+    // Entity filter (applied before cash/credit)
+    if (entityFilter !== "all") {
+      filtered = filtered.filter(e => matchesEntity(e, entityFilter));
+    }
 
     // Cash/Credit tab filter
     if (cashCreditTab === "cash") {
@@ -251,7 +291,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
@@ -315,7 +355,33 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       </div>
 
-      {/* Cash / Credit Tab */}
+      {/* Entity Filter */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        {ENTITY_FILTERS.map((ef) => (
+          <Button
+            key={ef.value}
+            variant={entityFilter === ef.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setEntityFilter(ef.value);
+              // Reset type/group filters when switching entity
+              setFilterType("all");
+              setFilterGroup("all");
+            }}
+            className={cn(
+              "whitespace-nowrap shrink-0",
+              entityFilter === ef.value && "shadow-sm"
+            )}
+          >
+            <span className="mr-1.5">{ef.icon}</span>
+            {ef.label}
+            <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+              {entityCounts[ef.value]}
+            </Badge>
+          </Button>
+        ))}
+      </div>
+
       <Tabs value={cashCreditTab} onValueChange={(v) => setCashCreditTab(v as "cash" | "credit")} className="mb-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="cash">💵 เงินสด</TabsTrigger>
