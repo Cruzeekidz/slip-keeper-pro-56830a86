@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet } from "lucide-react";
+import { buildUploadPath } from "@/lib/storage-path";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -153,7 +154,7 @@ const StaffPayments = () => {
 
       if (slipFile) {
         const ext = slipFile.name.split(".").pop() || "jpg";
-        const path = `${user.id}/payment-slips/${Date.now()}_${id}.${ext}`;
+        const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_${id}.${ext}`);
         const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
           contentType: slipFile.type,
         });

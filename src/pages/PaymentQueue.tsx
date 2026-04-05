@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2 } from "lucide-react";
+import { buildUploadPath } from "@/lib/storage-path";
 
 interface PaymentItem {
   id: string;
@@ -69,7 +70,7 @@ const PaymentQueue = () => {
       if (!user) throw new Error("Not authenticated");
 
       const ext = slipFile.name.split(".").pop() || "jpg";
-      const path = `payment-slips/${user.id}/${Date.now()}_${invoiceId}.${ext}`;
+      const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_${invoiceId}.${ext}`);
       const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
         contentType: slipFile.type,
       });

@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { CSVPreviewDialog, type CSVRow } from "@/components/csv-preview-dialog";
 import { ImportHistory } from "@/components/import-history";
+import { buildReceiptPath } from "@/lib/storage-path";
 
 interface UploadedFile {
   file: File;
@@ -232,7 +233,9 @@ export default function BulkUpload() {
 
     try {
       const fileExt = fileObj.file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}-${index}.${fileExt}`;
+      const baseFileName = `${Date.now()}-${index}.${fileExt}`;
+      // Will be updated with correct entity after AI analysis; use default
+      let fileName = buildReceiptPath(null, null, user.id, baseFileName);
       const { error: uploadError } = await supabase.storage.from('receipts').upload(fileName, fileObj.file);
       if (uploadError) throw uploadError;
 
@@ -307,6 +310,17 @@ export default function BulkUpload() {
           transactionType = d.transaction_type || null;
           categoryGroup = d.category_group || null;
           projectTag = d.project_tag || null;
+
+          // Re-build path with correct entity after AI analysis
+          const correctPath = buildReceiptPath(transactionType, categoryGroup, user.id, baseFileName, expenseDate);
+          if (correctPath !== fileName) {
+            // Move the file to correct entity folder
+            const { error: copyErr } = await supabase.storage.from('receipts').copy(fileName, correctPath);
+            if (!copyErr) {
+              await supabase.storage.from('receipts').remove([fileName]);
+              fileName = correctPath;
+            }
+          }
           subcategory = d.subcategory || null;
           staffName = d.staff_name || null;
           eventName = d.event_name || null;

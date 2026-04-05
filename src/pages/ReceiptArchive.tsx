@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { getEntityFolder } from "@/lib/storage-path";
 import {
   Dialog,
   DialogContent,
@@ -22,12 +23,16 @@ interface ReceiptRow {
   amount: number;
   description: string | null;
   subcategory: string | null;
+  transaction_type: string | null;
+  category_group: string | null;
 }
 
-const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
-  BUSINESS: { label: "ธุรกิจ", color: "bg-blue-500/15 text-blue-700 border-blue-200" },
-  PERSONAL: { label: "ส่วนตัว", color: "bg-orange-500/15 text-orange-700 border-orange-200" },
-  TRANSFER: { label: "โอนเงิน", color: "bg-gray-500/15 text-gray-700 border-gray-200" },
+const ENTITY_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+  personal: { label: "ส่วนตัว", color: "bg-orange-500/15 text-orange-700 border-orange-200", icon: "🧑" },
+  business: { label: "ธุรกิจหลัก (เม้งซิน)", color: "bg-blue-500/15 text-blue-700 border-blue-200", icon: "🏢" },
+  "bcc-next": { label: "BCC Next", color: "bg-purple-500/15 text-purple-700 border-purple-200", icon: "🚀" },
+  kukanang: { label: "คู่ขนาน", color: "bg-green-500/15 text-green-700 border-green-200", icon: "🎯" },
+  transfer: { label: "โอนเงิน", color: "bg-gray-500/15 text-gray-700 border-gray-200", icon: "💸" },
 };
 
 const MONTH_NAMES = [
@@ -35,13 +40,9 @@ const MONTH_NAMES = [
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
 ];
 
-// Normalize category names (some old data has Thai names)
-function normalizeCategory(cat: string): string {
-  const upper = cat.toUpperCase();
-  if (upper === "BUSINESS" || cat === "ธุรกิจ") return "BUSINESS";
-  if (upper === "PERSONAL" || cat === "ส่วนตัว") return "PERSONAL";
-  if (upper === "TRANSFER" || cat === "โอนเงิน" || cat === "Transfer") return "TRANSFER";
-  return upper;
+// Get entity key from receipt data
+function getReceiptEntity(r: ReceiptRow): string {
+  return getEntityFolder(r.transaction_type, r.category_group);
 }
 
 const ReceiptArchive = () => {
@@ -51,7 +52,7 @@ const ReceiptArchive = () => {
 
   const [allReceipts, setAllReceipts] = useState<ReceiptRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
 
@@ -79,7 +80,7 @@ const ReceiptArchive = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("expenses")
-        .select("id, receipt_url, category, expense_date, amount, description, subcategory")
+        .select("id, receipt_url, category, expense_date, amount, description, subcategory, transaction_type, category_group")
         .eq("user_id", user.id)
         .not("receipt_url", "is", null)
         .order("expense_date", { ascending: false });
@@ -92,47 +93,47 @@ const ReceiptArchive = () => {
     load();
   }, [user]);
 
-  // Derived: categories
-  const categories = useMemo(() => {
-    const cats = new Set<string>();
-    allReceipts.forEach((r) => cats.add(normalizeCategory(r.category)));
-    return Array.from(cats).sort();
+  // Derived: entities
+  const entities = useMemo(() => {
+    const ents = new Set<string>();
+    allReceipts.forEach((r) => ents.add(getReceiptEntity(r)));
+    return Array.from(ents).sort();
   }, [allReceipts]);
 
   // Derived: years for selected category
   const years = useMemo(() => {
-    if (!selectedCategory) return [];
+    if (!selectedEntity) return [];
     const yrs = new Set<string>();
     allReceipts
-      .filter((r) => normalizeCategory(r.category) === selectedCategory)
+      .filter((r) => getReceiptEntity(r) === selectedEntity)
       .forEach((r) => yrs.add(r.expense_date.substring(0, 4)));
     return Array.from(yrs).sort((a, b) => b.localeCompare(a));
-  }, [allReceipts, selectedCategory]);
+  }, [allReceipts, selectedEntity]);
 
   // Derived: months for selected year
   const months = useMemo(() => {
-    if (!selectedCategory || !selectedYear) return [];
+    if (!selectedEntity || !selectedYear) return [];
     const mos = new Set<string>();
     allReceipts
       .filter(
         (r) =>
-          normalizeCategory(r.category) === selectedCategory &&
+          getReceiptEntity(r) === selectedEntity &&
           r.expense_date.substring(0, 4) === selectedYear
       )
       .forEach((r) => mos.add(r.expense_date.substring(5, 7)));
     return Array.from(mos).sort();
-  }, [allReceipts, selectedCategory, selectedYear]);
+  }, [allReceipts, selectedEntity, selectedYear]);
 
   // Derived: files for selected month
   const currentFiles = useMemo(() => {
-    if (!selectedCategory || !selectedYear || !selectedMonth) return [];
+    if (!selectedEntity || !selectedYear || !selectedMonth) return [];
     return allReceipts.filter(
       (r) =>
-        normalizeCategory(r.category) === selectedCategory &&
+        getReceiptEntity(r) === selectedEntity &&
         r.expense_date.substring(0, 4) === selectedYear &&
         r.expense_date.substring(5, 7) === selectedMonth
     );
-  }, [allReceipts, selectedCategory, selectedYear, selectedMonth]);
+  }, [allReceipts, selectedEntity, selectedYear, selectedMonth]);
 
   // Load signed URLs when files change
   useEffect(() => {
@@ -156,8 +157,8 @@ const ReceiptArchive = () => {
   }, [currentFiles]);
 
   // Determine current level
-  const level = !selectedCategory
-    ? "category"
+  const level = !selectedEntity
+    ? "entity"
     : !selectedYear
     ? "year"
     : !selectedMonth
@@ -167,11 +168,11 @@ const ReceiptArchive = () => {
   // Breadcrumbs
   const breadcrumbs = useMemo(() => {
     const items: { label: string; onClick: () => void }[] = [];
-    if (selectedCategory) {
+    if (selectedEntity) {
       items.push({
-        label: CATEGORY_LABELS[selectedCategory]?.label || selectedCategory,
+        label: ENTITY_LABELS[selectedEntity]?.label || selectedEntity,
         onClick: () => {
-          setSelectedCategory(null);
+          setSelectedEntity(null);
           setSelectedYear(null);
           setSelectedMonth(null);
         },
@@ -193,7 +194,7 @@ const ReceiptArchive = () => {
       });
     }
     return items;
-  }, [selectedCategory, selectedYear, selectedMonth]);
+  }, [selectedEntity, selectedYear, selectedMonth]);
 
   const handleDownload = async (receipt: ReceiptRow) => {
     try {
@@ -233,7 +234,7 @@ const ReceiptArchive = () => {
       if (error) throw error;
 
       const folderLabel = [
-        CATEGORY_LABELS[selectedCategory || ""]?.label || selectedCategory,
+        ENTITY_LABELS[selectedEntity || ""]?.label || selectedEntity,
         selectedYear,
         MONTH_NAMES[parseInt(selectedMonth || "0")] || selectedMonth,
       ]
@@ -315,7 +316,7 @@ const ReceiptArchive = () => {
         <div className="flex items-center gap-1 text-sm flex-wrap">
           <button
             onClick={() => {
-              setSelectedCategory(null);
+              setSelectedEntity(null);
               setSelectedYear(null);
               setSelectedMonth(null);
             }}
@@ -358,24 +359,24 @@ const ReceiptArchive = () => {
           </div>
         )}
 
-        {/* Category level */}
-        {!loading && level === "category" && (
+        {/* Entity level */}
+        {!loading && level === "entity" && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {(categories.length > 0 ? categories : ["BUSINESS", "PERSONAL", "TRANSFER"]).map((cat) => {
-              const info = CATEGORY_LABELS[cat];
-              const count = allReceipts.filter((r) => normalizeCategory(r.category) === cat).length;
+            {(entities.length > 0 ? entities : ["personal", "business", "bcc-next", "kukanang", "transfer"]).map((ent) => {
+              const info = ENTITY_LABELS[ent];
+              const count = allReceipts.filter((r) => getReceiptEntity(r) === ent).length;
               return (
                 <Card
-                  key={cat}
+                  key={ent}
                   className={`p-4 cursor-pointer hover:shadow-card transition-all hover:scale-[1.02] border-border/50 ${count === 0 ? "opacity-50" : ""}`}
-                  onClick={() => count > 0 && setSelectedCategory(cat)}
+                  onClick={() => count > 0 && setSelectedEntity(ent)}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <FolderOpen className="h-5 w-5 text-primary" />
+                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-lg">
+                      {info?.icon || "📁"}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{info?.label || cat}</p>
+                      <p className="font-medium text-foreground">{info?.label || ent}</p>
                       <Badge variant="outline" className={`text-xs mt-1 ${info?.color || ""}`}>
                         {count} สลิป
                       </Badge>
@@ -392,7 +393,7 @@ const ReceiptArchive = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {years.map((yr) => {
               const count = allReceipts.filter(
-                (r) => normalizeCategory(r.category) === selectedCategory && r.expense_date.substring(0, 4) === yr
+                (r) => getReceiptEntity(r) === selectedEntity && r.expense_date.substring(0, 4) === yr
               ).length;
               return (
                 <Card
@@ -421,7 +422,7 @@ const ReceiptArchive = () => {
             {months.map((mo) => {
               const count = allReceipts.filter(
                 (r) =>
-                  normalizeCategory(r.category) === selectedCategory &&
+                  getReceiptEntity(r) === selectedEntity &&
                   r.expense_date.substring(0, 4) === selectedYear &&
                   r.expense_date.substring(5, 7) === mo
               ).length;

@@ -16,6 +16,7 @@ import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
+import { buildReceiptPath } from "@/lib/storage-path";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -162,7 +163,8 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         const fileName = `${Date.now()}.${fileExt}`;
         const userId = (await supabase.auth.getUser()).data.user?.id;
         if (!userId) { toast({ title: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" }); return; }
-        const filePath = `${userId}/${fileName}`;
+        const expDate = (formData.get("date") as string) || undefined;
+        const filePath = buildReceiptPath(transactionType || null, categoryGroup || null, userId, fileName, expDate);
         const { error: uploadError } = await supabase.storage.from('receipts').upload(filePath, file);
         if (uploadError) { toast({ title: "ไม่สามารถอัพโหลดไฟล์ได้", variant: "destructive" }); return; }
         receiptUrl = filePath;

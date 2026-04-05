@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Plus, Trash2, Camera, Receipt } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import browserImageCompression from "browser-image-compression";
+import { buildUploadPath } from "@/lib/storage-path";
 
 export interface ExpenseClaimItem {
   id: string;
@@ -70,7 +71,7 @@ const ExpenseClaimSection = ({ items, onChange, staffId }: Props) => {
         initialQuality: 0.8,
       });
       const ext = file.name.split(".").pop() || "jpg";
-      const path = `expense-claims/${staffId}/${Date.now()}.${ext}`;
+      const path = buildUploadPath("expense-claims", staffId, `${Date.now()}.${ext}`);
       const { error } = await supabase.storage.from("receipts").upload(path, compressed);
       if (error) throw error;
 
