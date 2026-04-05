@@ -112,17 +112,17 @@ const ReceiptArchive = () => {
 
   // Derived: months for selected year
   const months = useMemo(() => {
-    if (!selectedCategory || !selectedYear) return [];
+    if (!selectedEntity || !selectedYear) return [];
     const mos = new Set<string>();
     allReceipts
       .filter(
         (r) =>
-          normalizeCategory(r.category) === selectedCategory &&
+          getReceiptEntity(r) === selectedEntity &&
           r.expense_date.substring(0, 4) === selectedYear
       )
       .forEach((r) => mos.add(r.expense_date.substring(5, 7)));
     return Array.from(mos).sort();
-  }, [allReceipts, selectedCategory, selectedYear]);
+  }, [allReceipts, selectedEntity, selectedYear]);
 
   // Derived: files for selected month
   const currentFiles = useMemo(() => {
