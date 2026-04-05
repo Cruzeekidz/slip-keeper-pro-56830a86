@@ -393,7 +393,7 @@ const ReceiptArchive = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {years.map((yr) => {
               const count = allReceipts.filter(
-                (r) => normalizeCategory(r.category) === selectedCategory && r.expense_date.substring(0, 4) === yr
+                (r) => getReceiptEntity(r) === selectedEntity && r.expense_date.substring(0, 4) === yr
               ).length;
               return (
                 <Card
