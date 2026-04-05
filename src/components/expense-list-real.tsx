@@ -355,7 +355,33 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       </div>
 
-      {/* Cash / Credit Tab */}
+      {/* Entity Filter */}
+      <div className="flex gap-2 mb-4 overflow-x-auto pb-1">
+        {ENTITY_FILTERS.map((ef) => (
+          <Button
+            key={ef.value}
+            variant={entityFilter === ef.value ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setEntityFilter(ef.value);
+              // Reset type/group filters when switching entity
+              setFilterType("all");
+              setFilterGroup("all");
+            }}
+            className={cn(
+              "whitespace-nowrap shrink-0",
+              entityFilter === ef.value && "shadow-sm"
+            )}
+          >
+            <span className="mr-1.5">{ef.icon}</span>
+            {ef.label}
+            <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+              {entityCounts[ef.value]}
+            </Badge>
+          </Button>
+        ))}
+      </div>
+
       <Tabs value={cashCreditTab} onValueChange={(v) => setCashCreditTab(v as "cash" | "credit")} className="mb-4">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="cash">💵 เงินสด</TabsTrigger>
