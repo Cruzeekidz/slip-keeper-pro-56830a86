@@ -157,8 +157,8 @@ const ReceiptArchive = () => {
   }, [currentFiles]);
 
   // Determine current level
-  const level = !selectedCategory
-    ? "category"
+  const level = !selectedEntity
+    ? "entity"
     : !selectedYear
     ? "year"
     : !selectedMonth
