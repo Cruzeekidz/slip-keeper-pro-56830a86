@@ -80,7 +80,7 @@ const ReceiptArchive = () => {
       setLoading(true);
       const { data, error } = await supabase
         .from("expenses")
-        .select("id, receipt_url, category, expense_date, amount, description, subcategory")
+        .select("id, receipt_url, category, expense_date, amount, description, subcategory, transaction_type, category_group")
         .eq("user_id", user.id)
         .not("receipt_url", "is", null)
         .order("expense_date", { ascending: false });
