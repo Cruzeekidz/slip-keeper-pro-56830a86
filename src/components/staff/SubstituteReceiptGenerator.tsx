@@ -25,7 +25,7 @@ interface Props {
   onGenerated?: (pdfUrl: string) => void;
 }
 
-const SubstituteReceiptGenerator = ({ open, onClose, defaultData, onGenerated }: Props) => {
+const SubstituteReceiptGenerator = ({ open, onClose, staffId, staffUserId, expenseClaimIds, defaultData, onGenerated }: Props) => {
   const [form, setForm] = useState({
     description: defaultData?.description || "",
     amount: defaultData?.amount || 0,
