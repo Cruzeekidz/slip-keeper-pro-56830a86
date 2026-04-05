@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Upload, FileImage, File } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
+import { buildUploadPath } from "@/lib/storage-path";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
