@@ -4,9 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, Upload, CheckCircle } from "lucide-react";
 import SignatureCanvas from "./SignatureCanvas";
 import jsPDF from "jspdf";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   open: boolean;
