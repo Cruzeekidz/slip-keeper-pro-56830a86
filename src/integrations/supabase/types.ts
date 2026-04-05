@@ -992,11 +992,13 @@ export type Database = {
           amount: number
           created_at: string
           description: string | null
+          document_type: string
           due_date: string | null
           file_url: string | null
           id: string
           invoice_date: string | null
           invoice_number: string | null
+          is_formal: boolean
           matched_expense_id: string | null
           net_amount: number
           notes: string | null
@@ -1004,6 +1006,7 @@ export type Database = {
           paid_at: string | null
           payment_slip_url: string | null
           status: string
+          tax_id: string | null
           user_id: string
           vat_amount: number
           vendor_id: string | null
@@ -1013,11 +1016,13 @@ export type Database = {
           amount?: number
           created_at?: string
           description?: string | null
+          document_type?: string
           due_date?: string | null
           file_url?: string | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          is_formal?: boolean
           matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
@@ -1025,6 +1030,7 @@ export type Database = {
           paid_at?: string | null
           payment_slip_url?: string | null
           status?: string
+          tax_id?: string | null
           user_id: string
           vat_amount?: number
           vendor_id?: string | null
@@ -1034,11 +1040,13 @@ export type Database = {
           amount?: number
           created_at?: string
           description?: string | null
+          document_type?: string
           due_date?: string | null
           file_url?: string | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          is_formal?: boolean
           matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
@@ -1046,6 +1054,7 @@ export type Database = {
           paid_at?: string | null
           payment_slip_url?: string | null
           status?: string
+          tax_id?: string | null
           user_id?: string
           vat_amount?: number
           vendor_id?: string | null

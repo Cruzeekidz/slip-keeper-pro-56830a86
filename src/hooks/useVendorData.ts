@@ -35,6 +35,10 @@ export interface VendorInvoice {
   status: string;
   notes: string | null;
   created_at: string;
+  document_type: string;
+  tax_id: string | null;
+  is_formal: boolean;
+  matched_expense_id: string | null;
 }
 
 const VENDORS_KEY = ["vendor-profiles"] as const;
