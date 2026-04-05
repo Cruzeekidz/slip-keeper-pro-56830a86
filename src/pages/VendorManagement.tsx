@@ -360,6 +360,111 @@ const VendorManagement = () => {
               </div>
             )}
           </TabsContent>
+
+          <TabsContent value="documents" className="space-y-4">
+            <div className="flex gap-2">
+              <Select value={docTypeFilter} onValueChange={setDocTypeFilter}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">ทุกประเภท</SelectItem>
+                  <SelectItem value="receipt">ใบเสร็จรับเงิน</SelectItem>
+                  <SelectItem value="tax_invoice">ใบกำกับภาษี</SelectItem>
+                  <SelectItem value="invoice">ใบแจ้งหนี้</SelectItem>
+                  <SelectItem value="substitute_receipt">ใบรับรองแทนใบเสร็จ</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Stats cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(["receipt", "tax_invoice", "invoice", "substitute_receipt"] as const).map((type) => {
+                const dt = docTypeMap[type];
+                const count = invoices.filter((i) => (i as any).document_type === type).length;
+                return (
+                  <Card key={type} className="cursor-pointer hover:ring-2 ring-primary/30 transition-all" onClick={() => setDocTypeFilter(type)}>
+                    <CardContent className="py-3 text-center">
+                      <p className="text-xs text-muted-foreground">{dt.label}</p>
+                      <p className="text-2xl font-bold">{count}</p>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+
+            {/* Linked vs unlinked */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
+                <CardContent className="py-3 text-center">
+                  <p className="text-xs text-muted-foreground">ผูกกับสลิปแล้ว</p>
+                  <p className="text-xl font-bold text-green-700 dark:text-green-400">
+                    {invoices.filter((i) => i.matched_expense_id).length}
+                  </p>
+                </CardContent>
+              </Card>
+              <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <CardContent className="py-3 text-center">
+                  <p className="text-xs text-muted-foreground">ยังไม่ผูกสลิป</p>
+                  <p className="text-xl font-bold text-amber-700 dark:text-amber-400">
+                    {invoices.filter((i) => !i.matched_expense_id).length}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Document list */}
+            {(() => {
+              const docs = invoices.filter((i) => docTypeFilter === "all" || (i as any).document_type === docTypeFilter);
+              if (docs.length === 0) {
+                return <Card><CardContent className="py-8 text-center text-muted-foreground">ยังไม่มีเอกสารประเภทนี้</CardContent></Card>;
+              }
+              return (
+                <div className="space-y-3">
+                  {docs.map((inv) => {
+                    const vendor = vendors.find((v) => v.id === inv.vendor_id);
+                    const dt = docTypeMap[(inv as any).document_type] || docTypeMap.invoice;
+                    const st = statusMap[inv.status] || statusMap.pending;
+                    return (
+                      <Card key={inv.id}>
+                        <CardContent className="py-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={dt.variant}>{dt.label}</Badge>
+                                <Badge variant={st.variant}>{st.label}</Badge>
+                                {(inv as any).is_formal === false && (
+                                  <Badge variant="outline" className="text-xs">ไม่เป็นทางการ</Badge>
+                                )}
+                                {inv.matched_expense_id && (
+                                  <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                                    <FileCheck className="h-3 w-3 mr-1" /> ผูกสลิปแล้ว
+                                  </Badge>
+                                )}
+                              </div>
+                              <p className="font-bold mt-1">{inv.description || "เอกสาร"}</p>
+                              <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
+                                {inv.invoice_number && <p>เลขที่: {inv.invoice_number}</p>}
+                                {vendor && <p>คู่ค้า: {vendor.company_name}</p>}
+                                {(inv as any).tax_id && <p>เลขผู้เสียภาษี: {(inv as any).tax_id}</p>}
+                                <p className="text-foreground font-semibold">ยอด: {inv.amount.toLocaleString()} บาท</p>
+                                {inv.vat_amount > 0 && <span className="mr-3">VAT: {inv.vat_amount.toLocaleString()}</span>}
+                                {inv.wht_amount > 0 && <span>WHT: {inv.wht_amount.toLocaleString()}</span>}
+                              </div>
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              {inv.file_url && (
+                                <Button variant="outline" size="sm" onClick={() => viewFile(inv.file_url!)}>
+                                  <Eye className="h-4 w-4 mr-1" /> ดู
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
+            })()}
         </Tabs>
       </main>
 
