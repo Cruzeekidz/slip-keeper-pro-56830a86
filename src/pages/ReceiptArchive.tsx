@@ -234,7 +234,7 @@ const ReceiptArchive = () => {
       if (error) throw error;
 
       const folderLabel = [
-        CATEGORY_LABELS[selectedCategory || ""]?.label || selectedCategory,
+        ENTITY_LABELS[selectedEntity || ""]?.label || selectedEntity,
         selectedYear,
         MONTH_NAMES[parseInt(selectedMonth || "0")] || selectedMonth,
       ]
