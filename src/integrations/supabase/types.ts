@@ -816,6 +816,91 @@ export type Database = {
           },
         ]
       }
+      staff_expense_claims: {
+        Row: {
+          amount: number
+          approver_signature_url: string | null
+          category: string
+          claimant_signature_url: string | null
+          created_at: string
+          description: string
+          event_id: string | null
+          event_name: string | null
+          expense_date: string | null
+          has_formal_receipt: boolean
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          receipt_url: string | null
+          staff_id: string
+          status: string
+          substitute_receipt_url: string | null
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          approver_signature_url?: string | null
+          category?: string
+          claimant_signature_url?: string | null
+          created_at?: string
+          description: string
+          event_id?: string | null
+          event_name?: string | null
+          expense_date?: string | null
+          has_formal_receipt?: boolean
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          receipt_url?: string | null
+          staff_id: string
+          status?: string
+          substitute_receipt_url?: string | null
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          approver_signature_url?: string | null
+          category?: string
+          claimant_signature_url?: string | null
+          created_at?: string
+          description?: string
+          event_id?: string | null
+          event_name?: string | null
+          expense_date?: string | null
+          has_formal_receipt?: boolean
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          receipt_url?: string | null
+          staff_id?: string
+          status?: string
+          substitute_receipt_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_expense_claims_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "staff_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_expense_claims_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_expense_claims_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_invoices: {
         Row: {
           bonus_amount: number
