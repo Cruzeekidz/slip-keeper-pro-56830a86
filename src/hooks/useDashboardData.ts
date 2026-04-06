@@ -118,15 +118,18 @@ export function useStatsReal() {
     const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
     const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
+    // Refund (subcategory) is contra-revenue, not an expense — exclude from expense totals
+    const isRefund = (e: ExpenseRow) => e.subcategory === 'Refund' && e.transaction_direction === 'INCOME';
+
     const byYearType = (year: number, type: string) =>
       expenses
-        .filter((e) => new Date(e.expense_date).getFullYear() === year && e.transaction_type === type)
+        .filter((e) => new Date(e.expense_date).getFullYear() === year && e.transaction_type === type && !isRefund(e))
         .reduce((s, e) => s + e.amount, 0);
 
     const currentMonthExpenses = expenses
       .filter((e) => {
         const d = new Date(e.expense_date);
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear && e.transaction_type !== "TRANSFER";
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear && e.transaction_type !== "TRANSFER" && !isRefund(e);
       })
       .reduce((s, e) => s + e.amount, 0);
 
