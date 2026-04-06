@@ -62,8 +62,9 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 7. **Marketing/การตลาด**: "ads/โฆษณา/marketing/boost [อีเวนท์]"
    เช่น "ads Terminal21", "boost KMT41" → Marketing
 
-8. **Refund/คืนเงิน**: "refund/คืนเงิน/คืนค่าสมัคร [อีเวนท์]"
-   เช่น "refund Terminal21", "คืนค่าสมัคร KMT41" → Refund, transaction_direction: EXPENSE
+8. **Refund/คืนเงิน (Contra-revenue)**: "refund/คืนเงิน/คืนค่าสมัคร [อีเวนท์]"
+   เช่น "refund Terminal21", "คืนค่าสมัคร KMT41" → Refund, transaction_direction: INCOME
+   **สำคัญ**: Refund ไม่ใช่รายจ่าย แต่เป็นรายการหักกลบรายได้ (Contra-revenue) จึงต้องใช้ transaction_direction: INCOME เสมอ
 
 #### B. BCC Next / คู่ขนาน patterns:
 9. "staff BCC" / "Peca Bridge" / "EngineerX" / "Play Box" → ENTITY_BCC_NEXT
@@ -91,6 +92,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - ถ้ามี "BCC" / "Peca Bridge" / "EngineerX" / "Play Box" → ENTITY_BCC_NEXT
 - ถ้ามี "3BB", "ทริปเปิลที", "TRUE", "AIS" (internet/phone) → BUSINESS > GENERAL > Utilities
 - ถ้าเป็นเงินเข้า/ค่าสมัคร/สปอนเซอร์ → transaction_direction = INCOME
+- **Refund/คืนเงิน**: เป็น Contra-revenue (หักกลบรายได้) → transaction_direction = INCOME, subcategory = Refund เสมอ ห้ามใส่เป็น EXPENSE
 
 ## ข้อมูลที่ต้องดึง:
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
