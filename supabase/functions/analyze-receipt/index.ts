@@ -91,6 +91,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - ถ้ามี "BCC" / "Peca Bridge" / "EngineerX" / "Play Box" → ENTITY_BCC_NEXT
 - ถ้ามี "3BB", "ทริปเปิลที", "TRUE", "AIS" (internet/phone) → BUSINESS > GENERAL > Utilities
 - ถ้าเป็นเงินเข้า/ค่าสมัคร/สปอนเซอร์ → transaction_direction = INCOME
+- **Refund/คืนเงิน**: เป็น Contra-revenue (หักกลบรายได้) → transaction_direction = INCOME, subcategory = Refund เสมอ ห้ามใส่เป็น EXPENSE
 
 ## ข้อมูลที่ต้องดึง:
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
