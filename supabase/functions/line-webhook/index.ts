@@ -848,6 +848,28 @@ async function replyToUser(token: string, replyToken: string, message: string) {
   }
 }
 
+async function replyFlexToUser(token: string, replyToken: string, flexMessage: Record<string, unknown>) {
+  try {
+    const res = await fetch("https://api.line.me/v2/bot/message/reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        replyToken,
+        messages: [flexMessage],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Flex reply failed:", errText);
+    }
+  } catch (e) {
+    console.error("Flex reply error:", e);
+  }
+}
+
 async function pushMessage(token: string, to: string, messages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}>) {
   try {
     const res = await fetch("https://api.line.me/v2/bot/message/push", {
