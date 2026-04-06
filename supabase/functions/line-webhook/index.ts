@@ -724,7 +724,7 @@ serve(async (req) => {
         const confidence = extractedData?.confidence_score || 0;
         const reviewFlag = confidence < 75;
 
-        const editUrl = `https://slip-keeper-pro.lovable.app/dashboard?edit=${insertedExpenseId}`;
+        const editUrl = `https://slip-keeper-pro.lovable.app/?edit=${insertedExpenseId}`;
 
         // Build Flex Message body contents
         const bodyContents: any[] = [
