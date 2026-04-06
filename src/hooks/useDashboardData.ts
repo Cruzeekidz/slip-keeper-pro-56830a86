@@ -136,12 +136,12 @@ export function useStatsReal() {
     const lastMonthExpenses = expenses
       .filter((e) => {
         const d = new Date(e.expense_date);
-        return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear && e.transaction_type !== "TRANSFER";
+        return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear && e.transaction_type !== "TRANSFER" && !isRefund(e);
       })
       .reduce((s, e) => s + e.amount, 0);
 
     const monthlyChange = lastMonthExpenses > 0 ? ((currentMonthExpenses - lastMonthExpenses) / lastMonthExpenses) * 100 : 0;
-    const expenseCount = expenses.filter((e) => e.transaction_type !== "TRANSFER").length;
+    const expenseCount = expenses.filter((e) => e.transaction_type !== "TRANSFER" && !isRefund(e)).length;
     const needsReviewCount = expenses.filter((e) => e.needs_review).length;
 
     return {
