@@ -712,22 +712,99 @@ serve(async (req) => {
         // 7b. Forward to recipients
         await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
 
-        // 8. Reply to user with rich info
+        // 8. Reply to user with rich Flex Message
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
         const cat = extractedData?.transaction_type || 'ไม่ระบุ';
         const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
         const sub = extractedData?.subcategory ? ` > ${extractedData.subcategory}` : '';
-        const tag = extractedData?.project_tag ? `\n🏷️ ${extractedData.project_tag}` : '';
-        const staff = extractedData?.staff_name ? `\n👤 สตาฟ: ${extractedData.staff_name}` : '';
+        const tag = normalizedProjectTag || extractedData?.project_tag || '';
+        const staff = extractedData?.staff_name || '';
         const days = extractedData?.days_worked ? ` (${extractedData.days_worked} วัน)` : '';
-        const eventInfo = extractedData?.event_name ? `\n🎪 อีเวนท์: ${extractedData.event_name}` : '';
-        const memoInfo = memo ? `\n📝 Memo: ${memo}` : '';
+        const eventInfo = normalizedEventName || extractedData?.event_name || '';
         const confidence = extractedData?.confidence_score || 0;
-        const reviewFlag = confidence < 75 ? '\n⚠️ ต้องตรวจสอบ (confidence ต่ำ)' : '';
+        const reviewFlag = confidence < 75;
 
-        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-          `✅ บันทึกสำเร็จ!\n💰 ${amount}\n📂 ${cat}${group}${sub}${tag}${staff}${days}${eventInfo}${memoInfo}\n📝 ${extractedData?.description || '-'}${reviewFlag}${autoMatchMsg}`
-        );
+        const editUrl = `https://slip-keeper-pro.lovable.app/?edit=${insertedExpenseId}`;
+
+        // Build Flex Message body contents
+        const bodyContents: any[] = [
+          { type: "text", text: "✅ บันทึกสำเร็จ!", weight: "bold", size: "lg", color: "#1DB446" },
+          { type: "separator", margin: "md" },
+          {
+            type: "box", layout: "vertical", margin: "md", spacing: "sm",
+            contents: [
+              { type: "box", layout: "baseline", spacing: "sm", contents: [
+                { type: "text", text: "💰 จำนวนเงิน", color: "#aaaaaa", size: "sm", flex: 3 },
+                { type: "text", text: amount, wrap: true, size: "sm", flex: 5, weight: "bold" },
+              ]},
+              { type: "box", layout: "baseline", spacing: "sm", contents: [
+                { type: "text", text: "📅 วันที่", color: "#aaaaaa", size: "sm", flex: 3 },
+                { type: "text", text: expDate || '-', wrap: true, size: "sm", flex: 5 },
+              ]},
+              { type: "box", layout: "baseline", spacing: "sm", contents: [
+                { type: "text", text: "📂 หมวดหมู่", color: "#aaaaaa", size: "sm", flex: 3 },
+                { type: "text", text: `${cat}${group}${sub}`, wrap: true, size: "sm", flex: 5 },
+              ]},
+            ],
+          },
+        ];
+
+        if (tag) {
+          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "🏷️ แท็ก", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: tag, wrap: true, size: "sm", flex: 5 },
+          ]});
+        }
+        if (staff) {
+          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "👤 สตาฟ", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: `${staff}${days}`, wrap: true, size: "sm", flex: 5 },
+          ]});
+        }
+        if (eventInfo) {
+          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "🎪 อีเวนท์", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: eventInfo, wrap: true, size: "sm", flex: 5 },
+          ]});
+        }
+        if (extractedData?.description) {
+          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "📝 รายละเอียด", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: String(extractedData.description), wrap: true, size: "sm", flex: 5 },
+          ]});
+        }
+        if (memo) {
+          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "💬 Memo", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: memo, wrap: true, size: "sm", flex: 5 },
+          ]});
+        }
+        if (reviewFlag) {
+          bodyContents.push({ type: "text", text: "⚠️ ต้องตรวจสอบ (confidence ต่ำ)", color: "#ff6b6b", size: "xs", margin: "md" });
+        }
+        if (autoMatchMsg) {
+          bodyContents.push({ type: "text", text: autoMatchMsg.trim(), color: "#1DB446", size: "xs", margin: "md", wrap: true });
+        }
+
+        const flexMessage = {
+          type: "flex",
+          altText: `✅ บันทึกสำเร็จ! ${amount} - ${expDate}`,
+          contents: {
+            type: "bubble",
+            body: { type: "box", layout: "vertical", contents: bodyContents },
+            footer: {
+              type: "box", layout: "vertical", spacing: "sm",
+              contents: [
+                {
+                  type: "button", style: "primary", color: "#1DB446",
+                  action: { type: "uri", label: "✏️ แก้ไขรายการ", uri: editUrl },
+                },
+              ],
+            },
+          },
+        };
+
+        await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken, flexMessage);
 
       } catch (err) {
         console.error("Error processing image:", err);
@@ -768,6 +845,28 @@ async function replyToUser(token: string, replyToken: string, message: string) {
     }
   } catch (e) {
     console.error("Reply error:", e);
+  }
+}
+
+async function replyFlexToUser(token: string, replyToken: string, flexMessage: Record<string, unknown>) {
+  try {
+    const res = await fetch("https://api.line.me/v2/bot/message/reply", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        replyToken,
+        messages: [flexMessage],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Flex reply failed:", errText);
+    }
+  } catch (e) {
+    console.error("Flex reply error:", e);
   }
 }
 
