@@ -765,58 +765,57 @@ serve(async (req) => {
         const editUrl = `https://slip-keeper-pro.lovable.app/?edit=${insertedExpenseId}`;
 
         // Build Flex Message body contents
-        const bodyContents: any[] = [
-          { type: "text", text: "✅ บันทึกสำเร็จ!", weight: "bold", size: "lg", color: "#1DB446" },
-          { type: "separator", margin: "md" },
-          {
-            type: "box", layout: "vertical", margin: "md", spacing: "sm",
-            contents: [
-              { type: "box", layout: "baseline", spacing: "sm", contents: [
-                { type: "text", text: "💰 จำนวนเงิน", color: "#aaaaaa", size: "sm", flex: 3 },
-                { type: "text", text: amount, wrap: true, size: "sm", flex: 5, weight: "bold" },
-              ]},
-              { type: "box", layout: "baseline", spacing: "sm", contents: [
-                { type: "text", text: "📅 วันที่", color: "#aaaaaa", size: "sm", flex: 3 },
-                { type: "text", text: expDate || '-', wrap: true, size: "sm", flex: 5 },
-              ]},
-              { type: "box", layout: "baseline", spacing: "sm", contents: [
-                { type: "text", text: "📂 หมวดหมู่", color: "#aaaaaa", size: "sm", flex: 3 },
-                { type: "text", text: `${cat}${group}${sub}`, wrap: true, size: "sm", flex: 5 },
-              ]},
-            ],
-          },
+        const detailRows: any[] = [
+          { type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "💰 จำนวนเงิน", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: amount, wrap: true, size: "sm", flex: 5, weight: "bold" },
+          ]},
+          { type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "📅 วันที่", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: expDate || '-', wrap: true, size: "sm", flex: 5 },
+          ]},
+          { type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "📂 หมวดหมู่", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: `${cat}${group}${sub}`, wrap: true, size: "sm", flex: 5 },
+          ]},
         ];
 
         if (tag) {
-          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+          detailRows.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "🏷️ แท็ก", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: tag, wrap: true, size: "sm", flex: 5 },
           ]});
         }
         if (staff) {
-          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+          detailRows.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "👤 สตาฟ", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: `${staff}${days}`, wrap: true, size: "sm", flex: 5 },
           ]});
         }
         if (eventInfo) {
-          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+          detailRows.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "🎪 อีเวนท์", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: eventInfo, wrap: true, size: "sm", flex: 5 },
           ]});
         }
         if (extractedData?.description) {
-          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+          detailRows.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "📝 รายละเอียด", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: String(extractedData.description), wrap: true, size: "sm", flex: 5 },
           ]});
         }
         if (memo) {
-          bodyContents[3].contents.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
+          detailRows.push({ type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "💬 Memo", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: memo, wrap: true, size: "sm", flex: 5 },
           ]});
         }
+
+        const bodyContents: any[] = [
+          { type: "text", text: "✅ บันทึกสำเร็จ!", weight: "bold", size: "lg", color: "#1DB446" },
+          { type: "separator", margin: "md" },
+          { type: "box", layout: "vertical", margin: "md", spacing: "sm", contents: detailRows },
+        ];
         if (reviewFlag) {
           bodyContents.push({ type: "text", text: "⚠️ ต้องตรวจสอบ (confidence ต่ำ)", color: "#ff6b6b", size: "xs", margin: "md" });
         }
