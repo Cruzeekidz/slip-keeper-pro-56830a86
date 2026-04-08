@@ -511,17 +511,55 @@ serve(async (req) => {
           }),
         });
 
-        let extractedData = null;
+        let extractedData: Record<string, unknown> | null = null;
 
         if (analyzeResponse.ok) {
           const aiData = await analyzeResponse.json();
           const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
           if (toolCall?.function?.arguments) {
-            extractedData = JSON.parse(toolCall.function.arguments);
+            try {
+              extractedData = JSON.parse(toolCall.function.arguments);
+            } catch (parseErr) {
+              console.error("Failed to parse tool call arguments:", parseErr);
+            }
+          }
+          // Fallback: try to extract from message content
+          if (!extractedData) {
+            const content = aiData.choices?.[0]?.message?.content;
+            if (content) {
+              try {
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) extractedData = JSON.parse(jsonMatch[0]);
+              } catch (_e) { console.error("Failed to parse content JSON"); }
+            }
           }
         } else {
           const errText = await analyzeResponse.text();
-          console.error("AI analysis failed:", errText);
+          console.error("AI analysis failed:", analyzeResponse.status, errText);
+        }
+
+        // Fallback: if AI completely failed, use memo-based categorization
+        if (!extractedData) {
+          console.warn("AI extraction failed, using fallback categorization");
+          extractedData = {
+            amount: null,
+            date: new Date().toISOString().split('T')[0],
+            time: null,
+            description: memo || `LINE Receipt ${messageId}`,
+            merchant: null,
+            sender: null,
+            receiver: null,
+            transaction_id: null,
+            transaction_type: 'BUSINESS',
+            category_group: 'GENERAL',
+            project_tag: null,
+            subcategory: null,
+            confidence_score: 0,
+            transaction_direction: 'EXPENSE',
+            staff_name: null,
+            days_worked: null,
+            event_name: null,
+          };
         }
 
         // 5. Move file to organized path: line/{userId}/{category}/{YYYY}/{MM}/
