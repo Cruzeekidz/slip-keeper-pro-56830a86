@@ -280,6 +280,65 @@ const StaffPayments = () => {
     },
   });
 
+  const editInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      if (!editDialog) throw new Error("No invoice selected");
+      const baseAmount = editForm.days_worked * editForm.daily_rate + editForm.bonus_amount;
+      let grossAmount: number, whtRate: number, whtAmount: number, netAmount: number;
+      if (editForm.wht_mode === "none") {
+        grossAmount = baseAmount; whtRate = 0; whtAmount = 0; netAmount = baseAmount;
+      } else if (editForm.wht_mode === "inclusive") {
+        grossAmount = baseAmount; whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      } else {
+        grossAmount = Math.round(baseAmount / 0.97 * 100) / 100; whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      }
+      const { error } = await supabase.from("staff_invoices").update({
+        staff_id: editForm.staff_id,
+        event_name: editForm.event_name || null,
+        days_worked: editForm.days_worked,
+        daily_rate: editForm.daily_rate,
+        bonus_amount: editForm.bonus_amount,
+        gross_amount: grossAmount,
+        wht_rate: whtRate,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        work_start_date: editForm.work_start_date || null,
+        work_end_date: editForm.work_end_date || null,
+        notes: editForm.notes || null,
+      }).eq("id", editDialog.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      setEditDialog(null);
+      toast({ title: "แก้ไขรายการสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
+
+  const openEditDialog = (inv: any) => {
+    const whtMode = Number(inv.wht_rate) === 0 ? "none" : (inv.notes?.includes("exclusive") ? "exclusive" : "inclusive");
+    setEditForm({
+      staff_id: inv.staff_id,
+      event_name: inv.event_name || "",
+      days_worked: Number(inv.days_worked),
+      daily_rate: Number(inv.daily_rate),
+      work_start_date: inv.work_start_date || "",
+      work_end_date: inv.work_end_date || "",
+      notes: inv.notes || "",
+      wht_mode: whtMode,
+      bonus_amount: Number(inv.bonus_amount || 0),
+    });
+    setEditDialog(inv);
+  };
+
   const createInvoiceMutation = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
