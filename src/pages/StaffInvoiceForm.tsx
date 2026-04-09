@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FileText, CheckCircle } from "lucide-react";
 import ExpenseClaimSection, { type ExpenseClaimItem } from "@/components/staff/ExpenseClaimSection";
 import SubstituteReceiptGenerator from "@/components/staff/SubstituteReceiptGenerator";
