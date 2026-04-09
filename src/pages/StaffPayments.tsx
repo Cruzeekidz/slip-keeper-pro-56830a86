@@ -311,8 +311,9 @@ const StaffPayments = () => {
         work_start_date: createForm.work_start_date || null,
         work_end_date: createForm.work_end_date || null,
         notes: createForm.notes || null,
-        status: "draft",
+        status: "approved",
         submitted_via: "admin",
+        submitted_at: new Date().toISOString(),
       });
       if (error) throw error;
     },
