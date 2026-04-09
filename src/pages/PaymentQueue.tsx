@@ -145,13 +145,16 @@ const PaymentQueue = () => {
 
         // 3. Send slip to staff via LINE
         try {
-          await supabase.functions.invoke("notify-staff-payment", {
-            body: {
-              staff_id: inv.staff_profiles ? (pendingInvoices.find(i => i.id === invoiceId) as any)?.staff_id : null,
-              amount: Number(inv.net_amount),
-              payment_slip_path: path,
-            },
-          });
+          const staffId = (pendingInvoices.find(i => i.id === invoiceId))?.staff_id;
+          if (staffId) {
+            await supabase.functions.invoke("notify-staff-payment", {
+              body: {
+                staff_id: staffId,
+                amount: Number(inv.net_amount),
+                payment_slip_path: path,
+              },
+            });
+          }
         } catch (notifyErr) {
           console.error("Failed to notify staff:", notifyErr);
         }
