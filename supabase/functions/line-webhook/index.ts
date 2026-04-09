@@ -943,18 +943,22 @@ async function autoMatchPayment(
   // Helper: strip Thai honorific prefixes for better matching
   const stripPrefix = (name: string) => name.replace(/^(น้อง|พี่|ครู|อาจารย์|คุณ|นาย|นาง|น\.ส\.|นางสาว)\s*/i, '').trim();
 
+  // Helper: clean bank account number (remove dashes, spaces)
+  const cleanAccount = (acct: string | null | undefined) => (acct || '').replace(/[-\s]/g, '');
+
   try {
     // --- Staff Invoice matching ---
     const staffName = (extractedData.staff_name as string || '').trim().toLowerCase();
     const receiver = (extractedData.receiver as string || '').trim().toLowerCase();
     const eventName = (extractedData.event_name as string || '').trim().toLowerCase();
+    const slipAccountRaw = (extractedData.transaction_id as string || '').replace(/[-\s]/g, '');
 
-    console.log(`Auto-match: staffName="${staffName}", receiver="${receiver}", amount=${slipAmount}`);
+    console.log(`Auto-match: staffName="${staffName}", receiver="${receiver}", amount=${slipAmount}, slipAccount="${slipAccountRaw}"`);
 
-    if (staffName || (extractedData.subcategory === 'Staff' && receiver)) {
+    if (staffName || (extractedData.subcategory === 'Staff' && receiver) || slipAccountRaw) {
       const { data: pendingStaff } = await supabase
         .from('staff_invoices')
-        .select('id, net_amount, event_name, staff_id, staff_profiles(staff_name, nickname, line_user_id)')
+        .select('id, net_amount, gross_amount, wht_amount, wht_rate, event_name, event_id, staff_id, invoice_number, staff_profiles(staff_name, nickname, line_user_id, bank_account)')
         .eq('user_id', ownerUserId)
         .in('status', ['submitted', 'approved'])
         .is('payment_slip_url', null);
@@ -965,6 +969,13 @@ async function autoMatchPayment(
         const matches = pendingStaff.filter((inv: any) => {
           const invNet = Number(inv.net_amount);
           if (Math.abs(invNet - slipAmount) > tolerance) return false;
+
+          // Bank account match (highest priority)
+          const invBankAccount = cleanAccount(inv.staff_profiles?.bank_account);
+          if (invBankAccount && slipAccountRaw && invBankAccount === slipAccountRaw) {
+            console.log(`Auto-match: bank account matched for inv ${inv.id}`);
+            return true;
+          }
 
           const invStaffName = (inv.staff_profiles?.staff_name || '').toLowerCase();
           const invNickname = (inv.staff_profiles?.nickname || '').toLowerCase();
@@ -984,8 +995,17 @@ async function autoMatchPayment(
             );
           });
 
+          // Also try matching receiver against bank account
+          if (!nameMatch && invBankAccount && receiver) {
+            const receiverClean = receiver.replace(/[-\s]/g, '');
+            if (invBankAccount.includes(receiverClean) || receiverClean.includes(invBankAccount)) {
+              console.log(`Auto-match: receiver matched bank account for inv ${inv.id}`);
+              return true;
+            }
+          }
+
           if (!nameMatch) {
-            console.log(`Auto-match: no name match for inv ${inv.id} (staff="${invStaffName}", nick="${invNickname}")`);
+            console.log(`Auto-match: no name/account match for inv ${inv.id} (staff="${invStaffName}", nick="${invNickname}", bank="${invBankAccount}")`);
           }
 
           return nameMatch;
