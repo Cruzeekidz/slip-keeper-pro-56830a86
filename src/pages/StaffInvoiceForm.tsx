@@ -42,11 +42,12 @@ const StaffInvoiceForm = () => {
     notes: "",
   });
 
-  const [whtMode] = useState<"inclusive" | "exclusive">("inclusive");
+  const [whtMode, setWhtMode] = useState<"inclusive" | "exclusive" | "none">("inclusive");
 
   const baseAmount = form.days_worked * form.daily_rate;
-  const grossAmount = whtMode === "inclusive" ? baseAmount : Math.round(baseAmount / 0.97 * 100) / 100;
-  const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+  const grossAmount = whtMode === "exclusive" ? Math.round(baseAmount / 0.97 * 100) / 100 : baseAmount;
+  const whtRate = whtMode === "none" ? 0 : 3;
+  const whtAmount = whtMode === "none" ? 0 : Math.round(grossAmount * 0.03 * 100) / 100;
   const netAmount = grossAmount - whtAmount;
   const expenseTotal = expenseClaims.reduce((s, i) => s + i.amount, 0);
   const grandTotal = netAmount + expenseTotal;
