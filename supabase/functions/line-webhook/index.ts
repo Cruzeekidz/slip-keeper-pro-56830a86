@@ -708,12 +708,9 @@ serve(async (req) => {
           }
 
           if (isDuplicate) {
-            // Still forward to recipients even if duplicate
-            await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
-
             const amt = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : '';
             await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}\n📤 ส่งต่อให้นักบัญชีแล้ว`);
+              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}`);
             continue;
           }
         }
@@ -746,9 +743,6 @@ serve(async (req) => {
             LINE_CHANNEL_ACCESS_TOKEN
           );
         }
-
-        // 7b. Forward to recipients
-        await forwardToRecipients(supabase, LINE_CHANNEL_ACCESS_TOKEN, mapping?.supabase_user_id, storagePath, extractedData, memo, isImage);
 
         // 8. Reply to user with rich Flex Message
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
@@ -1098,80 +1092,3 @@ async function autoMatchPayment(
   return matchMsg;
 }
 
-async function forwardToRecipients(
-  supabase: ReturnType<typeof createClient>,
-  lineToken: string,
-  ownerUserId: string | undefined,
-  storagePath: string,
-  extractedData: Record<string, unknown> | null,
-  memo: string | null,
-  isImage: boolean
-) {
-  if (!ownerUserId) return;
-
-  // Skip forwarding for PERSONAL and TRANSFER transactions — only forward BUSINESS
-  const txnType = extractedData?.transaction_type as string | null;
-  if (txnType !== 'BUSINESS') {
-    console.log(`Skipping forward: ${txnType || 'unknown'} transaction (not BUSINESS)`);
-    return;
-  }
-
-  try {
-    // Get active forward recipients for this user
-    const { data: recipients, error } = await supabase
-      .from('forward_recipients')
-      .select('*')
-      .eq('user_id', ownerUserId)
-      .eq('is_active', true);
-
-    if (error || !recipients || recipients.length === 0) return;
-
-    // Create signed URL for image forwarding
-    let imageUrl: string | null = null;
-    if (isImage) {
-      const { data: signedData } = await supabase.storage
-        .from('receipts')
-        .createSignedUrl(storagePath, 3600); // 1 hour
-      imageUrl = signedData?.signedUrl || null;
-    }
-
-    // Build summary text
-    const amount = extractedData?.amount ? `${Number(extractedData.amount).toLocaleString()} บาท` : 'ไม่ทราบ';
-    const cat = extractedData?.transaction_type || '-';
-    const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
-    const sub = extractedData?.subcategory ? ` > ${extractedData.subcategory}` : '';
-    const tag = extractedData?.project_tag ? `\n🏷️ ${extractedData.project_tag}` : '';
-    const desc = extractedData?.description ? `\n📝 ${extractedData.description}` : '';
-    const memoInfo = memo ? `\n💬 Memo: ${memo}` : '';
-    const date = extractedData?.date || new Date().toISOString().split('T')[0];
-
-    const summaryText = `📋 สลิปใหม่\n💰 ${amount}\n📅 ${date}\n📂 ${cat}${group}${sub}${tag}${desc}${memoInfo}`;
-
-    for (const recipient of recipients) {
-      const messages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}> = [];
-
-      // Forward image if enabled and available
-      if (recipient.forward_image && imageUrl && isImage) {
-        messages.push({
-          type: "image",
-          originalContentUrl: imageUrl,
-          previewImageUrl: imageUrl,
-        });
-      }
-
-      // Forward summary if enabled
-      if (recipient.forward_summary) {
-        messages.push({ type: "text", text: summaryText });
-      }
-
-      if (messages.length > 0) {
-        await pushMessage(lineToken, recipient.line_user_id, messages);
-      }
-    }
-
-    console.log(`Forwarded to ${recipients.length} recipient(s)`);
-  } catch (e) {
-    console.error("Forward error:", e);
-    // Don't throw - forwarding failure shouldn't break the main flow
-  }
-}
