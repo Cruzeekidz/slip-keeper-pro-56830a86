@@ -117,7 +117,7 @@ const StaffInvoiceForm = () => {
       days_worked: form.days_worked,
       daily_rate: form.daily_rate,
       gross_amount: grossAmount,
-      wht_rate: 3,
+      wht_rate: whtRate,
       wht_amount: whtAmount,
       net_amount: netAmount,
       work_start_date: form.work_start_date || null,
@@ -257,6 +257,25 @@ const StaffInvoiceForm = () => {
                 </div>
               </div>
 
+              {/* WHT mode */}
+              <div>
+                <Label>รูปแบบหัก ณ ที่จ่าย</Label>
+                <RadioGroup value={whtMode} onValueChange={(v) => setWhtMode(v as "inclusive" | "exclusive" | "none")} className="flex flex-wrap gap-3 mt-1">
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="inclusive" id="wht-inc" />
+                    <Label htmlFor="wht-inc" className="font-normal">รวมแล้ว 3%</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="exclusive" id="wht-exc" />
+                    <Label htmlFor="wht-exc" className="font-normal">ไม่รวม (Net)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="none" id="wht-none" />
+                    <Label htmlFor="wht-none" className="font-normal">ไม่หัก ณ ที่จ่าย</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
               {/* Notes */}
               <div>
                 <Label>หมายเหตุ</Label>
@@ -298,14 +317,23 @@ const StaffInvoiceForm = () => {
                   <span>Gross (ค่าแรง)</span>
                   <span className="font-medium">{grossAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
                 </div>
-                <div className="flex justify-between text-destructive">
-                  <span>หัก ณ ที่จ่าย 3%</span>
-                  <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>ค่าแรงสุทธิ (Net)</span>
-                  <span className="font-medium">{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
-                </div>
+                {whtMode !== "none" ? (
+                  <>
+                    <div className="flex justify-between text-destructive">
+                      <span>หัก ณ ที่จ่าย 3%</span>
+                      <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span>ค่าแรงสุทธิ (Net)</span>
+                      <span className="font-medium">{netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>ไม่หัก ณ ที่จ่าย</span>
+                    <span>Net = Gross</span>
+                  </div>
+                )}
 
                 {expenseTotal > 0 && (
                   <>
