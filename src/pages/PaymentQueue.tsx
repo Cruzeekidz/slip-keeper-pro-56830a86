@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { buildUploadPath } from "@/lib/storage-path";
 
 interface PaymentItem {
   id: string;
+  staff_id: string;
   invoice_number: string;
   event_name: string | null;
   event_id: string | null;
@@ -76,7 +78,7 @@ const PaymentQueue = () => {
       });
       if (uploadErr) throw uploadErr;
 
-      // Find the invoice to check WHT
+      // Find the invoice to check WHT and amounts
       const inv = pendingInvoices.find((i) => i.id === invoiceId);
 
       const { error } = await supabase.from("staff_invoices").update({
@@ -86,8 +88,12 @@ const PaymentQueue = () => {
       } as any).eq("id", invoiceId);
       if (error) throw error;
 
-      // If WHT > 0, create a paired WHT expense as credit
-      if (inv && Number(inv.wht_amount) > 0) {
+      if (inv) {
+        const grossAmount = Number(inv.gross_amount);
+        const whtAmount = Number(inv.wht_amount);
+        const today = new Date().toISOString().split("T")[0];
+
+        // Resolve project_tag from event_registry
         let projectTag: string | null = null;
         if (inv.event_id) {
           const { data: evReg } = await supabase
@@ -97,22 +103,61 @@ const PaymentQueue = () => {
             .maybeSingle();
           if (evReg) projectTag = evReg.project_tag;
         }
+
+        // 1. Record Gross as expense (ค่าแรงทีมงาน - ต้นทุนงาน)
         await supabase.from("expenses").insert({
           user_id: user.id,
-          amount: Number(inv.wht_amount),
-          category: "ภาษีหัก ณ ที่จ่าย",
+          amount: grossAmount,
+          category: "ธุรกิจ",
           subcategory: "Staff",
-          description: `ภาษีหัก ณ ที่จ่าย 3% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
-          expense_date: new Date().toISOString().split("T")[0],
+          description: `ค่าแรง - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
+          expense_date: today,
           transaction_direction: "EXPENSE",
           transaction_type: "BUSINESS",
           category_group: "EVENT",
           project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
-          receiver: "สรรพากร",
-          memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number}`,
+          receiver: inv.staff_profiles?.staff_name || null,
+          receipt_url: path,
+          memo_text: `${inv.invoice_number} — Gross ${grossAmount.toLocaleString()} / Net ${Number(inv.net_amount).toLocaleString()}`,
         });
+
+        // 2. Record WHT as liability (ภาษีค้างจ่าย - รอนำส่งสรรพากร)
+        if (whtAmount > 0) {
+          await supabase.from("expenses").insert({
+            user_id: user.id,
+            amount: whtAmount,
+            category: "ภาษีหัก ณ ที่จ่าย",
+            subcategory: "Staff",
+            description: `ภาษีหัก ณ ที่จ่าย ${Number(inv.wht_rate)}% - ${inv.staff_profiles?.staff_name || ""} ${inv.event_name || ""}`.trim(),
+            expense_date: today,
+            transaction_direction: "EXPENSE",
+            transaction_type: "BUSINESS",
+            category_group: "EVENT",
+            project_tag: projectTag,
+            staff_name: inv.staff_profiles?.staff_name || null,
+            event_name: inv.event_name || null,
+            receiver: "สรรพากร",
+            memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number}`,
+          });
+        }
+
+        // 3. Send slip to staff via LINE
+        try {
+          const staffId = (pendingInvoices.find(i => i.id === invoiceId))?.staff_id;
+          if (staffId) {
+            await supabase.functions.invoke("notify-staff-payment", {
+              body: {
+                staff_id: staffId,
+                amount: Number(inv.net_amount),
+                payment_slip_path: path,
+              },
+            });
+          }
+        } catch (notifyErr) {
+          console.error("Failed to notify staff:", notifyErr);
+        }
       }
     },
     onSuccess: () => {
