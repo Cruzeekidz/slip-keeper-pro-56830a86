@@ -56,7 +56,7 @@ const StaffPayments = () => {
     work_start_date: "",
     work_end_date: "",
     notes: "",
-    wht_mode: "inclusive" as "inclusive" | "exclusive",
+    wht_mode: "inclusive" as "inclusive" | "exclusive" | "none",
   });
 
   const { data: invoices = [], isLoading } = useQuery({
@@ -114,26 +114,33 @@ const StaffPayments = () => {
   });
 
   const toggleWhtModeMutation = useMutation({
-    mutationFn: async ({ id, mode }: { id: string; mode: "inclusive" | "exclusive" }) => {
+    mutationFn: async ({ id, mode }: { id: string; mode: "inclusive" | "exclusive" | "none" }) => {
       const inv = invoices.find((i: any) => i.id === id);
       if (!inv) throw new Error("Not found");
       const baseAmount = Number(inv.days_worked) * Number(inv.daily_rate) + Number(inv.bonus_amount || 0);
       let grossAmount: number;
+      let whtRate: number;
       let whtAmount: number;
       let netAmount: number;
-      if (mode === "inclusive") {
-        // baseAmount = gross
+      if (mode === "none") {
         grossAmount = baseAmount;
+        whtRate = 0;
+        whtAmount = 0;
+        netAmount = baseAmount;
+      } else if (mode === "inclusive") {
+        grossAmount = baseAmount;
+        whtRate = 3;
         whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
         netAmount = grossAmount - whtAmount;
       } else {
-        // baseAmount = net, calculate gross back
         grossAmount = Math.round(baseAmount / 0.97 * 100) / 100;
+        whtRate = 3;
         whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
         netAmount = grossAmount - whtAmount;
       }
       const { error } = await supabase.from("staff_invoices").update({
         gross_amount: grossAmount,
+        wht_rate: whtRate,
         wht_amount: whtAmount,
         net_amount: netAmount,
         notes: `WHT mode: ${mode}`,
@@ -267,11 +274,26 @@ const StaffPayments = () => {
       if (!createForm.staff_id) throw new Error("กรุณาเลือกทีมงาน");
 
       const baseAmount = createForm.days_worked * createForm.daily_rate;
-      const grossAmount = createForm.wht_mode === "inclusive"
-        ? baseAmount
-        : Math.round(baseAmount / 0.97 * 100) / 100;
-      const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
-      const netAmount = grossAmount - whtAmount;
+      let grossAmount: number;
+      let whtRate: number;
+      let whtAmount: number;
+      let netAmount: number;
+      if (createForm.wht_mode === "none") {
+        grossAmount = baseAmount;
+        whtRate = 0;
+        whtAmount = 0;
+        netAmount = baseAmount;
+      } else if (createForm.wht_mode === "inclusive") {
+        grossAmount = baseAmount;
+        whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      } else {
+        grossAmount = Math.round(baseAmount / 0.97 * 100) / 100;
+        whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      }
 
       const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
 
@@ -283,7 +305,7 @@ const StaffPayments = () => {
         days_worked: createForm.days_worked,
         daily_rate: createForm.daily_rate,
         gross_amount: grossAmount,
-        wht_rate: 3,
+        wht_rate: whtRate,
         wht_amount: whtAmount,
         net_amount: netAmount,
         work_start_date: createForm.work_start_date || null,
@@ -333,8 +355,9 @@ const StaffPayments = () => {
   };
 
   const createBaseAmount = createForm.days_worked * createForm.daily_rate;
-  const createGross = createForm.wht_mode === "inclusive" ? createBaseAmount : Math.round(createBaseAmount / 0.97 * 100) / 100;
-  const createWht = Math.round(createGross * 0.03 * 100) / 100;
+  const createWhtRate = createForm.wht_mode === "none" ? 0 : 3;
+  const createGross = createForm.wht_mode === "exclusive" ? Math.round(createBaseAmount / 0.97 * 100) / 100 : createBaseAmount;
+  const createWht = createForm.wht_mode === "none" ? 0 : Math.round(createGross * 0.03 * 100) / 100;
   const createNet = createGross - createWht;
 
   const filtered = filterStatus === "all" ? invoices : invoices.filter((i: any) => i.status === filterStatus);
@@ -464,10 +487,10 @@ const StaffPayments = () => {
                         <TableCell className="text-right">{Number(inv.gross_amount).toLocaleString()}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex items-center gap-1 justify-end">
-                            <span className="text-destructive">{Number(inv.wht_amount).toLocaleString()}</span>
+                            <span className={Number(inv.wht_amount) > 0 ? "text-destructive" : "text-muted-foreground"}>{Number(inv.wht_amount).toLocaleString()}</span>
                             {inv.status !== "paid" && (
                               <Select
-                                value={inv.notes?.includes("exclusive") ? "exclusive" : "inclusive"}
+                                value={Number(inv.wht_rate) === 0 ? "none" : (inv.notes?.includes("exclusive") ? "exclusive" : "inclusive")}
                                 onValueChange={(v) => toggleWhtModeMutation.mutate({ id: inv.id, mode: v as any })}
                               >
                                 <SelectTrigger className="h-6 w-16 text-[10px] px-1">
@@ -476,6 +499,7 @@ const StaffPayments = () => {
                                 <SelectContent>
                                   <SelectItem value="inclusive">Gross</SelectItem>
                                   <SelectItem value="exclusive">Net</SelectItem>
+                                  <SelectItem value="none">ไม่หัก</SelectItem>
                                 </SelectContent>
                               </Select>
                             )}
@@ -600,14 +624,18 @@ const StaffPayments = () => {
               {/* WHT Mode */}
               <div>
                 <Label>โหมดคำนวณภาษี</Label>
-                <RadioGroup value={createForm.wht_mode} onValueChange={(v) => setCreateForm((p) => ({ ...p, wht_mode: v as any }))} className="flex gap-4 mt-1">
+                <RadioGroup value={createForm.wht_mode} onValueChange={(v) => setCreateForm((p) => ({ ...p, wht_mode: v as any }))} className="flex flex-wrap gap-3 mt-1">
                   <div className="flex items-center gap-2">
-                    <RadioGroupItem value="inclusive" id="wht-inc" />
-                    <Label htmlFor="wht-inc" className="font-normal">รวมภาษีแล้ว</Label>
+                    <RadioGroupItem value="inclusive" id="wht-inc-admin" />
+                    <Label htmlFor="wht-inc-admin" className="font-normal">รวมภาษีแล้ว</Label>
                   </div>
                   <div className="flex items-center gap-2">
-                    <RadioGroupItem value="exclusive" id="wht-exc" />
-                    <Label htmlFor="wht-exc" className="font-normal">ไม่รวมภาษี</Label>
+                    <RadioGroupItem value="exclusive" id="wht-exc-admin" />
+                    <Label htmlFor="wht-exc-admin" className="font-normal">ไม่รวมภาษี</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="none" id="wht-none-admin" />
+                    <Label htmlFor="wht-none-admin" className="font-normal">ไม่หัก ณ ที่จ่าย</Label>
                   </div>
                 </RadioGroup>
               </div>
@@ -623,14 +651,23 @@ const StaffPayments = () => {
                     <span>Gross (บันทึกค่าใช้จ่าย)</span>
                     <span>{createGross.toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between text-destructive">
-                    <span>หัก ณ ที่จ่าย 3%</span>
-                    <span>-{createWht.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-primary border-t pt-1">
-                    <span>Net (ยอดโอน)</span>
-                    <span>{createNet.toLocaleString()}</span>
-                  </div>
+                  {createForm.wht_mode !== "none" ? (
+                    <>
+                      <div className="flex justify-between text-destructive">
+                        <span>หัก ณ ที่จ่าย 3%</span>
+                        <span>-{createWht.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between font-bold text-primary border-t pt-1">
+                        <span>Net (ยอดโอน)</span>
+                        <span>{createNet.toLocaleString()}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-muted-foreground text-xs border-t pt-1">
+                      <span>ไม่หัก ณ ที่จ่าย — Net = Gross</span>
+                      <span className="font-bold text-primary text-sm">{createNet.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
