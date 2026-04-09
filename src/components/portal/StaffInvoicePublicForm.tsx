@@ -47,11 +47,12 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
     notes: "",
   });
 
-  const [whtMode, setWhtMode] = useState<"inclusive" | "exclusive">("inclusive");
+  const [whtMode, setWhtMode] = useState<"inclusive" | "exclusive" | "none">("inclusive");
 
   const baseAmount = form.days_worked * form.daily_rate;
-  const grossAmount = whtMode === "inclusive" ? baseAmount : Math.round(baseAmount / 0.97 * 100) / 100;
-  const whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+  const grossAmount = whtMode === "exclusive" ? Math.round(baseAmount / 0.97 * 100) / 100 : baseAmount;
+  const whtRate = whtMode === "none" ? 0 : 3;
+  const whtAmount = whtMode === "none" ? 0 : Math.round(grossAmount * 0.03 * 100) / 100;
   const netAmount = grossAmount - whtAmount;
 
   // If staff param is provided, load directly
@@ -148,7 +149,7 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
       days_worked: form.days_worked,
       daily_rate: form.daily_rate,
       gross_amount: grossAmount,
-      wht_rate: 3,
+      wht_rate: whtRate,
       wht_amount: whtAmount,
       net_amount: netAmount,
       work_start_date: form.work_start_date || null,
@@ -275,20 +276,27 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
               <Input type="number" value={form.daily_rate} onChange={(e) => setForm({ ...form, daily_rate: Number(e.target.value) })} required />
             </div>
           </div>
-          <div>
-                <Label>รูปแบบหัก ณ ที่จ่าย 3%</Label>
-                <RadioGroup value={whtMode} onValueChange={(v) => setWhtMode(v as "inclusive" | "exclusive")} className="flex gap-4 mt-1">
+              <div>
+                <Label>รูปแบบหัก ณ ที่จ่าย</Label>
+                <RadioGroup value={whtMode} onValueChange={(v) => setWhtMode(v as "inclusive" | "exclusive" | "none")} className="flex flex-wrap gap-3 mt-1">
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="inclusive" id="wht-inc-pub" />
-                    <Label htmlFor="wht-inc-pub" className="font-normal">รวมแล้ว (ค่าแรง = Gross)</Label>
+                    <Label htmlFor="wht-inc-pub" className="font-normal">รวมแล้ว 3%</Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="exclusive" id="wht-exc-pub" />
-                    <Label htmlFor="wht-exc-pub" className="font-normal">ไม่รวม (ค่าแรง = Net)</Label>
+                    <Label htmlFor="wht-exc-pub" className="font-normal">ไม่รวม (Net)</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="none" id="wht-none-pub" />
+                    <Label htmlFor="wht-none-pub" className="font-normal">ไม่หัก ณ ที่จ่าย</Label>
                   </div>
                 </RadioGroup>
                 {whtMode === "exclusive" && (
                   <p className="text-xs text-muted-foreground mt-1">ค่าแรง/วัน คือยอดสุทธิที่ทีมงานได้รับ ระบบจะคำนวณ Gross = {form.daily_rate}/0.97</p>
+                )}
+                {whtMode === "none" && (
+                  <p className="text-xs text-muted-foreground mt-1">ไม่มีการหักภาษี ณ ที่จ่าย — Net = Gross</p>
                 )}
               </div>
           <div>
@@ -310,13 +318,22 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
               <span>บันทึกค่าใช้จ่าย (Gross)</span>
               <span className="font-medium">{grossAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
             </div>
-            <div className="flex justify-between text-destructive">
-              <span>หัก ณ ที่จ่าย 3%</span>
-              <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
-            </div>
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>(นำส่งสรรพากรสิ้นเดือน)</span>
-            </div>
+            {whtMode !== "none" ? (
+              <>
+                <div className="flex justify-between text-destructive">
+                  <span>หัก ณ ที่จ่าย 3%</span>
+                  <span>-{whtAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>(นำส่งสรรพากรสิ้นเดือน)</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>ไม่หัก ณ ที่จ่าย</span>
+                <span>Net = Gross</span>
+              </div>
+            )}
             <Separator />
             <div className="flex justify-between text-lg font-bold text-primary">
               <span>ยอดโอนจริง (Net)</span>
