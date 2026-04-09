@@ -606,6 +606,11 @@ const StaffPayments = () => {
                                 <MessageCircle className="h-3 w-3" />
                               </Button>
                             )}
+                            {inv.status !== "paid" && (
+                              <Button size="sm" variant="outline" onClick={() => openEditDialog(inv)} title="แก้ไข">
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
