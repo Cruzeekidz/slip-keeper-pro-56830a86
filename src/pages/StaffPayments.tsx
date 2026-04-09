@@ -46,6 +46,18 @@ const StaffPayments = () => {
   const [slipUploading, setSlipUploading] = useState(false);
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
+  const [editDialog, setEditDialog] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    staff_id: "",
+    event_name: "",
+    days_worked: 1,
+    daily_rate: 0,
+    work_start_date: "",
+    work_end_date: "",
+    notes: "",
+    wht_mode: "inclusive" as "inclusive" | "exclusive" | "none",
+    bonus_amount: 0,
+  });
 
   // Create invoice form state
   const [createForm, setCreateForm] = useState({
