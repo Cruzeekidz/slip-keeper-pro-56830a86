@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil } from "lucide-react";
 import { buildUploadPath } from "@/lib/storage-path";
 
 const statusColors: Record<string, string> = {
@@ -46,6 +46,18 @@ const StaffPayments = () => {
   const [slipUploading, setSlipUploading] = useState(false);
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
+  const [editDialog, setEditDialog] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    staff_id: "",
+    event_name: "",
+    days_worked: 1,
+    daily_rate: 0,
+    work_start_date: "",
+    work_end_date: "",
+    notes: "",
+    wht_mode: "inclusive" as "inclusive" | "exclusive" | "none",
+    bonus_amount: 0,
+  });
 
   // Create invoice form state
   const [createForm, setCreateForm] = useState({
@@ -267,6 +279,65 @@ const StaffPayments = () => {
       toast({ title: "ลบรายการสำเร็จ" });
     },
   });
+
+  const editInvoiceMutation = useMutation({
+    mutationFn: async () => {
+      if (!editDialog) throw new Error("No invoice selected");
+      const baseAmount = editForm.days_worked * editForm.daily_rate + editForm.bonus_amount;
+      let grossAmount: number, whtRate: number, whtAmount: number, netAmount: number;
+      if (editForm.wht_mode === "none") {
+        grossAmount = baseAmount; whtRate = 0; whtAmount = 0; netAmount = baseAmount;
+      } else if (editForm.wht_mode === "inclusive") {
+        grossAmount = baseAmount; whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      } else {
+        grossAmount = Math.round(baseAmount / 0.97 * 100) / 100; whtRate = 3;
+        whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
+        netAmount = grossAmount - whtAmount;
+      }
+      const { error } = await supabase.from("staff_invoices").update({
+        staff_id: editForm.staff_id,
+        event_name: editForm.event_name || null,
+        days_worked: editForm.days_worked,
+        daily_rate: editForm.daily_rate,
+        bonus_amount: editForm.bonus_amount,
+        gross_amount: grossAmount,
+        wht_rate: whtRate,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        work_start_date: editForm.work_start_date || null,
+        work_end_date: editForm.work_end_date || null,
+        notes: editForm.notes || null,
+      }).eq("id", editDialog.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      setEditDialog(null);
+      toast({ title: "แก้ไขรายการสำเร็จ" });
+    },
+    onError: (err: any) => {
+      toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
+    },
+  });
+
+  const openEditDialog = (inv: any) => {
+    const whtMode = Number(inv.wht_rate) === 0 ? "none" : (inv.notes?.includes("exclusive") ? "exclusive" : "inclusive");
+    setEditForm({
+      staff_id: inv.staff_id,
+      event_name: inv.event_name || "",
+      days_worked: Number(inv.days_worked),
+      daily_rate: Number(inv.daily_rate),
+      work_start_date: inv.work_start_date || "",
+      work_end_date: inv.work_end_date || "",
+      notes: inv.notes || "",
+      wht_mode: whtMode,
+      bonus_amount: Number(inv.bonus_amount || 0),
+    });
+    setEditDialog(inv);
+  };
 
   const createInvoiceMutation = useMutation({
     mutationFn: async () => {
@@ -533,6 +604,11 @@ const StaffPayments = () => {
                                 className="text-green-600 border-green-300 hover:bg-green-50"
                               >
                                 <MessageCircle className="h-3 w-3" />
+                              </Button>
+                            )}
+                            {inv.status !== "paid" && (
+                              <Button size="sm" variant="outline" onClick={() => openEditDialog(inv)} title="แก้ไข">
+                                <Pencil className="h-3 w-3" />
                               </Button>
                             )}
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
@@ -824,6 +900,125 @@ const StaffPayments = () => {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Invoice Dialog */}
+        <Dialog open={!!editDialog} onOpenChange={(open) => { if (!open) setEditDialog(null); }}>
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Pencil className="h-5 w-5" />
+                แก้ไขรายการ {editDialog?.invoice_number}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label>ทีมงาน *</Label>
+                <Select value={editForm.staff_id} onValueChange={(v) => {
+                  const staff = staffList.find((s) => s.id === v);
+                  setEditForm((p) => ({ ...p, staff_id: v, daily_rate: staff ? Number(staff.daily_rate) : p.daily_rate }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="เลือกทีมงาน" /></SelectTrigger>
+                  <SelectContent>
+                    {staffList.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.staff_name} {s.nickname ? `(${s.nickname})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>อีเวนท์</Label>
+                <Select value={editForm.event_name} onValueChange={(v) => setEditForm((p) => ({ ...p, event_name: v }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกอีเวนท์ (ไม่บังคับ)" /></SelectTrigger>
+                  <SelectContent>
+                    {events.map((e) => (
+                      <SelectItem key={e.id} value={e.event_name}>{e.event_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>จำนวนวัน</Label>
+                  <Input type="number" min={0.5} step={0.5} value={editForm.days_worked} onChange={(e) => setEditForm((p) => ({ ...p, days_worked: Number(e.target.value) }))} />
+                </div>
+                <div>
+                  <Label>ค่าแรง/วัน</Label>
+                  <Input type="number" min={0} value={editForm.daily_rate} onChange={(e) => setEditForm((p) => ({ ...p, daily_rate: Number(e.target.value) }))} />
+                </div>
+              </div>
+
+              <div>
+                <Label>โบนัส (บาท)</Label>
+                <Input type="number" min={0} value={editForm.bonus_amount} onChange={(e) => setEditForm((p) => ({ ...p, bonus_amount: Number(e.target.value) }))} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>วันเริ่มงาน</Label>
+                  <Input type="date" value={editForm.work_start_date} onChange={(e) => setEditForm((p) => ({ ...p, work_start_date: e.target.value }))} />
+                </div>
+                <div>
+                  <Label>วันสิ้นสุด</Label>
+                  <Input type="date" value={editForm.work_end_date} onChange={(e) => setEditForm((p) => ({ ...p, work_end_date: e.target.value }))} />
+                </div>
+              </div>
+
+              <div>
+                <Label>โหมดคำนวณภาษี</Label>
+                <RadioGroup value={editForm.wht_mode} onValueChange={(v) => setEditForm((p) => ({ ...p, wht_mode: v as any }))} className="flex flex-wrap gap-3 mt-1">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="inclusive" id="wht-inc-edit" />
+                    <Label htmlFor="wht-inc-edit" className="font-normal">รวมภาษีแล้ว</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="exclusive" id="wht-exc-edit" />
+                    <Label htmlFor="wht-exc-edit" className="font-normal">ไม่รวมภาษี</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="none" id="wht-none-edit" />
+                    <Label htmlFor="wht-none-edit" className="font-normal">ไม่หัก ณ ที่จ่าย</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Calculation preview */}
+              {editForm.daily_rate > 0 && (() => {
+                const base = editForm.days_worked * editForm.daily_rate + editForm.bonus_amount;
+                const gross = editForm.wht_mode === "exclusive" ? Math.round(base / 0.97 * 100) / 100 : base;
+                const wht = editForm.wht_mode === "none" ? 0 : Math.round(gross * 0.03 * 100) / 100;
+                const net = gross - wht;
+                return (
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-1 text-sm">
+                    <div className="flex justify-between font-medium">
+                      <span>Gross</span><span>{gross.toLocaleString()}</span>
+                    </div>
+                    {editForm.wht_mode !== "none" && (
+                      <div className="flex justify-between text-destructive">
+                        <span>หัก ณ ที่จ่าย 3%</span><span>-{wht.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-primary border-t pt-1">
+                      <span>Net</span><span>{net.toLocaleString()}</span>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <Label>หมายเหตุ</Label>
+                <Textarea value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} rows={2} />
+              </div>
+
+              <Button className="w-full" onClick={() => editInvoiceMutation.mutate()} disabled={editInvoiceMutation.isPending || !editForm.staff_id}>
+                {editInvoiceMutation.isPending ? "กำลังบันทึก..." : "บันทึกการแก้ไข"}
+              </Button>
+            </div>
           </DialogContent>
         </Dialog>
       </main>
