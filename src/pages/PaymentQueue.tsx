@@ -15,6 +15,7 @@ import { buildUploadPath } from "@/lib/storage-path";
 
 interface PaymentItem {
   id: string;
+  staff_id: string;
   invoice_number: string;
   event_name: string | null;
   event_id: string | null;
