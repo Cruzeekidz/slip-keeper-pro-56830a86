@@ -75,6 +75,12 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     transaction_direction: "EXPENSE" as TransactionDirection,
     payee_group: "",
     event_name: "",
+    sender_account_name: "",
+    sender_account_number: "",
+    sender_bank: "",
+    receiver_account_name: "",
+    receiver_account_number: "",
+    receiver_bank: "",
   });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
@@ -84,6 +90,8 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [existingEventNames, setExistingEventNames] = useState<string[]>([]);
   const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [dateWarning, setDateWarning] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
