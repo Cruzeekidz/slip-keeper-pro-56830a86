@@ -202,6 +202,13 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     e.preventDefault();
     if (!expense) return;
 
+    // Hard block พ.ศ. years
+    const y = new Date(formData.expense_date).getFullYear();
+    if (y > 2500) {
+      toast({ title: "วันที่ไม่ถูกต้อง", description: `ปี ${y} ดูเป็น พ.ศ. กรุณาเปลี่ยนเป็น ค.ศ. ${y - 543}`, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase
