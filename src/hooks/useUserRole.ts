@@ -6,6 +6,7 @@ export function useUserRole() {
   const { user, loading: authLoading } = useAuth();
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAccountant, setIsAccountant] = useState(false);
   const [roleLoading, setRoleLoading] = useState(true);
 
   useEffect(() => {
@@ -13,6 +14,7 @@ export function useUserRole() {
     if (!user) {
       setIsSuperAdmin(false);
       setIsAdmin(false);
+      setIsAccountant(false);
       setRoleLoading(false);
       return;
     }
@@ -27,9 +29,11 @@ export function useUserRole() {
         const roles = data.map(r => r.role);
         setIsSuperAdmin(roles.includes('super_admin'));
         setIsAdmin(roles.includes('admin') || roles.includes('super_admin'));
+        setIsAccountant(roles.includes('accountant' as never));
       } else {
         setIsSuperAdmin(false);
         setIsAdmin(false);
+        setIsAccountant(false);
       }
       setRoleLoading(false);
     };
@@ -37,5 +41,5 @@ export function useUserRole() {
     checkRole();
   }, [user, authLoading]);
 
-  return { isSuperAdmin, isAdmin, loading: authLoading || roleLoading };
+  return { isSuperAdmin, isAdmin, isAccountant, loading: authLoading || roleLoading };
 }
