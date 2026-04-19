@@ -35,6 +35,19 @@ interface Expense {
   transaction_direction?: string | null;
   payee_group?: string | null;
   event_name?: string | null;
+  sender_account_name?: string | null;
+  sender_account_number?: string | null;
+  sender_bank?: string | null;
+  receiver_account_name?: string | null;
+  receiver_account_number?: string | null;
+  receiver_bank?: string | null;
+}
+
+interface BankAccount {
+  id: string;
+  account_name: string;
+  account_number: string;
+  bank_name: string;
 }
 
 interface ExpenseEditDialogProps {
