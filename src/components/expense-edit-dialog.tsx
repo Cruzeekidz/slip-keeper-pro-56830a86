@@ -114,7 +114,17 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         transaction_direction: (expense.transaction_direction as TransactionDirection) || "EXPENSE",
         payee_group: expense.payee_group || "",
         event_name: expense.event_name || "",
+        sender_account_name: expense.sender_account_name || "",
+        sender_account_number: expense.sender_account_number || "",
+        sender_bank: expense.sender_bank || "",
+        receiver_account_name: expense.receiver_account_name || "",
+        receiver_account_number: expense.receiver_account_number || "",
+        receiver_bank: expense.receiver_bank || "",
       });
+      const y = new Date(expense.expense_date).getFullYear();
+      if (y > 2500) setDateWarning(`⚠️ ปีที่บันทึก (${y}) ดูเป็น พ.ศ. — ควรเป็น ค.ศ. ${y - 543}`);
+      else if (y > new Date().getFullYear() + 1) setDateWarning(`⚠️ วันที่อยู่ในอนาคตเกิน 1 ปี — โปรดตรวจสอบ`);
+      else setDateWarning("");
     }
   }, [expense]);
 
@@ -122,7 +132,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes, bankRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
@@ -131,6 +141,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         supabase.from('payee_groups').select('payee_pattern, group_name'),
         supabase.from('expenses').select('event_name').not('event_name', 'is', null),
         supabase.from('event_registry').select('project_tag, event_name, event_date').eq('is_active', true).order('event_date', { ascending: false, nullsFirst: false }),
+        supabase.from('bank_accounts').select('id, account_name, account_number, bank_name').eq('is_active', true),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
@@ -140,6 +151,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
       setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
       setRegistryTags(registryRes.data || []);
+      setBankAccounts((bankRes.data || []) as BankAccount[]);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
