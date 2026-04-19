@@ -35,6 +35,19 @@ interface Expense {
   transaction_direction?: string | null;
   payee_group?: string | null;
   event_name?: string | null;
+  sender_account_name?: string | null;
+  sender_account_number?: string | null;
+  sender_bank?: string | null;
+  receiver_account_name?: string | null;
+  receiver_account_number?: string | null;
+  receiver_bank?: string | null;
+}
+
+interface BankAccount {
+  id: string;
+  account_name: string;
+  account_number: string;
+  bank_name: string;
 }
 
 interface ExpenseEditDialogProps {
@@ -62,6 +75,12 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     transaction_direction: "EXPENSE" as TransactionDirection,
     payee_group: "",
     event_name: "",
+    sender_account_name: "",
+    sender_account_number: "",
+    sender_bank: "",
+    receiver_account_name: "",
+    receiver_account_number: "",
+    receiver_bank: "",
   });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
@@ -71,6 +90,8 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [existingEventNames, setExistingEventNames] = useState<string[]>([]);
   const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
+  const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [dateWarning, setDateWarning] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
@@ -93,7 +114,17 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         transaction_direction: (expense.transaction_direction as TransactionDirection) || "EXPENSE",
         payee_group: expense.payee_group || "",
         event_name: expense.event_name || "",
+        sender_account_name: expense.sender_account_name || "",
+        sender_account_number: expense.sender_account_number || "",
+        sender_bank: expense.sender_bank || "",
+        receiver_account_name: expense.receiver_account_name || "",
+        receiver_account_number: expense.receiver_account_number || "",
+        receiver_bank: expense.receiver_bank || "",
       });
+      const y = new Date(expense.expense_date).getFullYear();
+      if (y > 2500) setDateWarning(`⚠️ ปีที่บันทึก (${y}) ดูเป็น พ.ศ. — ควรเป็น ค.ศ. ${y - 543}`);
+      else if (y > new Date().getFullYear() + 1) setDateWarning(`⚠️ วันที่อยู่ในอนาคตเกิน 1 ปี — โปรดตรวจสอบ`);
+      else setDateWarning("");
     }
   }, [expense]);
 
@@ -101,7 +132,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   const fetchSuggestions = async () => {
     try {
-      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes] = await Promise.all([
+      const [senderRes, receiverRes, merchantRes, tagRes, subcatRes, pgRes, eventRes, registryRes, bankRes] = await Promise.all([
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
@@ -110,6 +141,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         supabase.from('payee_groups').select('payee_pattern, group_name'),
         supabase.from('expenses').select('event_name').not('event_name', 'is', null),
         supabase.from('event_registry').select('project_tag, event_name, event_date').eq('is_active', true).order('event_date', { ascending: false, nullsFirst: false }),
+        supabase.from('bank_accounts').select('id, account_name, account_number, bank_name').eq('is_active', true),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
@@ -119,6 +151,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
       setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
       setRegistryTags(registryRes.data || []);
+      setBankAccounts((bankRes.data || []) as BankAccount[]);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
@@ -169,6 +202,13 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     e.preventDefault();
     if (!expense) return;
 
+    // Hard block พ.ศ. years
+    const y = new Date(formData.expense_date).getFullYear();
+    if (y > 2500) {
+      toast({ title: "วันที่ไม่ถูกต้อง", description: `ปี ${y} ดูเป็น พ.ศ. กรุณาเปลี่ยนเป็น ค.ศ. ${y - 543}`, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
     try {
       const { error } = await supabase
@@ -190,6 +230,12 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           transaction_direction: formData.transaction_direction,
           payee_group: formData.payee_group || null,
           event_name: formData.event_name || null,
+          sender_account_name: formData.sender_account_name || null,
+          sender_account_number: formData.sender_account_number || null,
+          sender_bank: formData.sender_bank || null,
+          receiver_account_name: formData.receiver_account_name || null,
+          receiver_account_number: formData.receiver_account_number || null,
+          receiver_bank: formData.receiver_bank || null,
         })
         .eq('id', expense.id);
 
@@ -347,14 +393,56 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           <div>
             <Label htmlFor="expense_date">วันที่</Label>
             <div className="relative">
-              <Input id="expense_date" type="date" value={formData.expense_date}
-                onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })} required />
+              <Input id="expense_date" type="date" value={formData.expense_date} max="2030-12-31"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setFormData({ ...formData, expense_date: v });
+                  const yr = new Date(v).getFullYear();
+                  if (yr > 2500) setDateWarning(`⚠️ ปี ${yr} ดูเป็น พ.ศ. — ควรเป็น ค.ศ. ${yr - 543}`);
+                  else if (yr > new Date().getFullYear() + 1) setDateWarning(`⚠️ วันที่อยู่ในอนาคตเกิน 1 ปี`);
+                  else setDateWarning("");
+                }} required />
               <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            </div>
+            {dateWarning && <p className="text-xs text-warning mt-1">{dateWarning}</p>}
+          </div>
+
+          {/* บัญชีผู้โอน (จากบัญชีของฉัน) */}
+          <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+            <Label className="flex items-center gap-2 font-semibold"><Send className="h-4 w-4" />บัญชีผู้โอน (จากบัญชีของฉัน)</Label>
+            {bankAccounts.length > 0 && (
+              <Select
+                value={bankAccounts.find(b => b.account_number === formData.sender_account_number)?.id || ""}
+                onValueChange={(id) => {
+                  const b = bankAccounts.find(x => x.id === id);
+                  if (b) setFormData({ ...formData, sender_account_name: b.account_name, sender_account_number: b.account_number, sender_bank: b.bank_name });
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="เลือกจากบัญชีของฉัน" /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map(b => <SelectItem key={b.id} value={b.id}>{b.bank_name} • {b.account_name} • {b.account_number}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
+            <div className="grid grid-cols-3 gap-2">
+              <Input placeholder="ธนาคาร" value={formData.sender_bank} onChange={(e) => setFormData({ ...formData, sender_bank: e.target.value })} />
+              <Input placeholder="ชื่อบัญชี" value={formData.sender_account_name} onChange={(e) => setFormData({ ...formData, sender_account_name: e.target.value })} />
+              <Input placeholder="เลขบัญชี" value={formData.sender_account_number} onChange={(e) => setFormData({ ...formData, sender_account_number: e.target.value })} />
+            </div>
+          </div>
+
+          {/* บัญชีผู้รับเงิน */}
+          <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+            <Label className="flex items-center gap-2 font-semibold"><UserCheck className="h-4 w-4" />บัญชีผู้รับเงิน</Label>
+            <div className="grid grid-cols-3 gap-2">
+              <Input placeholder="ธนาคาร" value={formData.receiver_bank} onChange={(e) => setFormData({ ...formData, receiver_bank: e.target.value })} />
+              <Input placeholder="ชื่อบัญชี" value={formData.receiver_account_name} onChange={(e) => setFormData({ ...formData, receiver_account_name: e.target.value })} />
+              <Input placeholder="เลขบัญชี" value={formData.receiver_account_number} onChange={(e) => setFormData({ ...formData, receiver_account_number: e.target.value })} />
             </div>
           </div>
 
           <div>
-            <Label htmlFor="sender"><div className="flex items-center gap-2"><Send className="h-4 w-4" /><span>ผู้โอน</span></div></Label>
+            <Label htmlFor="sender"><div className="flex items-center gap-2"><Send className="h-4 w-4" /><span>ผู้โอน (ชื่อ)</span></div></Label>
             <Input id="sender" value={formData.sender} onChange={(e) => setFormData({ ...formData, sender: e.target.value })}
               list="senders-list" placeholder="ระบุผู้โอน (ถ้ามี)" />
             <datalist id="senders-list">{senders.map(s => <option key={s} value={s} />)}</datalist>
