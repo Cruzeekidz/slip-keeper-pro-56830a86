@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at: string
+          entity: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          bank_name: string
+          created_at?: string
+          entity?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          bank_name?: string
+          created_at?: string
+          entity?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       deleted_expenses: {
         Row: {
           amount: number
@@ -448,7 +487,13 @@ export type Database = {
           project_tag: string | null
           receipt_url: string | null
           receiver: string | null
+          receiver_account_name: string | null
+          receiver_account_number: string | null
+          receiver_bank: string | null
           sender: string | null
+          sender_account_name: string | null
+          sender_account_number: string | null
+          sender_bank: string | null
           settled_batch_id: string | null
           staff_name: string | null
           subcategory: string | null
@@ -479,7 +524,13 @@ export type Database = {
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
+          receiver_account_name?: string | null
+          receiver_account_number?: string | null
+          receiver_bank?: string | null
           sender?: string | null
+          sender_account_name?: string | null
+          sender_account_number?: string | null
+          sender_bank?: string | null
           settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
@@ -510,7 +561,13 @@ export type Database = {
           project_tag?: string | null
           receipt_url?: string | null
           receiver?: string | null
+          receiver_account_name?: string | null
+          receiver_account_number?: string | null
+          receiver_bank?: string | null
           sender?: string | null
+          sender_account_name?: string | null
+          sender_account_number?: string | null
+          sender_bank?: string | null
           settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
