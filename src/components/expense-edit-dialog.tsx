@@ -230,6 +230,12 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
           transaction_direction: formData.transaction_direction,
           payee_group: formData.payee_group || null,
           event_name: formData.event_name || null,
+          sender_account_name: formData.sender_account_name || null,
+          sender_account_number: formData.sender_account_number || null,
+          sender_bank: formData.sender_bank || null,
+          receiver_account_name: formData.receiver_account_name || null,
+          receiver_account_number: formData.receiver_account_number || null,
+          receiver_bank: formData.receiver_bank || null,
         })
         .eq('id', expense.id);
 
