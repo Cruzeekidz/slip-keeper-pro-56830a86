@@ -98,6 +98,8 @@ const App = () => (
               <Route path="/vendor-management" element={<VendorManagement />} />
               <Route path="/wht-report" element={<WhtReport />} />
               <Route path="/wht-certificates" element={<WhtCertificateList />} />
+              <Route path="/bank-accounts" element={<BankAccounts />} />
+              <Route path="/document-hub" element={<DocumentHub />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
