@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { th } from "date-fns/locale";
 import { ExpenseEditDialog } from "./expense-edit-dialog";
+import { AttachInvoiceDialog } from "./attach-invoice-dialog";
 import { ReceiptGallery } from "./receipt-gallery";
 import { cn } from "@/lib/utils";
 import {
@@ -124,6 +125,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [attachInvoiceExpense, setAttachInvoiceExpense] = useState<Expense | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<number>(-1);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
@@ -569,6 +571,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                     </>
                   )}
                   <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-8 w-8 p-0" title="แก้ไข"><Edit3 className="h-4 w-4" /></Button>
+                  {expense.transaction_type !== 'TRANSFER' && (
+                    <Button variant="ghost" size="sm" onClick={() => setAttachInvoiceExpense(expense)} className="h-8 w-8 p-0 text-primary" title="แนบบิล/ใบกำกับภาษี"><FileText className="h-4 w-4" /></Button>
+                  )}
                   <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-8 w-8 p-0 text-destructive" title="ลบ"><Trash2 className="h-4 w-4" /></Button>
                 </div>
               </div>
@@ -750,7 +755,10 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                         {expense.receipt_url && (
                           <Button variant="ghost" size="sm" onClick={() => viewReceipt(expense.id)} className="h-7 w-7 p-0" title="ดูสลิป"><Eye className="h-3 w-3" /></Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-7 w-7 p-0"><Edit3 className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingExpense(expense); setEditDialogOpen(true); }} className="h-7 w-7 p-0" title="แก้ไข"><Edit3 className="h-3 w-3" /></Button>
+                        {expense.transaction_type !== 'TRANSFER' && (
+                          <Button variant="ghost" size="sm" onClick={() => setAttachInvoiceExpense(expense)} className="h-7 w-7 p-0 text-primary" title="แนบบิล/ใบกำกับภาษี"><FileText className="h-3 w-3" /></Button>
+                        )}
                         <Button variant="ghost" size="sm" onClick={() => deleteExpense(expense.id, expense.receipt_url)} className="h-7 w-7 p-0 text-destructive"><Trash2 className="h-3 w-3" /></Button>
                       </div>
                     </TableCell>
@@ -766,6 +774,13 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         expense={editingExpense}
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['expenses'] })}
+      />
+
+      <AttachInvoiceDialog
+        expense={attachInvoiceExpense}
+        open={!!attachInvoiceExpense}
+        onOpenChange={(o) => { if (!o) setAttachInvoiceExpense(null); }}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['expenses'] })}
       />
 
