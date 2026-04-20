@@ -889,10 +889,13 @@ export type Database = {
           invoice_id: string | null
           notes: string | null
           receipt_url: string | null
+          reimbursed_at: string | null
+          reimbursed_expense_id: string | null
           staff_id: string
           status: string
           substitute_receipt_url: string | null
           user_id: string
+          vendor_invoice_id: string | null
         }
         Insert: {
           amount?: number
@@ -909,10 +912,13 @@ export type Database = {
           invoice_id?: string | null
           notes?: string | null
           receipt_url?: string | null
+          reimbursed_at?: string | null
+          reimbursed_expense_id?: string | null
           staff_id: string
           status?: string
           substitute_receipt_url?: string | null
           user_id: string
+          vendor_invoice_id?: string | null
         }
         Update: {
           amount?: number
@@ -929,10 +935,13 @@ export type Database = {
           invoice_id?: string | null
           notes?: string | null
           receipt_url?: string | null
+          reimbursed_at?: string | null
+          reimbursed_expense_id?: string | null
           staff_id?: string
           status?: string
           substitute_receipt_url?: string | null
           user_id?: string
+          vendor_invoice_id?: string | null
         }
         Relationships: [
           {
@@ -940,6 +949,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "staff_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_expense_claims_reimbursed_expense_id_fkey"
+            columns: ["reimbursed_expense_id"]
+            isOneToOne: false
+            referencedRelation: "expenses"
             referencedColumns: ["id"]
           },
           {
@@ -954,6 +970,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_expense_claims_vendor_invoice_id_fkey"
+            columns: ["vendor_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "vendor_invoices"
             referencedColumns: ["id"]
           },
         ]
@@ -1141,6 +1164,8 @@ export type Database = {
           invoice_date: string | null
           invoice_number: string | null
           is_formal: boolean
+          link_type: string
+          linked_staff_id: string | null
           matched_expense_id: string | null
           net_amount: number
           notes: string | null
@@ -1165,6 +1190,8 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           is_formal?: boolean
+          link_type?: string
+          linked_staff_id?: string | null
           matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
@@ -1189,6 +1216,8 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           is_formal?: boolean
+          link_type?: string
+          linked_staff_id?: string | null
           matched_expense_id?: string | null
           net_amount?: number
           notes?: string | null
@@ -1203,6 +1232,20 @@ export type Database = {
           wht_amount?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_invoices_linked_staff_id_fkey"
+            columns: ["linked_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_invoices_linked_staff_id_fkey"
+            columns: ["linked_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles_public"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_invoices_vendor_id_fkey"
             columns: ["vendor_id"]
