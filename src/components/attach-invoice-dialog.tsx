@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Combobox } from "@/components/ui/combobox";
 import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Receipt, Upload, AlertTriangle, CheckCircle2 } from "lucide-react";
@@ -233,8 +232,6 @@ export function AttachInvoiceDialog({ open, onOpenChange, expense, onSuccess }: 
 
   if (!expense) return null;
 
-  const vendorOptions = vendors.map(v => ({ value: v.id, label: v.company_name + (v.tax_id ? ` (${v.tax_id})` : "") }));
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -256,12 +253,18 @@ export function AttachInvoiceDialog({ open, onOpenChange, expense, onSuccess }: 
           <div className="space-y-3">
             <div>
               <Label>คู่ค้า *</Label>
-              <Combobox
-                options={vendorOptions}
+              <select
+                className="w-full h-10 px-3 rounded-md border bg-background"
                 value={vendorId}
-                onChange={(v) => { setVendorId(v); if (v) setNewVendorName(""); }}
-                placeholder="เลือกคู่ค้าที่มีอยู่..."
-              />
+                onChange={(e) => { setVendorId(e.target.value); if (e.target.value) setNewVendorName(""); }}
+              >
+                <option value="">— เลือกคู่ค้าที่มีอยู่ —</option>
+                {vendors.map(v => (
+                  <option key={v.id} value={v.id}>
+                    {v.company_name}{v.tax_id ? ` (${v.tax_id})` : ""}
+                  </option>
+                ))}
+              </select>
               <div className="text-xs text-muted-foreground mt-1">หรือกรอกชื่อคู่ค้าใหม่ด้านล่าง:</div>
               <Input
                 value={newVendorName}
