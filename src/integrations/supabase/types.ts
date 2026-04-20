@@ -981,6 +981,51 @@ export type Database = {
           },
         ]
       }
+      staff_invoice_audit_log: {
+        Row: {
+          action: string
+          changed_by: string
+          changed_by_email: string | null
+          created_at: string
+          id: string
+          invoice_id: string
+          invoice_number: string | null
+          new_data: Json | null
+          new_status: string | null
+          old_data: Json | null
+          old_status: string | null
+          reason: string | null
+        }
+        Insert: {
+          action: string
+          changed_by: string
+          changed_by_email?: string | null
+          created_at?: string
+          id?: string
+          invoice_id: string
+          invoice_number?: string | null
+          new_data?: Json | null
+          new_status?: string | null
+          old_data?: Json | null
+          old_status?: string | null
+          reason?: string | null
+        }
+        Update: {
+          action?: string
+          changed_by?: string
+          changed_by_email?: string | null
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          invoice_number?: string | null
+          new_data?: Json | null
+          new_status?: string | null
+          old_data?: Json | null
+          old_status?: string | null
+          reason?: string | null
+        }
+        Relationships: []
+      }
       staff_invoices: {
         Row: {
           bonus_amount: number

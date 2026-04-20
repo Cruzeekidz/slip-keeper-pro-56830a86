@@ -18,6 +18,9 @@ import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, 
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
+import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Unlock } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -38,7 +41,10 @@ const StaffPayments = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin, isSuperAdmin } = useUserRole();
+  const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
+  const [reopenDialog, setReopenDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
   const [bonusValue, setBonusValue] = useState(0);
   const [createDialog, setCreateDialog] = useState(false);
@@ -273,8 +279,21 @@ const StaffPayments = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const inv = invoices.find((i: any) => i.id === id);
       const { error } = await supabase.from("staff_invoices").delete().eq("id", id);
       if (error) throw error;
+      if (user && inv) {
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: id,
+          invoice_number: inv.invoice_number,
+          action: "delete",
+          old_status: inv.status,
+          new_status: null,
+          changed_by: user.id,
+          changed_by_email: user.email,
+          old_data: inv,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
@@ -298,7 +317,7 @@ const StaffPayments = () => {
         whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
         netAmount = grossAmount - whtAmount;
       }
-      const { error } = await supabase.from("staff_invoices").update({
+      const newData = {
         staff_id: editForm.staff_id,
         event_name: editForm.event_name || null,
         days_worked: editForm.days_worked,
@@ -311,8 +330,22 @@ const StaffPayments = () => {
         work_start_date: editForm.work_start_date || null,
         work_end_date: editForm.work_end_date || null,
         notes: editForm.notes || null,
-      }).eq("id", editDialog.id);
+      };
+      const { error } = await supabase.from("staff_invoices").update(newData).eq("id", editDialog.id);
       if (error) throw error;
+      if (user) {
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: editDialog.id,
+          invoice_number: editDialog.invoice_number,
+          action: "edit",
+          old_status: editDialog.status,
+          new_status: editDialog.status,
+          changed_by: user.id,
+          changed_by_email: user.email,
+          old_data: editDialog,
+          new_data: newData,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
@@ -620,6 +653,17 @@ const StaffPayments = () => {
                                 <Pencil className="h-3 w-3" />
                               </Button>
                             )}
+                            {inv.status === "paid" && canReopen && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setReopenDialog(inv)}
+                                title="ย้อนกลับเพื่อแก้ไข"
+                                className="border-warning text-warning hover:bg-warning/10"
+                              >
+                                <Unlock className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
@@ -639,6 +683,8 @@ const StaffPayments = () => {
             <StaffReimbursementTab />
           </TabsContent>
         </Tabs>
+
+        <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
