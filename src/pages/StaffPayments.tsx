@@ -461,6 +461,13 @@ const StaffPayments = () => {
       </header>
 
       <main className="max-w-6xl mx-auto p-4 space-y-4">
+        <Tabs defaultValue="invoices" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="invoices"><CreditCard className="h-4 w-4 mr-1" />ค่าแรงทีมงาน</TabsTrigger>
+            <TabsTrigger value="reimbursement"><Receipt className="h-4 w-4 mr-1" />เบิกค่าใช้จ่าย</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="invoices" className="space-y-4 mt-4">
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3">
           <Card>
