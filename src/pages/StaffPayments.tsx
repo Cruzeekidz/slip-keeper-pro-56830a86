@@ -279,8 +279,21 @@ const StaffPayments = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      const inv = invoices.find((i: any) => i.id === id);
       const { error } = await supabase.from("staff_invoices").delete().eq("id", id);
       if (error) throw error;
+      if (user && inv) {
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: id,
+          invoice_number: inv.invoice_number,
+          action: "delete",
+          old_status: inv.status,
+          new_status: null,
+          changed_by: user.id,
+          changed_by_email: user.email,
+          old_data: inv,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
