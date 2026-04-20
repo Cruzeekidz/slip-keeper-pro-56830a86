@@ -684,6 +684,8 @@ const StaffPayments = () => {
           </TabsContent>
         </Tabs>
 
+        <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
+
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
           <DialogContent className="max-w-xs">
