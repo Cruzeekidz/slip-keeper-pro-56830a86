@@ -633,6 +633,12 @@ const StaffPayments = () => {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="reimbursement" className="mt-4">
+            <StaffReimbursementTab />
+          </TabsContent>
+        </Tabs>
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
