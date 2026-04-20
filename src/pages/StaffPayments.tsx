@@ -18,6 +18,9 @@ import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, 
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
+import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Unlock } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
