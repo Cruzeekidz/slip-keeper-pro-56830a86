@@ -653,6 +653,17 @@ const StaffPayments = () => {
                                 <Pencil className="h-3 w-3" />
                               </Button>
                             )}
+                            {inv.status === "paid" && canReopen && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setReopenDialog(inv)}
+                                title="ย้อนกลับเพื่อแก้ไข"
+                                className="border-warning text-warning hover:bg-warning/10"
+                              >
+                                <Unlock className="h-3 w-3" />
+                              </Button>
+                            )}
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
