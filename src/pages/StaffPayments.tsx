@@ -317,7 +317,7 @@ const StaffPayments = () => {
         whtAmount = Math.round(grossAmount * 0.03 * 100) / 100;
         netAmount = grossAmount - whtAmount;
       }
-      const { error } = await supabase.from("staff_invoices").update({
+      const newData = {
         staff_id: editForm.staff_id,
         event_name: editForm.event_name || null,
         days_worked: editForm.days_worked,
@@ -330,8 +330,22 @@ const StaffPayments = () => {
         work_start_date: editForm.work_start_date || null,
         work_end_date: editForm.work_end_date || null,
         notes: editForm.notes || null,
-      }).eq("id", editDialog.id);
+      };
+      const { error } = await supabase.from("staff_invoices").update(newData).eq("id", editDialog.id);
       if (error) throw error;
+      if (user) {
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: editDialog.id,
+          invoice_number: editDialog.invoice_number,
+          action: "edit",
+          old_status: editDialog.status,
+          new_status: editDialog.status,
+          changed_by: user.id,
+          changed_by_email: user.email,
+          old_data: editDialog,
+          new_data: newData,
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
