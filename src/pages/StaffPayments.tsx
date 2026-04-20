@@ -41,7 +41,10 @@ const StaffPayments = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { isAdmin, isSuperAdmin } = useUserRole();
+  const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
+  const [reopenDialog, setReopenDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
   const [bonusValue, setBonusValue] = useState(0);
   const [createDialog, setCreateDialog] = useState(false);
