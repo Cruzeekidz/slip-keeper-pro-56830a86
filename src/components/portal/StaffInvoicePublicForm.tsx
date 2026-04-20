@@ -87,12 +87,18 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
   }, [staffParam]);
 
   const loadEvents = async (userId: string) => {
+    // กรองเฉพาะอีเวนท์ที่อยู่ในช่วง 3 เดือนย้อนหลัง ถึงอนาคต (รวมที่ยังไม่มีวันที่)
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const cutoffDate = threeMonthsAgo.toISOString().split("T")[0];
+
     const { data } = await supabase
       .from("event_registry")
       .select("id, event_name, event_date")
       .eq("user_id", userId)
       .eq("is_active", true)
-      .order("event_date", { ascending: false });
+      .or(`event_date.gte.${cutoffDate},event_date.is.null`)
+      .order("event_date", { ascending: false, nullsFirst: false });
     if (data) {
       setEvents(data);
       // ถ้าไม่มี event ในระบบ → switch เป็น type mode ทันที (UX ลื่น)
