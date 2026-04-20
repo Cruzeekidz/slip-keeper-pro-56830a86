@@ -14,8 +14,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt } from "lucide-react";
 import { buildUploadPath } from "@/lib/storage-path";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -459,6 +461,13 @@ const StaffPayments = () => {
       </header>
 
       <main className="max-w-6xl mx-auto p-4 space-y-4">
+        <Tabs defaultValue="invoices" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="invoices"><CreditCard className="h-4 w-4 mr-1" />ค่าแรงทีมงาน</TabsTrigger>
+            <TabsTrigger value="reimbursement"><Receipt className="h-4 w-4 mr-1" />เบิกค่าใช้จ่าย</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="invoices" className="space-y-4 mt-4">
         {/* Summary cards */}
         <div className="grid grid-cols-3 gap-3">
           <Card>
@@ -624,6 +633,12 @@ const StaffPayments = () => {
             )}
           </CardContent>
         </Card>
+          </TabsContent>
+
+          <TabsContent value="reimbursement" className="mt-4">
+            <StaffReimbursementTab />
+          </TabsContent>
+        </Tabs>
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
