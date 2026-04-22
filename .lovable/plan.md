@@ -1,51 +1,54 @@
 
 
-## ปัญหา
-ปัจจุบันใบที่ status = `paid` ถูกล็อก แก้ไขไม่ได้เลย → ต้อง manual reset ใน DB ทุกครั้ง ไม่สะดวกและไม่มี audit trail
+## Phase 1: Reopen Paid Invoice + Audit Log
 
-## แผนแก้ไข — Reopen Paid Invoice พร้อม Audit Log
+### ข้อมูลที่มีอยู่แล้ว (ไม่ต้องสร้างใหม่)
+- ✅ ตาราง `staff_invoice_audit_log` (สร้างแล้ว มี RLS admin/super_admin/accountant)
+- ✅ Component `src/components/staff/ReopenInvoiceDialog.tsx` (เขียนแล้วครบ logic)
+- ✅ Hook `useUserRole` (มี isAdmin, isSuperAdmin)
+- ✅ ตาราง `deleted_expenses` สำหรับ recovery
 
-### 1. Database (migration)
-สร้างตาราง `staff_invoice_audit_log`:
-- `invoice_id`, `action` (reopen/edit/repay/delete), `old_status`, `new_status`
-- `changed_by` (auth.uid()), `reason` (text), `old_data` jsonb, `new_data` jsonb
-- `created_at`
-- RLS: เฉพาะ admin/super_admin ดู+เขียนได้ (ผ่าน `has_role`)
+### สิ่งที่ต้องทำ (Phase 1 เน้นเชื่อมต่อ + log ให้ครบ)
 
-### 2. UI — เพิ่มปุ่ม "ย้อนกลับ" บนใบ paid (`StaffPayments.tsx`)
-- บนแถวใบที่ `status === 'paid'` → แสดงปุ่ม 🔓 **"ย้อนกลับเพื่อแก้ไข"** (เฉพาะ admin/super_admin เห็น — ใช้ `useUserRole`)
-- กดแล้วเปิด `ReopenInvoiceDialog`:
-  - แสดง warning: "การย้อนกลับจะลบบันทึกค่าใช้จ่ายและภาษีค้างจ่ายที่สร้างไว้"
-  - **กรอกเหตุผล** (required, min 10 ตัวอักษร) — เช่น "ลืมระบุ WHT 3%"
-  - **ยืนยันด้วยรหัส 4 หลัก** (PIN จาก env หรือ confirm-typing คำว่า "ยืนยัน")
-  - ปุ่ม "ยืนยันย้อนกลับ"
+**1. เชื่อม `ReopenInvoiceDialog` เข้า `StaffPayments.tsx`**
+- เพิ่ม state `reopenTarget`
+- บนแถวใบที่ `status === 'paid'` → แสดงปุ่ม 🔓 "ย้อนกลับ" (เฉพาะ `isAdmin` หรือ `isSuperAdmin`)
+- กดปุ่ม → set `reopenTarget` → เปิด dialog
+- หลัง reopen สำเร็จ → invalidate queries (มีใน dialog แล้ว)
 
-### 3. Logic การ Reopen
-เมื่อกดยืนยัน:
-1. หา expenses ที่ link กับใบนี้ (ผ่าน `receipt_url = payment_slip_url` + `staff_name` + `expense_date = paid_at`) — ทั้ง Gross expense + WHT liability expense
-2. ลบ expenses ทั้ง 2 รายการ (ย้ายไป `deleted_expenses` ตามระบบเดิม)
-3. Update `staff_invoices`: status → `submitted`, paid_at → null, payment_slip_url → null, matched_expense_id → null
-4. Insert `staff_invoice_audit_log`: action='reopen', old_status='paid', reason=...
-5. Toast: "ย้อนกลับสำเร็จ — สามารถแก้ไขและจ่ายใหม่ได้"
+**2. เพิ่ม Audit Log ใน action อื่นของ invoice**
+- `editInvoiceMutation` → log `action='edit'` พร้อม old_data/new_data (gross/wht/net/days/rate)
+- `deleteInvoiceMutation` → log `action='delete'` พร้อม old_data
+- `markAsPaidMutation` (จ่ายซ้ำหลัง reopen) → log `action='repay'`
 
-### 4. Audit Log Viewer
-- เพิ่มปุ่ม "ประวัติการแก้ไข" (icon History) บนใบที่เคย reopen — แสดง dialog ลิสต์ log
-- หรือหน้าใหม่ `/audit-log` (รวม log ทุกรายการ) — ตัดสินใจเอาแบบ inline ก่อน เพื่อไม่ over-engineer
+**3. ปุ่ม "ประวัติการแก้ไข" (Inline Audit Viewer)**
+- บนแถวที่มี audit log อย่างน้อย 1 row → แสดง icon History
+- กด → เปิด dialog `InvoiceAuditHistoryDialog` (component ใหม่):
+  - Query `staff_invoice_audit_log` where `invoice_id = ...` order by created_at desc
+  - แสดง timeline: action (badge สี), reason, changed_by_email, created_at, diff old→new ย่อ
 
-### 5. Log ครอบคลุม actions อื่นด้วย
-- `edit` — เมื่อแก้ไขผ่าน editInvoiceMutation (เก็บ old/new amounts)
-- `repay` — เมื่อจ่ายซ้ำหลัง reopen
-- `delete` — เมื่อลบใบ
+**4. ปรับ ReopenInvoiceDialog เล็กน้อย**
+- ตรวจ guard: ถ้าไม่ใช่ admin → ไม่ให้เปิด (double-check ฝั่ง client)
+- Toast Thai messages ให้ชัด
 
-### Security
-- ปุ่ม Reopen เฉพาะ `admin` หรือ `super_admin`
-- RLS audit_log: insert ได้ทุก authenticated user (ผ่าน trigger), select เฉพาะ admin
-- PIN ใช้ค่า fixed `2024` หรือให้พิมพ์ `ยืนยัน` (เลือกแบบหลังเพื่อไม่ต้องจัดการ secret)
+### ไฟล์ที่แก้/สร้าง
+- `src/pages/StaffPayments.tsx` — เพิ่มปุ่ม Reopen + History, log ใน mutations
+- `src/components/staff/InvoiceAuditHistoryDialog.tsx` (ใหม่) — viewer
+- `src/components/staff/ReopenInvoiceDialog.tsx` — minor polish
 
-### ไฟล์ที่แก้
-- `supabase/migrations/...` — สร้าง `staff_invoice_audit_log` + RLS
-- `src/pages/StaffPayments.tsx` — เพิ่มปุ่ม Reopen + Dialog + ลบใน reopen logic + log call ใน edit mutation
-- `src/components/staff/ReopenInvoiceDialog.tsx` (ใหม่) — แยก dialog ออกมา
+### ทดสอบหลังเสร็จ
+1. กดย้อนใบ paid 1 ใบ → ตรวจ status='submitted', expense BUSINESS+WHT ถูกย้ายไป deleted_expenses
+2. แก้ไขใบเดิม → เปิดประวัติ → เห็น 2 entries (reopen + edit)
+3. จ่ายใหม่ → เห็น entry repay เพิ่ม
+4. ตรวจ user role=user → ไม่เห็นปุ่มย้อนกลับ
 
-ไม่ต้องแก้ `PaymentQueue.tsx` (ใบ paid ไม่โผล่ในนั้นอยู่แล้ว)
+### To-Do List (Phase 2-6 ที่จะตามมา)
+จะถูกบันทึกเป็น task list หลังเริ่ม implement:
+- Phase 2: Cash Advance + LINE memo `ทดรอง` + Import legacy
+- Phase 3: Payment Voucher (auto จ่ายสตาฟ) + Payment Certificate (3 ลายเซ็น)
+- Phase 4: Credit Card + Statement reconcile
+- Phase 5: Accountant Export ZIP+Excel
+- Phase 6: LINE Conversational Bot (text intents)
+
+แต่ละ Phase จะคุยยืนยัน scope ก่อนเริ่ม ไม่ commit ล่วงหน้า
 
