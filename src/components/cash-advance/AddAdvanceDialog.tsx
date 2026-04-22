@@ -124,7 +124,7 @@ export function AddAdvanceDialog({
               placeholder="พิมพ์หรือเลือกทีมงาน..."
             />
             {matchedStaffId && (
-              <p className="text-xs text-emerald-400 mt-1">✓ เชื่อมกับทะเบียนทีมงาน</p>
+              <p className="text-xs text-primary mt-1">✓ เชื่อมกับทะเบียนทีมงาน</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
