@@ -41,6 +41,7 @@ const WhtReport          = lazy(() => import("./pages/WhtReport"));
 const WhtCertificateList = lazy(() => import("./pages/WhtCertificateList"));
 const BankAccounts       = lazy(() => import("./pages/BankAccounts"));
 const DocumentHub        = lazy(() => import("./pages/DocumentHub"));
+const CashAdvance        = lazy(() => import("./pages/CashAdvance"));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -100,6 +101,7 @@ const App = () => (
               <Route path="/wht-certificates" element={<WhtCertificateList />} />
               <Route path="/bank-accounts" element={<BankAccounts />} />
               <Route path="/document-hub" element={<DocumentHub />} />
+              <Route path="/cash-advance" element={<CashAdvance />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
