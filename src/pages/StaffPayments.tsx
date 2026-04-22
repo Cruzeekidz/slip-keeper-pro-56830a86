@@ -19,8 +19,9 @@ import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
 import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
+import InvoiceAuditHistoryDialog from "@/components/staff/InvoiceAuditHistoryDialog";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Unlock } from "lucide-react";
+import { Unlock, History } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -45,6 +46,7 @@ const StaffPayments = () => {
   const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
   const [reopenDialog, setReopenDialog] = useState<any | null>(null);
+  const [historyDialog, setHistoryDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
   const [bonusValue, setBonusValue] = useState(0);
   const [createDialog, setCreateDialog] = useState(false);
