@@ -666,6 +666,14 @@ const StaffPayments = () => {
                                 <Unlock className="h-3 w-3" />
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setHistoryDialog(inv)}
+                              title="ประวัติการแก้ไข"
+                            >
+                              <History className="h-3 w-3" />
+                            </Button>
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
