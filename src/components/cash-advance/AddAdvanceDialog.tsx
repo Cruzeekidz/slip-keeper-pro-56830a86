@@ -23,7 +23,6 @@ export function AddAdvanceDialog({
   const { data: staff = [] } = useStaffProfiles();
   const createAdvance = useCreateCashAdvance();
 
-  const [staffId, setStaffId] = useState<string>("");
   const [recipientName, setRecipientName] = useState("");
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -35,7 +34,6 @@ export function AddAdvanceDialog({
 
   useEffect(() => {
     if (!open) {
-      setStaffId("");
       setRecipientName("");
       setAmount("");
       setDate(new Date().toISOString().slice(0, 10));
@@ -48,15 +46,23 @@ export function AddAdvanceDialog({
 
   const staffOptions = staff
     .filter((s) => s.is_active)
-    .map((s) => ({
-      value: s.id,
-      label: s.nickname ? `${s.staff_name} (${s.nickname})` : s.staff_name,
-    }));
+    .map((s) => (s.nickname ? `${s.staff_name} (${s.nickname})` : s.staff_name));
 
-  const handleStaffSelect = (id: string) => {
-    setStaffId(id);
-    const s = staff.find((x) => x.id === id);
-    if (s) setRecipientName(s.staff_name);
+  const matchedStaffId = (() => {
+    const name = recipientName.trim().toLowerCase();
+    if (!name) return null;
+    const s = staff.find(
+      (x) =>
+        x.staff_name.toLowerCase() === name ||
+        (x.nickname && x.nickname.toLowerCase() === name) ||
+        (x.nickname && `${x.staff_name} (${x.nickname})`.toLowerCase() === name)
+    );
+    return s?.id ?? null;
+  })();
+
+  const handleSelect = (label: string) => {
+    const clean = label.replace(/\s*\([^)]*\)\s*$/, "").trim();
+    setRecipientName(clean || label);
   };
 
   const handleSubmit = async () => {
@@ -91,7 +97,7 @@ export function AddAdvanceDialog({
 
     await createAdvance.mutateAsync({
       recipient_name: recipientName.trim(),
-      recipient_id: staffId || null,
+      recipient_id: matchedStaffId,
       amount: amt,
       advance_date: date,
       purpose: purpose.trim() || null,
@@ -110,22 +116,16 @@ export function AddAdvanceDialog({
         </DialogHeader>
         <div className="space-y-3">
           <div>
-            <Label>เลือกทีมงาน (ถ้ามี)</Label>
+            <Label>ชื่อผู้รับ *</Label>
             <Combobox
               options={staffOptions}
-              value={staffId}
-              onChange={handleStaffSelect}
-              placeholder="ค้นหาทีมงาน..."
-              emptyMessage="ไม่พบ"
-            />
-          </div>
-          <div>
-            <Label>ชื่อผู้รับ *</Label>
-            <Input
               value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
-              placeholder="เช่น ปิยนันท์"
+              onValueChange={handleSelect}
+              placeholder="พิมพ์หรือเลือกทีมงาน..."
             />
+            {matchedStaffId && (
+              <p className="text-xs text-emerald-400 mt-1">✓ เชื่อมกับทะเบียนทีมงาน</p>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-2">
             <div>
