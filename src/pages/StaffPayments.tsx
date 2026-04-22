@@ -244,6 +244,27 @@ const StaffPayments = () => {
           },
         }).catch((err: any) => console.error("LINE notify error:", err));
       }
+
+      // Audit log: pay or repay (if previously reopened)
+      if (inv) {
+        const { data: priorReopen } = await supabase
+          .from("staff_invoice_audit_log")
+          .select("id")
+          .eq("invoice_id", id)
+          .eq("action", "reopen")
+          .limit(1);
+        const action = priorReopen && priorReopen.length > 0 ? "repay" : "pay";
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: id,
+          invoice_number: inv.invoice_number,
+          action,
+          old_status: inv.status,
+          new_status: "paid",
+          changed_by: user.id,
+          changed_by_email: user.email,
+          new_data: { payment_method: paymentMethod, payment_slip_path: slipPath, net_amount: Number(inv.net_amount) },
+        });
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
