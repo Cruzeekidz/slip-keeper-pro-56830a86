@@ -695,6 +695,7 @@ const StaffPayments = () => {
         </Tabs>
 
         <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
+        <InvoiceAuditHistoryDialog invoice={historyDialog} onClose={() => setHistoryDialog(null)} />
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
