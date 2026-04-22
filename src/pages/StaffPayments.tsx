@@ -19,8 +19,9 @@ import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
 import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
+import InvoiceAuditHistoryDialog from "@/components/staff/InvoiceAuditHistoryDialog";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Unlock } from "lucide-react";
+import { Unlock, History } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -45,6 +46,7 @@ const StaffPayments = () => {
   const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
   const [reopenDialog, setReopenDialog] = useState<any | null>(null);
+  const [historyDialog, setHistoryDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
   const [bonusValue, setBonusValue] = useState(0);
   const [createDialog, setCreateDialog] = useState(false);
@@ -241,6 +243,27 @@ const StaffPayments = () => {
             payment_method: paymentMethod,
           },
         }).catch((err: any) => console.error("LINE notify error:", err));
+      }
+
+      // Audit log: pay or repay (if previously reopened)
+      if (inv) {
+        const { data: priorReopen } = await supabase
+          .from("staff_invoice_audit_log")
+          .select("id")
+          .eq("invoice_id", id)
+          .eq("action", "reopen")
+          .limit(1);
+        const action = priorReopen && priorReopen.length > 0 ? "repay" : "pay";
+        await supabase.from("staff_invoice_audit_log").insert({
+          invoice_id: id,
+          invoice_number: inv.invoice_number,
+          action,
+          old_status: inv.status,
+          new_status: "paid",
+          changed_by: user.id,
+          changed_by_email: user.email,
+          new_data: { payment_method: paymentMethod, payment_slip_path: slipPath, net_amount: Number(inv.net_amount) },
+        });
       }
     },
     onSuccess: () => {
@@ -664,6 +687,14 @@ const StaffPayments = () => {
                                 <Unlock className="h-3 w-3" />
                               </Button>
                             )}
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setHistoryDialog(inv)}
+                              title="ประวัติการแก้ไข"
+                            >
+                              <History className="h-3 w-3" />
+                            </Button>
                             <Button size="sm" variant="ghost" onClick={() => { if (confirm("ลบรายการนี้?")) deleteMutation.mutate(inv.id); }}>
                               <Trash2 className="h-3 w-3 text-destructive" />
                             </Button>
@@ -685,6 +716,7 @@ const StaffPayments = () => {
         </Tabs>
 
         <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
+        <InvoiceAuditHistoryDialog invoice={historyDialog} onClose={() => setHistoryDialog(null)} />
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
