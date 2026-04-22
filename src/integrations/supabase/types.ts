@@ -53,6 +53,134 @@ export type Database = {
         }
         Relationships: []
       }
+      cash_advance_clearances: {
+        Row: {
+          advance_id: string
+          amount: number
+          clear_date: string
+          created_at: string
+          description: string | null
+          expense_id: string | null
+          has_formal_receipt: boolean
+          id: string
+          notes: string | null
+          receipt_url: string | null
+          refund_amount: number
+          submitted_via: string | null
+          substitute_receipt_url: string | null
+          user_id: string
+        }
+        Insert: {
+          advance_id: string
+          amount?: number
+          clear_date?: string
+          created_at?: string
+          description?: string | null
+          expense_id?: string | null
+          has_formal_receipt?: boolean
+          id?: string
+          notes?: string | null
+          receipt_url?: string | null
+          refund_amount?: number
+          submitted_via?: string | null
+          substitute_receipt_url?: string | null
+          user_id: string
+        }
+        Update: {
+          advance_id?: string
+          amount?: number
+          clear_date?: string
+          created_at?: string
+          description?: string | null
+          expense_id?: string | null
+          has_formal_receipt?: boolean
+          id?: string
+          notes?: string | null
+          receipt_url?: string | null
+          refund_amount?: number
+          submitted_via?: string | null
+          substitute_receipt_url?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_advance_clearances_advance_id_fkey"
+            columns: ["advance_id"]
+            isOneToOne: false
+            referencedRelation: "cash_advances"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cash_advances: {
+        Row: {
+          advance_date: string
+          amount: number
+          cleared_amount: number
+          created_at: string
+          event_id: string | null
+          event_name: string | null
+          id: string
+          notes: string | null
+          payment_slip_url: string | null
+          project_tag: string | null
+          purpose: string | null
+          recipient_id: string | null
+          recipient_line_user_id: string | null
+          recipient_name: string
+          recipient_type: string
+          source_expense_id: string | null
+          status: string
+          submitted_via: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          advance_date?: string
+          amount?: number
+          cleared_amount?: number
+          created_at?: string
+          event_id?: string | null
+          event_name?: string | null
+          id?: string
+          notes?: string | null
+          payment_slip_url?: string | null
+          project_tag?: string | null
+          purpose?: string | null
+          recipient_id?: string | null
+          recipient_line_user_id?: string | null
+          recipient_name: string
+          recipient_type?: string
+          source_expense_id?: string | null
+          status?: string
+          submitted_via?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          advance_date?: string
+          amount?: number
+          cleared_amount?: number
+          created_at?: string
+          event_id?: string | null
+          event_name?: string | null
+          id?: string
+          notes?: string | null
+          payment_slip_url?: string | null
+          project_tag?: string | null
+          purpose?: string | null
+          recipient_id?: string | null
+          recipient_line_user_id?: string | null
+          recipient_name?: string
+          recipient_type?: string
+          source_expense_id?: string | null
+          status?: string
+          submitted_via?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       deleted_expenses: {
         Row: {
           amount: number
