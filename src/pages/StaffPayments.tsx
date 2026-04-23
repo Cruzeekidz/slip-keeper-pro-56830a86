@@ -60,6 +60,9 @@ const StaffPayments = () => {
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
   const [editDialog, setEditDialog] = useState<any | null>(null);
+  const [linkDialog, setLinkDialog] = useState<any | null>(null);
+  const [bulkReconcileOpen, setBulkReconcileOpen] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ invoice: any; matches: any[]; pendingPaymentMethod: string; pendingSlipFile?: File } | null>(null);
   const [editForm, setEditForm] = useState({
     staff_id: "",
     event_name: "",
