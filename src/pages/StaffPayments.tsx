@@ -1104,7 +1104,7 @@ const StaffPayments = () => {
                   <Button
                     className="w-full"
                     onClick={() => {
-                      markPaidMutation.mutate({ id: paySlipDialog.id, paymentMethod: payMethod });
+                      triggerPayWithGuard({ invoice: paySlipDialog, paymentMethod: payMethod });
                     }}
                     disabled={markPaidMutation.isPending}
                   >
