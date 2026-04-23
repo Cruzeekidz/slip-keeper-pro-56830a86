@@ -9,9 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye, ArrowRightLeft } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConvertToVendorDialog } from "@/components/staff/ConvertToVendorDialog";
 
 const StaffManagement = () => {
   const navigate = useNavigate();
@@ -23,10 +25,25 @@ const StaffManagement = () => {
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const { data: staffList = [], isLoading } = useStaffProfiles();
   const saveMutation = useSaveStaff(editingId, idCardFile);
   const deleteMutation = useDeleteStaff();
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    if (selectedIds.size === staffList.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(staffList.map((s) => s.id)));
+  };
+  const selectedStaff = staffList.filter((s) => selectedIds.has(s.id));
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
