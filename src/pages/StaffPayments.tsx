@@ -737,6 +737,83 @@ const StaffPayments = () => {
 
         <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
         <InvoiceAuditHistoryDialog invoice={historyDialog} onClose={() => setHistoryDialog(null)} />
+        <LinkExpenseDialog invoice={linkDialog} onClose={() => setLinkDialog(null)} />
+        <BulkReconcileDialog
+          open={bulkReconcileOpen}
+          onClose={() => setBulkReconcileOpen(false)}
+          invoices={invoices as any}
+        />
+
+        {/* Duplicate Guard Dialog */}
+        <Dialog open={!!duplicateWarning} onOpenChange={(o) => { if (!o) setDuplicateWarning(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-warning">
+                <Link2 className="h-5 w-5" />พบรายการที่อาจจะตรงกัน
+              </DialogTitle>
+            </DialogHeader>
+            {duplicateWarning && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  ระบบพบ {duplicateWarning.matches.length} รายการใน "รายการเคลื่อนไหว" ที่ยอด + ชื่อตรงกับใบเรียกเก็บนี้
+                  คุณต้องการเชื่อมกับรายการที่มีอยู่ หรือสร้างรายการใหม่?
+                </p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {duplicateWarning.matches.map((m: any) => (
+                    <Card key={m.id} className="p-2 hover:border-primary cursor-pointer" onClick={async () => {
+                      const { user: u } = { user };
+                      if (!user) return;
+                      try {
+                        const { linkInvoiceToExpense } = await import("@/hooks/useInvoiceMatching");
+                        await linkInvoiceToExpense({
+                          invoiceId: duplicateWarning.invoice.id,
+                          expenseId: m.id,
+                          userId: user.id,
+                          userEmail: user.email,
+                          invoiceNumber: duplicateWarning.invoice.invoice_number,
+                          oldStatus: duplicateWarning.invoice.status,
+                        });
+                        queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+                        queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+                        toast({ title: "เชื่อมรายการสำเร็จ — ไม่มีการสร้างรายการซ้ำ" });
+                      } catch (e: any) {
+                        toast({ title: "เชื่อมไม่สำเร็จ", description: e.message, variant: "destructive" });
+                      } finally {
+                        setDuplicateWarning(null);
+                        setPaySlipDialog(null);
+                      }
+                    }}>
+                      <div className="text-sm">
+                        <div className="font-medium">{m.receiver || m.staff_name || "(ไม่ระบุ)"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {m.expense_date} • {Number(m.amount).toLocaleString()} บาท • {m.match_reason}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setDuplicateWarning(null)}>ยกเลิก</Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => {
+                      const w = duplicateWarning;
+                      setDuplicateWarning(null);
+                      markPaidMutation.mutate({
+                        id: w.invoice.id,
+                        slipFile: w.pendingSlipFile,
+                        paymentMethod: w.pendingPaymentMethod,
+                      });
+                    }}
+                  >
+                    สร้างรายการใหม่ (ไม่เชื่อม)
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
