@@ -9,9 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye, ArrowRightLeft } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ConvertToVendorDialog } from "@/components/staff/ConvertToVendorDialog";
 
 const StaffManagement = () => {
   const navigate = useNavigate();
@@ -23,10 +25,25 @@ const StaffManagement = () => {
   const [idCardFile, setIdCardFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [convertOpen, setConvertOpen] = useState(false);
 
   const { data: staffList = [], isLoading } = useStaffProfiles();
   const saveMutation = useSaveStaff(editingId, idCardFile);
   const deleteMutation = useDeleteStaff();
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    if (selectedIds.size === staffList.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(staffList.map((s) => s.id)));
+  };
+  const selectedStaff = staffList.filter((s) => selectedIds.has(s.id));
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +101,20 @@ const StaffManagement = () => {
       </header>
 
       <main className="max-w-5xl mx-auto p-4 space-y-4">
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <>
+                <Badge variant="secondary">เลือก {selectedIds.size} คน</Badge>
+                <Button size="sm" variant="outline" onClick={() => setConvertOpen(true)}>
+                  <ArrowRightLeft className="h-4 w-4 mr-1" />แปลงเป็นคู่ค้า
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  ล้าง
+                </Button>
+              </>
+            )}
+          </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingId(null); setForm(emptyStaffForm); setIdCardFile(null); } }}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />เพิ่มทีมงานใหม่</Button>
@@ -174,6 +204,12 @@ const StaffManagement = () => {
                 <Table className="w-full table-fixed">
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={staffList.length > 0 && selectedIds.size === staffList.length}
+                          onCheckedChange={toggleAll}
+                        />
+                      </TableHead>
                       <TableHead className="w-[22%]">ชื่อ</TableHead>
                       <TableHead className="w-[10%] hidden md:table-cell">ชื่อเล่น</TableHead>
                       <TableHead className="w-[14%] hidden lg:table-cell">ตำแหน่ง</TableHead>
@@ -187,6 +223,12 @@ const StaffManagement = () => {
                   <TableBody>
                     {staffList.map((s) => (
                       <TableRow key={s.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(s.id)}
+                            onCheckedChange={() => toggleSelect(s.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div className="truncate">{s.staff_name}</div>
                           <div className="text-xs text-muted-foreground md:hidden truncate">
@@ -243,6 +285,13 @@ const StaffManagement = () => {
             {previewUrl && <img src={previewUrl} alt="ID Card" className="w-full rounded-lg" />}
           </DialogContent>
         </Dialog>
+
+        <ConvertToVendorDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          selectedStaff={selectedStaff}
+          onDone={() => setSelectedIds(new Set())}
+        />
       </main>
     </div>
   );
