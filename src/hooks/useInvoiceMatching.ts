@@ -41,8 +41,8 @@ export async function findMatchingExpenses(
   const staffName = invoice.staff_profiles?.staff_name?.trim() || "";
   const nickname = invoice.staff_profiles?.nickname?.trim() || "";
 
-  // Range: ±3 days from centerDate (paid_at or today)
-  const range = options?.dateRange ?? 3;
+  // Range: ±7 days from centerDate (paid_at or today)
+  const range = options?.dateRange ?? 7;
   const center = options?.centerDate
     ? new Date(options.centerDate)
     : invoice.paid_at

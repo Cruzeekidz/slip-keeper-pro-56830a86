@@ -126,7 +126,7 @@ const BulkReconcileDialog = ({ open, onClose, invoices }: Props) => {
           <Card className="p-3 bg-muted/50 text-sm">
             <p>
               จะสแกน <strong>{eligible.length}</strong> รายการที่ยังไม่ถูกเชื่อม (สถานะ: ส่งแล้ว/อนุมัติแล้ว)
-              เพื่อหา expense ที่ตรงกัน — เกณฑ์: <em>ยอดสุทธิตรงเป๊ะ + มีชื่อทีมงานในผู้รับ + ช่วง ±3 วัน</em>
+              เพื่อหา expense ที่ตรงกัน — เกณฑ์: <em>ยอดสุทธิตรงเป๊ะ + มีชื่อทีมงานในผู้รับ + ช่วง ±7 วัน</em>
             </p>
           </Card>
 

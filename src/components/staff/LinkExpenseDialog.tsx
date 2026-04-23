@@ -127,7 +127,7 @@ const LinkExpenseDialog = ({ invoice, onClose, autoLinkSingle = false }: Props) 
                 <AlertCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                 <p className="font-medium">ไม่พบรายการที่ตรงกัน</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  เกณฑ์ค้นหา: ยอดสุทธิ {Number(invoice.net_amount).toLocaleString()} บาท + มีชื่อทีมงานในผู้รับ + ช่วง ±3 วัน
+                  เกณฑ์ค้นหา: ยอดสุทธิ {Number(invoice.net_amount).toLocaleString()} บาท + มีชื่อทีมงานในผู้รับ + ช่วง ±7 วัน
                 </p>
               </Card>
             )}
