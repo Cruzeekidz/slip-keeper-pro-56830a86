@@ -170,29 +170,36 @@ const StaffManagement = () => {
             ) : staffList.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">ยังไม่มีข้อมูลทีมงาน</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="w-full">
+                <Table className="w-full table-fixed">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ชื่อ</TableHead>
-                      <TableHead>ชื่อเล่น</TableHead>
-                      <TableHead>ตำแหน่ง</TableHead>
-                      <TableHead className="text-right">ค่าแรง/วัน</TableHead>
-                      <TableHead>ธนาคาร</TableHead>
-                      <TableHead>บัตร</TableHead>
-                      <TableHead>สถานะ</TableHead>
-                      <TableHead className="text-right">จัดการ</TableHead>
+                      <TableHead className="w-[22%]">ชื่อ</TableHead>
+                      <TableHead className="w-[10%] hidden md:table-cell">ชื่อเล่น</TableHead>
+                      <TableHead className="w-[14%] hidden lg:table-cell">ตำแหน่ง</TableHead>
+                      <TableHead className="w-[12%] text-right">ค่าแรง/วัน</TableHead>
+                      <TableHead className="w-[20%] hidden md:table-cell">ธนาคาร</TableHead>
+                      <TableHead className="w-[8%] text-center hidden sm:table-cell">บัตร</TableHead>
+                      <TableHead className="w-[10%] hidden sm:table-cell">สถานะ</TableHead>
+                      <TableHead className="w-[120px] text-right">จัดการ</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {staffList.map((s) => (
                       <TableRow key={s.id}>
-                        <TableCell className="font-medium">{s.staff_name}</TableCell>
-                        <TableCell>{s.nickname || "-"}</TableCell>
-                        <TableCell>{s.position || "-"}</TableCell>
-                        <TableCell className="text-right">{s.daily_rate.toLocaleString()}</TableCell>
-                        <TableCell>{s.bank_name ? `${s.bank_name} ${s.bank_account || ""}` : "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="font-medium">
+                          <div className="truncate">{s.staff_name}</div>
+                          <div className="text-xs text-muted-foreground md:hidden truncate">
+                            {[s.nickname, s.position].filter(Boolean).join(" • ") || ""}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell truncate">{s.nickname || "-"}</TableCell>
+                        <TableCell className="hidden lg:table-cell truncate">{s.position || "-"}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">{s.daily_rate.toLocaleString()}</TableCell>
+                        <TableCell className="hidden md:table-cell truncate" title={s.bank_name ? `${s.bank_name} ${s.bank_account || ""}` : ""}>
+                          {s.bank_name ? `${s.bank_name} ${s.bank_account || ""}` : "-"}
+                        </TableCell>
+                        <TableCell className="text-center hidden sm:table-cell">
                           {s.id_card_url ? (
                             <Button variant="ghost" size="icon" onClick={() => viewIdCard(s.id_card_url!)} title="ดูบัตร">
                               <Eye className="h-4 w-4 text-primary" />
@@ -201,20 +208,20 @@ const StaffManagement = () => {
                             <span className="text-muted-foreground text-xs">-</span>
                           )}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <Badge variant={s.is_active ? "default" : "secondary"}>
                             {s.is_active ? "Active" : "Inactive"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-1 justify-end">
-                            <Button variant="ghost" size="icon" onClick={() => copyInvoiceLink(s.id)} title="คัดลอกลิงก์ฟอร์ม">
+                          <div className="flex gap-0.5 justify-end">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyInvoiceLink(s.id)} title="คัดลอกลิงก์ฟอร์ม">
                               {copiedId === s.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => openEdit(s)}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(s)} title="แก้ไข">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" onClick={() => { if (confirm("ลบทีมงานนี้?")) deleteMutation.mutate(s.id); }}>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => { if (confirm("ลบทีมงานนี้?")) deleteMutation.mutate(s.id); }} title="ลบ">
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                           </div>
