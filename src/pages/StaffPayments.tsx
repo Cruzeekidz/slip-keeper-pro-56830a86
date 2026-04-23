@@ -515,6 +515,9 @@ const StaffPayments = () => {
             <Button onClick={() => navigate("/payment-queue")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Banknote className="h-4 w-4 mr-1" />รอจ่ายเงิน
             </Button>
+            <Button onClick={() => setBulkReconcileOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground" title="ค้นหาและเชื่อมรายการอัตโนมัติ">
+              <Search className="h-4 w-4 mr-1" />เชื่อมอัตโนมัติ
+            </Button>
             <Button onClick={() => setCreateDialog(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Plus className="h-4 w-4 mr-1" />สร้างรายการ
             </Button>
