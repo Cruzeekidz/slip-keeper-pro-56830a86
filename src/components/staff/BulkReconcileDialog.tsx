@@ -155,7 +155,7 @@ const BulkReconcileDialog = ({ open, onClose, invoices }: Props) => {
                           </span>
                         </div>
                       </div>
-                      {r.status === "linked" && <Badge className="bg-green-600"><CheckCircle2 className="h-3 w-3 mr-1" />เชื่อมแล้ว</Badge>}
+                      {r.status === "linked" && <Badge className="bg-primary"><CheckCircle2 className="h-3 w-3 mr-1" />เชื่อมแล้ว</Badge>}
                       {r.status === "error" && <Badge variant="destructive"><AlertTriangle className="h-3 w-3 mr-1" />ล้มเหลว</Badge>}
                     </div>
 
