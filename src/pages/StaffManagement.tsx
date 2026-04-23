@@ -101,7 +101,20 @@ const StaffManagement = () => {
       </header>
 
       <main className="max-w-5xl mx-auto p-4 space-y-4">
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
+            {selectedIds.size > 0 && (
+              <>
+                <Badge variant="secondary">เลือก {selectedIds.size} คน</Badge>
+                <Button size="sm" variant="outline" onClick={() => setConvertOpen(true)}>
+                  <ArrowRightLeft className="h-4 w-4 mr-1" />แปลงเป็นคู่ค้า
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                  ล้าง
+                </Button>
+              </>
+            )}
+          </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) { setEditingId(null); setForm(emptyStaffForm); setIdCardFile(null); } }}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" />เพิ่มทีมงานใหม่</Button>
