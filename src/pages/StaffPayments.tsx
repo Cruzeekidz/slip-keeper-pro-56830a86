@@ -14,12 +14,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search } from "lucide-react";
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
 import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
 import InvoiceAuditHistoryDialog from "@/components/staff/InvoiceAuditHistoryDialog";
+import LinkExpenseDialog from "@/components/staff/LinkExpenseDialog";
+import BulkReconcileDialog from "@/components/staff/BulkReconcileDialog";
+import { findMatchingExpenses } from "@/hooks/useInvoiceMatching";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Unlock, History } from "lucide-react";
 
@@ -57,6 +60,9 @@ const StaffPayments = () => {
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
   const [editDialog, setEditDialog] = useState<any | null>(null);
+  const [linkDialog, setLinkDialog] = useState<any | null>(null);
+  const [bulkReconcileOpen, setBulkReconcileOpen] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState<{ invoice: any; matches: any[]; pendingPaymentMethod: string; pendingSlipFile?: File } | null>(null);
   const [editForm, setEditForm] = useState({
     staff_id: "",
     event_name: "",
@@ -474,6 +480,31 @@ const StaffPayments = () => {
     },
   });
 
+  // Duplicate Guard: ตรวจหา expense ที่อาจตรงกันก่อนสร้างใหม่
+  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File }) => {
+    const { invoice, paymentMethod, slipFile } = params;
+    if (!user) return;
+    try {
+      const matches = await findMatchingExpenses(
+        {
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          net_amount: Number(invoice.net_amount),
+          staff_profiles: invoice.staff_profiles,
+        },
+        user.id,
+        { centerDate: new Date().toISOString().split("T")[0] }
+      );
+      if (matches.length > 0) {
+        setDuplicateWarning({ invoice, matches, pendingPaymentMethod: paymentMethod, pendingSlipFile: slipFile });
+        return;
+      }
+    } catch (e) {
+      // ถ้า scan ล้มเหลว ก็ปล่อยให้สร้างปกติ
+    }
+    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod });
+  };
+
   // Auto-fill daily_rate when staff selected
   const handleStaffSelect = (staffId: string) => {
     const staff = staffList.find((s) => s.id === staffId);
@@ -508,6 +539,9 @@ const StaffPayments = () => {
           <div className="ml-auto flex items-center gap-2">
             <Button onClick={() => navigate("/payment-queue")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Banknote className="h-4 w-4 mr-1" />รอจ่ายเงิน
+            </Button>
+            <Button onClick={() => setBulkReconcileOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground" title="ค้นหาและเชื่อมรายการอัตโนมัติ">
+              <Search className="h-4 w-4 mr-1" />เชื่อมอัตโนมัติ
             </Button>
             <Button onClick={() => setCreateDialog(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Plus className="h-4 w-4 mr-1" />สร้างรายการ
@@ -660,6 +694,17 @@ const StaffPayments = () => {
                                 <Upload className="h-3 w-3 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                             )}
+                            {(inv.status === "approved" || inv.status === "submitted") && !inv.matched_expense_id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setLinkDialog(inv)}
+                                title="เชื่อมกับรายการที่จ่ายแล้ว"
+                                className="border-primary text-primary hover:bg-primary/10"
+                              >
+                                <Link2 className="h-3 w-3 mr-1" />เชื่อม
+                              </Button>
+                            )}
                             {inv.staff_profiles?.line_user_id && (
                               <Button
                                 size="sm"
@@ -717,6 +762,83 @@ const StaffPayments = () => {
 
         <ReopenInvoiceDialog invoice={reopenDialog} onClose={() => setReopenDialog(null)} />
         <InvoiceAuditHistoryDialog invoice={historyDialog} onClose={() => setHistoryDialog(null)} />
+        <LinkExpenseDialog invoice={linkDialog} onClose={() => setLinkDialog(null)} />
+        <BulkReconcileDialog
+          open={bulkReconcileOpen}
+          onClose={() => setBulkReconcileOpen(false)}
+          invoices={invoices as any}
+        />
+
+        {/* Duplicate Guard Dialog */}
+        <Dialog open={!!duplicateWarning} onOpenChange={(o) => { if (!o) setDuplicateWarning(null); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-warning">
+                <Link2 className="h-5 w-5" />พบรายการที่อาจจะตรงกัน
+              </DialogTitle>
+            </DialogHeader>
+            {duplicateWarning && (
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  ระบบพบ {duplicateWarning.matches.length} รายการใน "รายการเคลื่อนไหว" ที่ยอด + ชื่อตรงกับใบเรียกเก็บนี้
+                  คุณต้องการเชื่อมกับรายการที่มีอยู่ หรือสร้างรายการใหม่?
+                </p>
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {duplicateWarning.matches.map((m: any) => (
+                    <Card key={m.id} className="p-2 hover:border-primary cursor-pointer" onClick={async () => {
+                      const { user: u } = { user };
+                      if (!user) return;
+                      try {
+                        const { linkInvoiceToExpense } = await import("@/hooks/useInvoiceMatching");
+                        await linkInvoiceToExpense({
+                          invoiceId: duplicateWarning.invoice.id,
+                          expenseId: m.id,
+                          userId: user.id,
+                          userEmail: user.email,
+                          invoiceNumber: duplicateWarning.invoice.invoice_number,
+                          oldStatus: duplicateWarning.invoice.status,
+                        });
+                        queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+                        queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+                        toast({ title: "เชื่อมรายการสำเร็จ — ไม่มีการสร้างรายการซ้ำ" });
+                      } catch (e: any) {
+                        toast({ title: "เชื่อมไม่สำเร็จ", description: e.message, variant: "destructive" });
+                      } finally {
+                        setDuplicateWarning(null);
+                        setPaySlipDialog(null);
+                      }
+                    }}>
+                      <div className="text-sm">
+                        <div className="font-medium">{m.receiver || m.staff_name || "(ไม่ระบุ)"}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {m.expense_date} • {Number(m.amount).toLocaleString()} บาท • {m.match_reason}
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setDuplicateWarning(null)}>ยกเลิก</Button>
+                  <Button
+                    variant="destructive"
+                    className="flex-1"
+                    onClick={() => {
+                      const w = duplicateWarning;
+                      setDuplicateWarning(null);
+                      markPaidMutation.mutate({
+                        id: w.invoice.id,
+                        slipFile: w.pendingSlipFile,
+                        paymentMethod: w.pendingPaymentMethod,
+                      });
+                    }}
+                  >
+                    สร้างรายการใหม่ (ไม่เชื่อม)
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Bonus Dialog */}
         <Dialog open={!!bonusDialog} onOpenChange={(open) => { if (!open) setBonusDialog(null); }}>
@@ -969,10 +1091,8 @@ const StaffPayments = () => {
                         const file = e.target.files?.[0];
                         if (!file || !paySlipDialog) return;
                         setSlipUploading(true);
-                        markPaidMutation.mutate(
-                          { id: paySlipDialog.id, slipFile: file, paymentMethod: "transfer" },
-                          { onSettled: () => setSlipUploading(false) }
-                        );
+                        triggerPayWithGuard({ invoice: paySlipDialog, paymentMethod: "transfer", slipFile: file })
+                          .finally(() => setSlipUploading(false));
                       }}
                     />
                     <p className="text-xs text-muted-foreground mt-2">หรือส่งสลิปผ่าน LINE ระบบจะจับคู่อัตโนมัติ</p>
@@ -984,7 +1104,7 @@ const StaffPayments = () => {
                   <Button
                     className="w-full"
                     onClick={() => {
-                      markPaidMutation.mutate({ id: paySlipDialog.id, paymentMethod: payMethod });
+                      triggerPayWithGuard({ invoice: paySlipDialog, paymentMethod: payMethod });
                     }}
                     disabled={markPaidMutation.isPending}
                   >
