@@ -285,6 +285,13 @@ const StaffManagement = () => {
             {previewUrl && <img src={previewUrl} alt="ID Card" className="w-full rounded-lg" />}
           </DialogContent>
         </Dialog>
+
+        <ConvertToVendorDialog
+          open={convertOpen}
+          onOpenChange={setConvertOpen}
+          selectedStaff={selectedStaff}
+          onDone={() => setSelectedIds(new Set())}
+        />
       </main>
     </div>
   );
