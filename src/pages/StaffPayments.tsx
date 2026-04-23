@@ -480,6 +480,31 @@ const StaffPayments = () => {
     },
   });
 
+  // Duplicate Guard: ตรวจหา expense ที่อาจตรงกันก่อนสร้างใหม่
+  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File }) => {
+    const { invoice, paymentMethod, slipFile } = params;
+    if (!user) return;
+    try {
+      const matches = await findMatchingExpenses(
+        {
+          id: invoice.id,
+          invoice_number: invoice.invoice_number,
+          net_amount: Number(invoice.net_amount),
+          staff_profiles: invoice.staff_profiles,
+        },
+        user.id,
+        { centerDate: new Date().toISOString().split("T")[0] }
+      );
+      if (matches.length > 0) {
+        setDuplicateWarning({ invoice, matches, pendingPaymentMethod: paymentMethod, pendingSlipFile: slipFile });
+        return;
+      }
+    } catch (e) {
+      // ถ้า scan ล้มเหลว ก็ปล่อยให้สร้างปกติ
+    }
+    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod });
+  };
+
   // Auto-fill daily_rate when staff selected
   const handleStaffSelect = (staffId: string) => {
     const staff = staffList.find((s) => s.id === staffId);
