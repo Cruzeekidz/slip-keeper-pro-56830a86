@@ -1091,10 +1091,8 @@ const StaffPayments = () => {
                         const file = e.target.files?.[0];
                         if (!file || !paySlipDialog) return;
                         setSlipUploading(true);
-                        markPaidMutation.mutate(
-                          { id: paySlipDialog.id, slipFile: file, paymentMethod: "transfer" },
-                          { onSettled: () => setSlipUploading(false) }
-                        );
+                        triggerPayWithGuard({ invoice: paySlipDialog, paymentMethod: "transfer", slipFile: file })
+                          .finally(() => setSlipUploading(false));
                       }}
                     />
                     <p className="text-xs text-muted-foreground mt-2">หรือส่งสลิปผ่าน LINE ระบบจะจับคู่อัตโนมัติ</p>
