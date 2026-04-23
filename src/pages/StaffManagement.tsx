@@ -204,6 +204,12 @@ const StaffManagement = () => {
                 <Table className="w-full table-fixed">
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-[40px]">
+                        <Checkbox
+                          checked={staffList.length > 0 && selectedIds.size === staffList.length}
+                          onCheckedChange={toggleAll}
+                        />
+                      </TableHead>
                       <TableHead className="w-[22%]">ชื่อ</TableHead>
                       <TableHead className="w-[10%] hidden md:table-cell">ชื่อเล่น</TableHead>
                       <TableHead className="w-[14%] hidden lg:table-cell">ตำแหน่ง</TableHead>
@@ -217,6 +223,12 @@ const StaffManagement = () => {
                   <TableBody>
                     {staffList.map((s) => (
                       <TableRow key={s.id}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(s.id)}
+                            onCheckedChange={() => toggleSelect(s.id)}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">
                           <div className="truncate">{s.staff_name}</div>
                           <div className="text-xs text-muted-foreground md:hidden truncate">
