@@ -669,6 +669,17 @@ const StaffPayments = () => {
                                 <Upload className="h-3 w-3 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                             )}
+                            {(inv.status === "approved" || inv.status === "submitted") && !inv.matched_expense_id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setLinkDialog(inv)}
+                                title="เชื่อมกับรายการที่จ่ายแล้ว"
+                                className="border-primary text-primary hover:bg-primary/10"
+                              >
+                                <Link2 className="h-3 w-3 mr-1" />เชื่อม
+                              </Button>
+                            )}
                             {inv.staff_profiles?.line_user_id && (
                               <Button
                                 size="sm"
