@@ -14,12 +14,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search } from "lucide-react";
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
 import ReopenInvoiceDialog from "@/components/staff/ReopenInvoiceDialog";
 import InvoiceAuditHistoryDialog from "@/components/staff/InvoiceAuditHistoryDialog";
+import LinkExpenseDialog from "@/components/staff/LinkExpenseDialog";
+import BulkReconcileDialog from "@/components/staff/BulkReconcileDialog";
+import { findMatchingExpenses } from "@/hooks/useInvoiceMatching";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Unlock, History } from "lucide-react";
 
