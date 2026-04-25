@@ -253,21 +253,41 @@ export default function BulkUpload() {
 
       const isPDF = fileObj.file.type === 'application/pdf';
 
-      try {
-        const { data: aiData, error: aiError } = await supabase.functions.invoke('analyze-receipt', {
-          body: { storagePath: fileName, isPDF, source: 'bulk' }
-        });
-
-        // Rate limit detection
-        if (aiError && (aiError as any)?.status === 429) {
-          if (retryCount < 3) {
-            console.log(`[BulkUpload] Rate limited, waiting ${RATE_LIMIT_WAIT / 1000}s before retry...`);
-            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_WAIT));
-            return processFile(fileObj, index, updatedFiles, retryCount + 1);
+      // Retry analyze-receipt up to 3 times for any failure (timeout, 5xx, network, 429)
+      let aiData: any = null;
+      let lastErr: any = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('analyze-receipt', {
+            body: { storagePath: fileName, isPDF, source: 'bulk' }
+          });
+          if (!error && data?.success && data.data) {
+            aiData = data;
+            break;
           }
+          lastErr = error || new Error('AI returned no data');
+          const status = (error as any)?.status;
+          if (status === 429) await new Promise(r => setTimeout(r, RATE_LIMIT_WAIT));
+          else await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
+        } catch (e) {
+          lastErr = e;
+          await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
         }
+      }
 
-        if (!aiError && aiData?.success && aiData.data) {
+      // If AI failed after retries → mark error & cleanup storage (do NOT insert ghost row)
+      if (!aiData) {
+        console.error('[BulkUpload] AI failed after 3 retries:', lastErr);
+        try { await supabase.storage.from('receipts').remove([fileName]); } catch {}
+        updatedFiles[index].status = 'error';
+        updatedFiles[index].error = `AI วิเคราะห์ไม่สำเร็จ: ${lastErr?.message || 'unknown'}`;
+        setStats(prev => ({ ...prev, error: prev.error + 1 }));
+        setProcessedCount(prev => prev + 1);
+        setFiles([...updatedFiles]);
+        return;
+      }
+
+      {
           const d = aiData.data;
 
           // Dedup check 1: transaction_id
@@ -325,9 +345,6 @@ export default function BulkUpload() {
           staffName = d.staff_name || null;
           eventName = d.event_name || null;
           memoText = d.memo_text || null;
-        }
-      } catch (aiErr) {
-        console.error('[BulkUpload] AI error:', aiErr);
       }
 
       const isLowConfidence = confidence != null && confidence < 75;
