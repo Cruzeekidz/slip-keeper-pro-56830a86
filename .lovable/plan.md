@@ -1,94 +1,124 @@
+# แผน: บันทึกค่าใช้จ่ายผ่าน LINE ด้วยข้อความ + แนบรูป
 
-# แก้ปัญหารายการ 0 บาท จากการอัพโหลด 25 เม.ย. 26
+## ตอบคำถามคุณก่อน
 
-## 📊 สรุปผลตรวจสอบ
+**ใช้งานได้เลยไหมแบบที่อยากได้?** — **ยังไม่ได้** ตอนนี้ระบบทำได้แค่:
 
-| สถานะ | จำนวน | % |
-|---|---|---|
-| ✅ บันทึกสำเร็จ confidence ≥ 75 | 1,898 | 76.3% |
-| ⚠️ บันทึกสำเร็จ confidence 50-74 (รอตรวจ) | 376 | 15.1% |
-| ❌ AI วิเคราะห์ไม่สำเร็จ (0 บาท + confidence NULL) | **213** | **8.6%** |
-| **รวม** | **2,487** | 100% |
+- ส่ง**รูปสลิป** → AI อ่าน → บันทึก ✅
+- ส่ง**ข้อความ** → เก็บเป็น memo รอ**รูป**ตามมา (ถ้าไม่มีรูป = ไม่บันทึก) ❌
 
-**ข่าวดี**: 91% ของไฟล์บันทึกสำเร็จ ไม่ใช่เกือบทั้งหมดเป็น 0 บาทตามที่กังวลครับ
-
-## 🔍 สาเหตุของ 213 รายการ 0 บาท
-
-จาก `BulkUpload.tsx` บรรทัด 256-331:
-
-```
-try {
-  เรียก analyze-receipt
-  ถ้าสำเร็จ → ใส่ amount, date, description จริง
-} catch (aiErr) {
-  console.error  ← แค่ log เฉยๆ ไม่ retry
-}
-// แล้ว insert ด้วย amount=0, description='รอกรอกข้อมูล' เสมอ
-```
-
-ปัญหาคือ:
-1. **AI Gateway timeout / 503 / network error** ระหว่างประมวลผล batch ใหญ่ 2,487 ไฟล์ติด → catch แล้วปล่อยผ่าน
-2. **Retry ทำงานแค่กรณี 429** เท่านั้น (rate limit) ไม่ครอบคลุม timeout/network error
-3. ระบบยัง insert record ด้วยค่า default → ได้ "ผีรายการ" 0 บาท 213 ใบ
-4. ไฟล์ใน storage **ยังครบ** ทุกใบ — สามารถนำกลับมาวิเคราะห์ใหม่ได้
-
-## 🎯 แผนการแก้ไข
-
-### ส่วนที่ 1: หน้าเครื่องมือ "Re-analyze รายการที่ตกหล่น"
-
-เพิ่มหน้าใหม่ `/reanalyze-failed` (หรือเป็น Tab ในหน้า BulkUpload) ที่:
-
-- แสดงจำนวนรายการที่ AI ล้มเหลว (เงื่อนไข: `amount = 0 AND confidence_score IS NULL AND description = 'รอกรอกข้อมูล'`)
-- ปุ่ม **"Re-analyze ทั้งหมด"** — ดึง receipt_url จาก storage ส่งให้ analyze-receipt อีกรอบ
-- แบบ batch (concurrency 3, มี progress bar เหมือน BulkUpload)
-- ผลลัพธ์: ถ้าสำเร็จ → UPDATE record เดิมด้วย amount/category/description ที่ถูกต้อง
-- ถ้ายังล้มอีก → ขึ้นสถานะ "วิเคราะห์ไม่ได้" + ปุ่มลบ/แก้มือ
-
-### ส่วนที่ 2: ปรับปรุง `BulkUpload.tsx` ป้องกันปัญหาในอนาคต
-
-แก้ไข retry logic ที่บรรทัด 256-331:
-
-1. **Retry ทุกประเภท error** ไม่ใช่แค่ 429:
-   - Network/timeout → retry ได้ถึง 3 ครั้ง พร้อม exponential backoff (5s, 10s, 20s)
-   - 5xx server error → retry
-   - 429 → wait 10s
-2. **ถ้าครบ 3 ครั้งแล้วยังล้ม** → mark file เป็น `'error'` แทนการ insert เป็น 0 บาท (ไม่สร้าง "ผีรายการ" อีก)
-3. ลบไฟล์จาก storage ถ้า insert ไม่ได้ (ป้องกันไฟล์ค้าง)
-
-### ส่วนที่ 3: ปรับ `analyze-receipt` Edge Function
-
-- เพิ่ม timeout ภายใน function เป็น 60s (default Lovable AI Gateway บางทีอืดเมื่อโหลดสูง)
-- Log error rate ลง console พร้อม storagePath เพื่อ debug ได้
-
-## 🛠️ Technical Details
-
-**Files ที่จะแก้:**
-- `src/pages/BulkUpload.tsx` — ปรับปรุง retry logic + ลบไฟล์เมื่อ insert fail
-- `src/pages/ReanalyzeFailed.tsx` (ใหม่) — หน้า re-analyze
-- `src/App.tsx` — เพิ่ม route `/reanalyze-failed`
-- `supabase/functions/analyze-receipt/index.ts` — เพิ่ม timeout + logging
-
-**SQL Query ที่ใช้หา failed records:**
-```sql
-SELECT id, receipt_url, created_at FROM expenses
-WHERE user_id = auth.uid()
-  AND amount = 0
-  AND confidence_score IS NULL
-  AND description = 'รอกรอกข้อมูล'
-ORDER BY created_at DESC;
-```
-
-**Re-analyze flow:**
-1. ดึง list failed records → 213 ใบ
-2. ส่ง storagePath ไป `analyze-receipt` (มี source: 'bulk' รักษา OCR year ของอดีต)
-3. Dedup check ก่อน UPDATE (ถ้าวิเคราะห์ออกมาแล้วซ้ำกับรายการอื่น → ลบ record ผี + แจ้งเตือน)
-4. UPDATE record เดิมด้วยข้อมูลใหม่
-
-## ❓ ตัวเลือกเสริม (ขอ confirm)
-
-- **ก่อน Re-analyze จริง** อยากให้ผมสุ่มเปิดดู 5-10 ไฟล์ในกลุ่ม 213 ก่อนไหม? เผื่อบางไฟล์เป็นภาพเสีย/ไม่ใช่สลิป (จะได้ลบทิ้งแทนการ analyze ใหม่)
-- ถ้าหลัง Re-analyze แล้วยังเหลือไฟล์ที่ AI อ่านไม่ออก ต้องการให้มีปุ่ม **"ลบทั้งหมดที่เหลือ"** เพื่อเคลียร์ขยะไหม?
+ที่คุณต้องการคือ "พิมพ์อย่างเดียวก็บันทึกเลย" และ "ทีมงาน/คู่ค้าส่งใบวางบิลเข้ามาได้" — ต้องเพิ่ม logic ใหม่
 
 ---
 
-หลังอนุมัติ ผมจะลงมือทำตามแผนนี้และรันการ Re-analyze ให้ครบ 213 ใบในรอบเดียวครับ
+## สิ่งที่จะสร้าง
+
+### 1. AI Parser สำหรับข้อความเงินสด (แอดมินที่ผูกบัญชีแล้ว)
+
+ตัวอย่างที่จะรองรับ:
+
+- `จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมันเครื่องตัดหญ้า /สนามจักรยาน`
+- `จ่ายทิปให้นายทอม คนรถเอาของไปส่งที่ RR/ส่งของให้ดีลเลอร์`
+- `จ่ายค่าแท็กซี่ 160 บาท เงินสด`
+
+**Logic:**
+
+- ตรวจจับ keyword: `จ่ายเงินสด`, `เงินสด`, `จ่ายทิป`, `จ่ายค่า...`
+- ถ้าเข้าเงื่อนไข → ส่งให้ Lovable AI แยก: amount, payee, description, project_tag (จาก `/xxx`), category
+- บันทึก expense ด้วย `is_cash=true`, `receipt_url=null`, `confidence_score` ตาม AI
+- ส่ง Flex Message ยืนยัน + ปุ่ม "✏️ แก้ไข"
+- ถ้า AI ไม่แน่ใจ (ไม่เจอจำนวนเงิน) → ตอบขอข้อมูลเพิ่ม
+
+### 2. ใบวางบิล/ใบเสร็จจากทีมงาน + คู่ค้า (ทุก role รวมถึงยังไม่ผูก)
+
+**รูปแบบที่ guide ให้พิมพ์:**
+
+```
+วางบิล [จำนวน] [คำอธิบาย]
+เช่น: วางบิล 5000 ค่าออกแบบโปสเตอร์ Terminal21
+```
+
+หรือ
+
+```
+ใบเสร็จ [จำนวน] [คำอธิบาย]
+```
+
+แล้ว**แนบรูปใบวางบิล/ใบเสร็จ** (text + image ในข้อความเดียวกัน หรือส่งตามมาภายใน 5 นาที)
+
+**Logic:**
+
+- เจอ keyword `วางบิล` หรือ `ใบเสร็จ`/`เรียกเก็บ` → เก็บเป็น `pending_billing` (table ใหม่หรือใช้ `vendor_invoices` แบบ draft)
+- เมื่อรูปตามมา → upload เข้า `documents` bucket → สร้าง `vendor_invoices` ที่ `status='pending'`, `event_name=null` (ให้แอดมินใส่ทีหลัง)
+- ระบุผู้ส่งจาก `line_user_mappings` (ถ้าเป็นทีมงาน) หรือ `line_user_roles` หรือเก็บเป็น "external" พร้อม line_user_id + display_name
+- แจ้งเตือนแอดมินใน LINE: "📥 มีใบวางบิลใหม่จาก [ชื่อ] - 5000 บาท - คลิกเพื่ออนุมัติ"
+- แอดมินอนุมัติในหน้าเว็บ → เลือก event/project tag → กลายเป็น expense
+
+### 3. Help message
+
+เมื่อทีมงาน/คู่ค้าพิมพ์ `help`, `วิธีใช้`, `?` → ตอบ guide:
+
+```
+📖 วิธีส่งใบวางบิล/ใบเสร็จเข้ามา:
+
+1️⃣ วางบิล:
+   พิมพ์: วางบิล [จำนวน] [คำอธิบาย]
+   แล้วแนบรูปใบวางบิล
+   เช่น: วางบิล 5000 ค่าออกแบบโปสเตอร์
+
+2️⃣ ใบเสร็จ:
+   พิมพ์: ใบเสร็จ [จำนวน] [คำอธิบาย]
+   แล้วแนบรูปใบเสร็จ
+
+3️⃣ เงินสด (แอดมิน):
+   พิมพ์: จ่ายเงินสด ให้[ผู้รับ] [จำนวน] บาท เป็น[รายการ] /[งาน]
+```
+
+### 4. ปรับ Flow เดิม
+
+- ข้อความที่ไม่ตรง keyword ใดๆ → ยังคงเก็บเป็น memo รอรูป (พฤติกรรมเดิม)
+- เพิ่มลำดับการตรวจจับ: linking code → flowaccount → **เงินสด (admin)** → **วางบิล/ใบเสร็จ (everyone)** → help → memo
+
+---
+
+## รายละเอียดทางเทคนิค
+
+### Database
+
+- **Migration**: ตาราง `pending_billings` สำหรับเก็บ text+ภาพรอจับคู่ภายใน 5 นาที (line_user_id, kind, amount, description, expires_at)
+- ใช้ `vendor_invoices` ที่มีอยู่แล้วเป็นปลายทาง (มี `status`, `payment_slip_url`, `notes`)
+- เพิ่ม column `submitted_via_line_user_id` ใน `vendor_invoices` (optional) เพื่อ track ผู้ส่ง
+
+### Edge Function `line-webhook` (`supabase/functions/line-webhook/index.ts`)
+
+- เพิ่มฟังก์ชัน `parseCashExpenseText(text)` — เรียก Lovable AI ด้วย `google/gemini-2.5-flash` + tool calling เหมือน analyze-receipt
+- เพิ่มฟังก์ชัน `parseBillingText(text)` — regex จับ keyword + จำนวน
+- ปรับ block `event.message.type === "text"` ให้ตรวจ keyword ก่อนเก็บเป็น memo
+- ปรับ block image: ถ้ามี `pending_billings` ที่ยังไม่หมดอายุของ user นี้ → สร้าง vendor_invoice แทนการสร้าง expense
+
+### หน้าเว็บแอดมิน
+
+- เพิ่ม section "📥 รออนุมัติจาก LINE" ใน `VendorManagement.tsx` หรือสร้างหน้าใหม่ `/pending-approvals`
+- แสดง vendor_invoices ที่ `status='pending'` + ปุ่ม "อนุมัติ + เลือก event"
+
+---
+
+## ขอบเขตที่ **ไม่รวม** ในแผนนี้
+
+- ไม่แก้หน้า `CashExpense.tsx` ที่มีอยู่ (ยังใช้ได้ปกติ)
+- ไม่ทำ OCR ใบวางบิลอัตโนมัติในรอบนี้ (แอดมินกรอก event เอง)
+- ไม่ทำระบบลงทะเบียนทีมงาน/คู่ค้าใหม่ผ่าน LINE (ใช้ระบบ link code เดิม หรือรับเป็น external ได้)
+
+---
+
+## คำถาม 1 ข้อก่อนเริ่ม
+
+**ทีมงาน/คู่ค้าที่จะส่งใบวางบิล** ต้องผูกบัญชีก่อนไหม?
+
+- (A) **ไม่ต้องผูก** — ใครส่งก็รับ (เก็บ line_user_id + displayName ไว้ดูทีหลัง) — ง่ายกับคู่ค้า
+- (B) **ต้องผูก** ผ่าน `link-line` ก่อน — ปลอดภัยกว่า แต่คู่ค้าอาจไม่สะดวก
+- (C) **ทีมงานต้องผูก, คู่ค้าไม่ต้อง** — สมดุล
+
+ตอบแล้วฉันจะเริ่ม implement ทันทีครับ   ให้คู่ค้าผูก link line ก่อนดีกว่า  เขากดกรอกข้อมูลสร้างบัญชีคู่ค้าหรือทีมงาน มันจะ link ทันทีใช่ไหม 
+
+&nbsp;
