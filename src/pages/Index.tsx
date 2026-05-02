@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard, Building2, FileText, Wallet } from "lucide-react";
+import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard, Building2, FileText, Wallet, Banknote } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
@@ -207,6 +207,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/cash-advance')}>
                     <Wallet className="h-4 w-4 mr-2" />
                     เงินทดรองจ่าย
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/cash-expense')}>
+                    <Banknote className="h-4 w-4 mr-2" />
+                    บันทึกค่าใช้จ่ายเงินสด
                   </DropdownMenuItem>
 
                   <DropdownMenuSeparator />

@@ -196,6 +196,7 @@ export type Database = {
           expense_date: string
           expense_time: string | null
           id: string
+          is_cash: boolean | null
           memo_text: string | null
           merchant: string | null
           needs_review: boolean | null
@@ -227,6 +228,7 @@ export type Database = {
           expense_date: string
           expense_time?: string | null
           id?: string
+          is_cash?: boolean | null
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
@@ -258,6 +260,7 @@ export type Database = {
           expense_date?: string
           expense_time?: string | null
           id?: string
+          is_cash?: boolean | null
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
@@ -606,6 +609,7 @@ export type Database = {
           expense_date: string
           expense_time: string | null
           id: string
+          is_cash: boolean
           memo_text: string | null
           merchant: string | null
           needs_review: boolean | null
@@ -643,6 +647,7 @@ export type Database = {
           expense_date: string
           expense_time?: string | null
           id?: string
+          is_cash?: boolean
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
@@ -680,6 +685,7 @@ export type Database = {
           expense_date?: string
           expense_time?: string | null
           id?: string
+          is_cash?: boolean
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
