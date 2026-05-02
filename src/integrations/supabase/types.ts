@@ -840,6 +840,36 @@ export type Database = {
           },
         ]
       }
+      line_pending_billings: {
+        Row: {
+          amount: number | null
+          created_at: string
+          description: string | null
+          expires_at: string
+          id: string
+          kind: string
+          line_user_id: string
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          expires_at?: string
+          id?: string
+          kind: string
+          line_user_id: string
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          description?: string | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          line_user_id?: string
+        }
+        Relationships: []
+      }
       line_pending_memos: {
         Row: {
           created_at: string
@@ -1352,6 +1382,8 @@ export type Database = {
           paid_at: string | null
           payment_slip_url: string | null
           status: string
+          submitted_via_line_display_name: string | null
+          submitted_via_line_user_id: string | null
           tax_id: string | null
           user_id: string
           vat_amount: number
@@ -1378,6 +1410,8 @@ export type Database = {
           paid_at?: string | null
           payment_slip_url?: string | null
           status?: string
+          submitted_via_line_display_name?: string | null
+          submitted_via_line_user_id?: string | null
           tax_id?: string | null
           user_id: string
           vat_amount?: number
@@ -1404,6 +1438,8 @@ export type Database = {
           paid_at?: string | null
           payment_slip_url?: string | null
           status?: string
+          submitted_via_line_display_name?: string | null
+          submitted_via_line_user_id?: string | null
           tax_id?: string | null
           user_id?: string
           vat_amount?: number
