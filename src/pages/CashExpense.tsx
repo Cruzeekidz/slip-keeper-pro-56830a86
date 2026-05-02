@@ -54,8 +54,7 @@ const CashExpense = () => {
     form.transaction_direction
   );
 
-  const projectTagOptions = getDefaultProjectTags((form.category_group || null) as CategoryGroup | null)
-    .map(t => ({ value: t, label: t }));
+  const projectTagOptions = getDefaultProjectTags((form.category_group || null) as CategoryGroup | null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -263,9 +262,8 @@ const CashExpense = () => {
                       <Combobox
                         options={projectTagOptions}
                         value={form.project_tag}
-                        onChange={(v) => setForm({ ...form, project_tag: v })}
+                        onValueChange={(v) => setForm({ ...form, project_tag: v })}
                         placeholder="เลือกหรือพิมพ์..."
-                        emptyText="กดเพื่อเพิ่มใหม่"
                       />
                     </div>
                   )}
