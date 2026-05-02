@@ -292,6 +292,9 @@ const VendorManagement = () => {
                               <span className="font-bold">{inv.description || "บิลจากคู่ค้า"}</span>
                               <Badge variant={st.variant}>{st.label}</Badge>
                               {!inv.vendor_id && <Badge variant="destructive" className="text-xs">ยังไม่เชื่อม</Badge>}
+                              {(inv as any).submitted_via_line_user_id && (
+                                <Badge variant="secondary" className="text-xs">📱 จาก LINE</Badge>
+                              )}
                             </div>
                             <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
                               {(() => {
@@ -300,6 +303,9 @@ const VendorManagement = () => {
                               })()}
                               {inv.invoice_number && <p>เลขที่: {inv.invoice_number}</p>}
                               {vendor && <p>คู่ค้า: {vendor.company_name}</p>}
+                              {(inv as any).submitted_via_line_display_name && (
+                                <p>ส่งโดย: {(inv as any).submitted_via_line_display_name}</p>
+                              )}
                               <p className="text-foreground font-semibold">ยอด: {inv.amount.toLocaleString()} บาท</p>
                               {inv.vat_amount > 0 && <p>VAT: {inv.vat_amount.toLocaleString()} บาท</p>}
                               {inv.wht_amount > 0 && <p>หัก ณ ที่จ่าย: {inv.wht_amount.toLocaleString()} บาท</p>}

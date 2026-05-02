@@ -8,6 +8,133 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-line-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ============================================================
+// Cash expense AI parser (text-only, admin)
+// ============================================================
+const CASH_PROMPT = `วิเคราะห์ข้อความบันทึกค่าใช้จ่ายเงินสดภาษาไทยและสกัดข้อมูลออกมา
+
+ตัวอย่างข้อความ:
+- "จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมันเครื่องตัดหญ้า /สนามจักรยาน"
+- "จ่ายทิปให้นายทอม คนรถเอาของไปส่งที่ RR /ส่งของให้ดีลเลอร์"
+- "จ่ายค่าแท็กซี่ 160 บาท เงินสด"
+- "ค่ากาแฟ 80 /Terminal21"
+
+กฎสำคัญ:
+- amount: จำนวนเงิน (บาท) — ถ้าหาไม่พบให้ใส่ null
+- receiver: ผู้รับเงิน (ชื่อคน/ร้าน) — เช่น "นายทูน", "นายทอม", "ร้านกาแฟ"
+- description: คำอธิบายว่าจ่ายค่าอะไร เช่น "ค่าน้ำมันเครื่องตัดหญ้า", "ทิปคนรถ", "ค่าแท็กซี่"
+- project_tag: ข้อความหลังเครื่องหมาย "/" เช่น "/สนามจักรยาน" → "สนามจักรยาน", "/Terminal21" → "EVT-Terminal21"
+- transaction_type: BUSINESS เป็นค่าเริ่มต้น (ถ้าเกี่ยวกับงาน/บริษัท), PERSONAL ถ้าเป็นเรื่องส่วนตัว
+- category_group: GENERAL เป็นค่าเริ่มต้น, EVENT ถ้ามี project_tag เป็นชื่ออีเวนท์, VENUE ถ้าเกี่ยวกับสนาม
+- subcategory: เดาจาก description เช่น ค่าน้ำมัน→Transport, ทิป→Other, แท็กซี่→Transport, กาแฟ→Food
+- transaction_direction: EXPENSE (เกือบทุกกรณี)
+- confidence_score: 0-100 ตามความมั่นใจ`;
+
+const CASH_TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "extract_cash_expense",
+    description: "Extract cash expense data from Thai text",
+    parameters: {
+      type: "object",
+      properties: {
+        amount: { type: ["number", "null"] },
+        receiver: { type: ["string", "null"] },
+        description: { type: ["string", "null"] },
+        project_tag: { type: ["string", "null"] },
+        transaction_type: { type: ["string", "null"], enum: ["BUSINESS", "PERSONAL", null] },
+        category_group: { type: ["string", "null"] },
+        subcategory: { type: ["string", "null"] },
+        confidence_score: { type: ["number", "null"] },
+      },
+      required: ["amount", "description", "transaction_type", "subcategory", "confidence_score"],
+      additionalProperties: false,
+    },
+  },
+};
+
+// Detect cash expense intent in Thai text
+function looksLikeCashExpense(text: string): boolean {
+  const t = text.toLowerCase();
+  // Must contain a keyword AND a number
+  const hasKeyword = /จ่ายเงินสด|จ่ายทิป|ทิป|จ่ายค่า|ค่า\s*\S+\s*\d|เงินสด/.test(t);
+  const hasNumber = /\d{2,}/.test(t);
+  return hasKeyword && hasNumber;
+}
+
+// Detect billing/receipt intent
+function parseBillingIntent(text: string): { kind: 'billing' | 'receipt'; amount: number | null; description: string } | null {
+  const m = text.match(/^(วางบิล|ใบวางบิล|เรียกเก็บ|invoice|ใบเสร็จ|ใบเสร่จ|receipt)\s*(.*)$/i);
+  if (!m) return null;
+  const kindWord = m[1].toLowerCase();
+  const kind: 'billing' | 'receipt' =
+    /ใบเสร็จ|ใบเสร่จ|receipt/.test(kindWord) ? 'receipt' : 'billing';
+  const rest = (m[2] || '').trim();
+  const amtMatch = rest.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)/);
+  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, '')) : null;
+  const description = amtMatch ? rest.replace(amtMatch[0], '').trim() : rest;
+  return { kind, amount, description };
+}
+
+function getHelpMessage(): string {
+  return `📖 วิธีใช้งาน LINE Bot:
+
+1️⃣ ส่งใบวางบิล/ใบแจ้งหนี้:
+   พิมพ์: วางบิล [จำนวน] [คำอธิบาย]
+   เช่น: วางบิล 5000 ค่าออกแบบโปสเตอร์
+   👉 แล้วแนบรูปใบวางบิลตามมาภายใน 10 นาที
+
+2️⃣ ส่งใบเสร็จเรียกเงินคืน:
+   พิมพ์: ใบเสร็จ [จำนวน] [คำอธิบาย]
+   เช่น: ใบเสร็จ 350 ค่าเดินทาง
+   👉 แล้วแนบรูปใบเสร็จตามมา
+
+3️⃣ ส่งสลิปโอนเงินปกติ:
+   ส่งรูปสลิปได้เลย (พิมพ์ memo ก่อนส่งรูปก็ได้)
+
+❓ พิมพ์ "help" เพื่อดูข้อความนี้อีกครั้ง`;
+}
+
+function getAdminHelpMessage(): string {
+  return getHelpMessage() + `
+
+👑 สำหรับแอดมิน:
+
+4️⃣ บันทึกเงินสด (พิมพ์อย่างเดียว ไม่ต้องแนบรูป):
+   พิมพ์: จ่ายเงินสด ให้[ผู้รับ] [จำนวน] บาท เป็น[รายการ] /[งาน]
+   เช่น: จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมันเครื่องตัดหญ้า /สนามจักรยาน
+   หรือ: จ่ายค่าแท็กซี่ 160 บาท เงินสด`;
+}
+
+async function parseCashExpenseWithAI(text: string, apiKey: string): Promise<any | null> {
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: CASH_PROMPT },
+          { role: "user", content: text },
+        ],
+        tools: [CASH_TOOL_SCHEMA],
+        tool_choice: { type: "function", function: { name: "extract_cash_expense" } },
+      }),
+    });
+    if (!res.ok) {
+      console.error("Cash AI parse failed:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return null;
+    return JSON.parse(toolCall.function.arguments);
+  } catch (e) {
+    console.error("Cash AI parse error:", e);
+    return null;
+  }
+}
+
 const ANALYSIS_PROMPT = `วิเคราะห์สลิปการโอนเงินนี้และจัดหมวดหมู่ตามระบบ:
 
 ## ระบบหมวดหมู่ 3 ระดับ:
@@ -229,19 +356,19 @@ serve(async (req) => {
         continue;
       }
 
-      // Non-admin users: acknowledge but don't process
-      if (userRole !== 'admin') {
-        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
-          `ขอบคุณค่ะ ข้อความของคุณได้รับแล้ว 😊`);
-        continue;
-      }
-
-      // --- Handle TEXT messages ---
+      // --- Handle TEXT messages (all roles) ---
       if (event.message.type === "text") {
         const text = event.message.text?.trim();
         if (!text) continue;
 
-        // --- Handle linking code: ผูก:XXXXXX ---
+        // --- Help command (everyone) ---
+        if (/^(help|วิธีใช้|\?|？|menu|เมนู)$/i.test(text)) {
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            userRole === 'admin' ? getAdminHelpMessage() : getHelpMessage());
+          continue;
+        }
+
+        // --- Linking code: ผูก:XXXXXX (everyone) ---
         const linkMatch = text.match(/^ผูก[:\s]?\s*(\d{6})$/);
         if (linkMatch) {
           const code = linkMatch[1];
@@ -299,8 +426,49 @@ serve(async (req) => {
           continue;
         }
 
-        // --- ADMIN ONLY: Handle FlowAccount URL ---
-        if (userRole !== 'admin') continue;
+        // --- Billing/Receipt intent (everyone — guides waiting for image) ---
+        const billingIntent = parseBillingIntent(text);
+        if (billingIntent) {
+          // Save pending billing for 10 minutes
+          await supabase.from('line_pending_billings').delete().eq('line_user_id', userId);
+          const { error: insErr } = await supabase.from('line_pending_billings').insert({
+            line_user_id: userId,
+            kind: billingIntent.kind,
+            amount: billingIntent.amount,
+            description: billingIntent.description || null,
+          });
+
+          if (insErr) {
+            console.error("pending billing insert error:", insErr);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ เกิดข้อผิดพลาด กรุณาลองใหม่`);
+            continue;
+          }
+
+          const kindLabel = billingIntent.kind === 'billing' ? 'ใบวางบิล' : 'ใบเสร็จ';
+          const amtText = billingIntent.amount
+            ? `\n💰 จำนวน: ${billingIntent.amount.toLocaleString()} บาท`
+            : '\n⚠️ ไม่พบจำนวนเงิน — แอดมินจะตรวจตอนอนุมัติ';
+          const descText = billingIntent.description
+            ? `\n📝 ${billingIntent.description}`
+            : '';
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            `📥 รับ${kindLabel}แล้ว${amtText}${descText}\n\n📸 กรุณาแนบรูป${kindLabel}ตามมาภายใน 10 นาที\n(ไม่ต้องระบุชื่ออีเวนท์ — แอดมินจะใส่ตอนอนุมัติ)`);
+          continue;
+        }
+
+        // --- ADMIN ONLY from here ---
+        if (userRole !== 'admin') {
+          // Non-admin: store as memo for image, or guide them
+          await supabase.from('line_pending_memos').delete().eq('line_user_id', userId);
+          await supabase.from('line_pending_memos').insert({
+            line_user_id: userId,
+            memo_text: text,
+          });
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            `📝 รับข้อความแล้ว: "${text}"\n📸 ส่งรูปใบวางบิล/ใบเสร็จตามมาได้เลย\n\n💡 พิมพ์ "help" เพื่อดูวิธีใช้งาน`);
+          continue;
+        }
 
         if (text.includes('flowaccount.com')) {
           // Find the user's supabase ID
@@ -373,6 +541,72 @@ serve(async (req) => {
           continue;
         }
 
+        // --- Cash expense (admin only, text-only, no image needed) ---
+        if (looksLikeCashExpense(text)) {
+          const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+          if (!LOVABLE_API_KEY) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ ระบบ AI ไม่พร้อม กรุณาลองใหม่`);
+            continue;
+          }
+
+          const { data: mapping } = await supabase
+            .from('line_user_mappings')
+            .select('supabase_user_id')
+            .eq('line_user_id', userId)
+            .maybeSingle();
+
+          if (!mapping?.supabase_user_id) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ ยังไม่ได้ผูกบัญชี กรุณาผูกบัญชีก่อน`);
+            continue;
+          }
+
+          const parsed = await parseCashExpenseWithAI(text, LOVABLE_API_KEY);
+          if (!parsed || !parsed.amount || parsed.amount <= 0) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `🤔 ไม่สามารถสกัดข้อมูลจากข้อความได้\nลองพิมพ์ในรูปแบบ:\n"จ่ายเงินสด ให้[ผู้รับ] [จำนวน] บาท เป็น[รายการ] /[งาน]"`);
+            continue;
+          }
+
+          const txType = parsed.transaction_type || 'BUSINESS';
+          const catGroup = txType === 'BUSINESS' ? (parsed.category_group || 'GENERAL') : null;
+          const category = txType === 'BUSINESS' ? `BUSINESS > ${catGroup}` : txType;
+
+          const { data: inserted, error: insErr } = await supabase.from('expenses').insert({
+            user_id: mapping.supabase_user_id,
+            amount: parsed.amount,
+            expense_date: new Date().toISOString().split('T')[0],
+            description: parsed.description || text,
+            receiver: parsed.receiver || null,
+            category,
+            subcategory: parsed.subcategory || null,
+            transaction_type: txType,
+            category_group: catGroup,
+            project_tag: parsed.project_tag || null,
+            transaction_direction: 'EXPENSE',
+            confidence_score: parsed.confidence_score || 75,
+            needs_review: (parsed.confidence_score || 0) < 75,
+            is_cash: true,
+            receipt_url: null,
+            memo_text: text,
+          } as any).select('id').single();
+
+          if (insErr) {
+            console.error("Cash expense insert error:", insErr);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `❌ บันทึกไม่สำเร็จ: ${insErr.message}`);
+            continue;
+          }
+
+          const editUrl = `https://slip-keeper-pro.lovable.app/?edit=${inserted.id}`;
+          const tagText = parsed.project_tag ? `\n🏷️ ${parsed.project_tag}` : '';
+          const recvText = parsed.receiver ? `\n👤 ${parsed.receiver}` : '';
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            `✅ บันทึกเงินสดสำเร็จ!\n💰 ${parsed.amount.toLocaleString()} บาท${recvText}\n📝 ${parsed.description || '-'}${tagText}\n📂 ${category}${parsed.subcategory ? ' > ' + parsed.subcategory : ''}\n\n✏️ แก้ไข: ${editUrl}`);
+          continue;
+        }
+
         // --- Handle TEXT messages as pending memo ---
         await supabase.from('line_pending_memos').delete().eq('line_user_id', userId);
         await supabase.from('line_pending_memos').insert({
@@ -396,6 +630,127 @@ serve(async (req) => {
       const replyToken = event.replyToken;
 
       try {
+        // ===== A. Check pending billing (highest priority — billing/receipt flow) =====
+        const { data: pendingBilling } = await supabase
+          .from('line_pending_billings')
+          .select('id, kind, amount, description')
+          .eq('line_user_id', userId)
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (pendingBilling) {
+          // Find owner (admin user_id) — first try mapping (linked staff/admin),
+          // then fallback to vendor_profiles / staff_profiles by line_user_id
+          let ownerUserId: string | null = null;
+          let submitterDisplayName: string | null = roleData?.display_name || null;
+
+          const { data: mapping } = await supabase
+            .from('line_user_mappings')
+            .select('supabase_user_id, display_name')
+            .eq('line_user_id', userId)
+            .maybeSingle();
+
+          if (mapping?.supabase_user_id) {
+            ownerUserId = mapping.supabase_user_id;
+            submitterDisplayName = mapping.display_name || submitterDisplayName;
+          } else {
+            const { data: vendor } = await supabase
+              .from('vendor_profiles')
+              .select('user_id, company_name, contact_name')
+              .eq('line_user_id', userId)
+              .maybeSingle();
+            if (vendor) {
+              ownerUserId = vendor.user_id;
+              submitterDisplayName = vendor.company_name || vendor.contact_name || submitterDisplayName;
+            } else {
+              const { data: staff } = await supabase
+                .from('staff_profiles')
+                .select('user_id, staff_name')
+                .eq('line_user_id', userId)
+                .maybeSingle();
+              if (staff) {
+                ownerUserId = staff.user_id;
+                submitterDisplayName = staff.staff_name || submitterDisplayName;
+              }
+            }
+          }
+
+          if (!ownerUserId) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+              `❌ ยังไม่ได้ลงทะเบียนเป็นทีมงาน/คู่ค้า\nกรุณากดเมนู "ลงทะเบียน" จาก Rich Menu ก่อน`);
+            continue;
+          }
+
+          // Download image from LINE
+          const contentResponse = await fetch(
+            `https://api-data.line.me/v2/bot/message/${messageId}/content`,
+            { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
+          );
+          if (!contentResponse.ok) {
+            throw new Error(`Failed to download content: ${contentResponse.status}`);
+          }
+          const billingBytes = new Uint8Array(await contentResponse.arrayBuffer());
+          const billingExt = isPDF ? 'pdf' : 'jpg';
+          const billingContentType = isPDF ? 'application/pdf' : 'image/jpeg';
+          const now = new Date();
+          const billingPath = `vendor-bills/${ownerUserId}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/line_${Date.now()}_${messageId}.${billingExt}`;
+
+          const { error: billUploadErr } = await supabase.storage
+            .from('documents')
+            .upload(billingPath, billingBytes, { contentType: billingContentType, upsert: false });
+
+          if (billUploadErr) {
+            console.error("Billing upload error:", billUploadErr);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+              `❌ อัพโหลดไม่สำเร็จ: ${billUploadErr.message}`);
+            continue;
+          }
+
+          // Create vendor_invoice (pending status, no event yet — admin will fill)
+          const { error: invErr } = await supabase.from('vendor_invoices').insert({
+            user_id: ownerUserId,
+            document_type: pendingBilling.kind === 'billing' ? 'invoice' : 'receipt',
+            amount: pendingBilling.amount || 0,
+            net_amount: pendingBilling.amount || 0,
+            description: pendingBilling.description || null,
+            file_url: billingPath,
+            invoice_date: now.toISOString().split('T')[0],
+            status: 'pending',
+            notes: `[LINE] จาก ${submitterDisplayName || userId}`,
+            submitted_via_line_user_id: userId,
+            submitted_via_line_display_name: submitterDisplayName,
+            link_type: 'vendor',
+            is_formal: pendingBilling.kind === 'billing',
+          } as any);
+
+          if (invErr) {
+            console.error("Vendor invoice insert error:", invErr);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+              `❌ บันทึกไม่สำเร็จ: ${invErr.message}`);
+            continue;
+          }
+
+          // Clean up pending
+          await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
+
+          const kindLabel = pendingBilling.kind === 'billing' ? 'ใบวางบิล' : 'ใบเสร็จ';
+          const amtText = pendingBilling.amount
+            ? `\n💰 ${pendingBilling.amount.toLocaleString()} บาท`
+            : '';
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            `✅ ส่ง${kindLabel}สำเร็จ!${amtText}\n📝 ${pendingBilling.description || '-'}\n\n⏳ รอแอดมินตรวจสอบและเลือกอีเวนท์`);
+          continue;
+        }
+
+        // ===== B. Default flow: slip analysis (admin only) =====
+        if (userRole !== 'admin') {
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            `📷 รับรูปแล้ว แต่ไม่มีข้อความ "วางบิล" หรือ "ใบเสร็จ" นำหน้า\n\n💡 พิมพ์ "help" เพื่อดูวิธีส่งใบวางบิล/ใบเสร็จ`);
+          continue;
+        }
+
         // 1. Check for pending memo from this user (within last 5 minutes)
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
         const { data: memoData } = await supabase
