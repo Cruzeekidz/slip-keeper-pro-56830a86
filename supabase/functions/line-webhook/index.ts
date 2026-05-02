@@ -8,6 +8,133 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-line-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ============================================================
+// Cash expense AI parser (text-only, admin)
+// ============================================================
+const CASH_PROMPT = `วิเคราะห์ข้อความบันทึกค่าใช้จ่ายเงินสดภาษาไทยและสกัดข้อมูลออกมา
+
+ตัวอย่างข้อความ:
+- "จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมันเครื่องตัดหญ้า /สนามจักรยาน"
+- "จ่ายทิปให้นายทอม คนรถเอาของไปส่งที่ RR /ส่งของให้ดีลเลอร์"
+- "จ่ายค่าแท็กซี่ 160 บาท เงินสด"
+- "ค่ากาแฟ 80 /Terminal21"
+
+กฎสำคัญ:
+- amount: จำนวนเงิน (บาท) — ถ้าหาไม่พบให้ใส่ null
+- receiver: ผู้รับเงิน (ชื่อคน/ร้าน) — เช่น "นายทูน", "นายทอม", "ร้านกาแฟ"
+- description: คำอธิบายว่าจ่ายค่าอะไร เช่น "ค่าน้ำมันเครื่องตัดหญ้า", "ทิปคนรถ", "ค่าแท็กซี่"
+- project_tag: ข้อความหลังเครื่องหมาย "/" เช่น "/สนามจักรยาน" → "สนามจักรยาน", "/Terminal21" → "EVT-Terminal21"
+- transaction_type: BUSINESS เป็นค่าเริ่มต้น (ถ้าเกี่ยวกับงาน/บริษัท), PERSONAL ถ้าเป็นเรื่องส่วนตัว
+- category_group: GENERAL เป็นค่าเริ่มต้น, EVENT ถ้ามี project_tag เป็นชื่ออีเวนท์, VENUE ถ้าเกี่ยวกับสนาม
+- subcategory: เดาจาก description เช่น ค่าน้ำมัน→Transport, ทิป→Other, แท็กซี่→Transport, กาแฟ→Food
+- transaction_direction: EXPENSE (เกือบทุกกรณี)
+- confidence_score: 0-100 ตามความมั่นใจ`;
+
+const CASH_TOOL_SCHEMA = {
+  type: "function",
+  function: {
+    name: "extract_cash_expense",
+    description: "Extract cash expense data from Thai text",
+    parameters: {
+      type: "object",
+      properties: {
+        amount: { type: ["number", "null"] },
+        receiver: { type: ["string", "null"] },
+        description: { type: ["string", "null"] },
+        project_tag: { type: ["string", "null"] },
+        transaction_type: { type: ["string", "null"], enum: ["BUSINESS", "PERSONAL", null] },
+        category_group: { type: ["string", "null"] },
+        subcategory: { type: ["string", "null"] },
+        confidence_score: { type: ["number", "null"] },
+      },
+      required: ["amount", "description", "transaction_type", "subcategory", "confidence_score"],
+      additionalProperties: false,
+    },
+  },
+};
+
+// Detect cash expense intent in Thai text
+function looksLikeCashExpense(text: string): boolean {
+  const t = text.toLowerCase();
+  // Must contain a keyword AND a number
+  const hasKeyword = /จ่ายเงินสด|จ่ายทิป|ทิป|จ่ายค่า|ค่า\s*\S+\s*\d|เงินสด/.test(t);
+  const hasNumber = /\d{2,}/.test(t);
+  return hasKeyword && hasNumber;
+}
+
+// Detect billing/receipt intent
+function parseBillingIntent(text: string): { kind: 'billing' | 'receipt'; amount: number | null; description: string } | null {
+  const m = text.match(/^(วางบิล|ใบวางบิล|เรียกเก็บ|invoice|ใบเสร็จ|ใบเสร่จ|receipt)\s*(.*)$/i);
+  if (!m) return null;
+  const kindWord = m[1].toLowerCase();
+  const kind: 'billing' | 'receipt' =
+    /ใบเสร็จ|ใบเสร่จ|receipt/.test(kindWord) ? 'receipt' : 'billing';
+  const rest = (m[2] || '').trim();
+  const amtMatch = rest.match(/(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)/);
+  const amount = amtMatch ? parseFloat(amtMatch[1].replace(/,/g, '')) : null;
+  const description = amtMatch ? rest.replace(amtMatch[0], '').trim() : rest;
+  return { kind, amount, description };
+}
+
+function getHelpMessage(): string {
+  return `📖 วิธีใช้งาน LINE Bot:
+
+1️⃣ ส่งใบวางบิล/ใบแจ้งหนี้:
+   พิมพ์: วางบิล [จำนวน] [คำอธิบาย]
+   เช่น: วางบิล 5000 ค่าออกแบบโปสเตอร์
+   👉 แล้วแนบรูปใบวางบิลตามมาภายใน 10 นาที
+
+2️⃣ ส่งใบเสร็จเรียกเงินคืน:
+   พิมพ์: ใบเสร็จ [จำนวน] [คำอธิบาย]
+   เช่น: ใบเสร็จ 350 ค่าเดินทาง
+   👉 แล้วแนบรูปใบเสร็จตามมา
+
+3️⃣ ส่งสลิปโอนเงินปกติ:
+   ส่งรูปสลิปได้เลย (พิมพ์ memo ก่อนส่งรูปก็ได้)
+
+❓ พิมพ์ "help" เพื่อดูข้อความนี้อีกครั้ง`;
+}
+
+function getAdminHelpMessage(): string {
+  return getHelpMessage() + `
+
+👑 สำหรับแอดมิน:
+
+4️⃣ บันทึกเงินสด (พิมพ์อย่างเดียว ไม่ต้องแนบรูป):
+   พิมพ์: จ่ายเงินสด ให้[ผู้รับ] [จำนวน] บาท เป็น[รายการ] /[งาน]
+   เช่น: จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมันเครื่องตัดหญ้า /สนามจักรยาน
+   หรือ: จ่ายค่าแท็กซี่ 160 บาท เงินสด`;
+}
+
+async function parseCashExpenseWithAI(text: string, apiKey: string): Promise<any | null> {
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: CASH_PROMPT },
+          { role: "user", content: text },
+        ],
+        tools: [CASH_TOOL_SCHEMA],
+        tool_choice: { type: "function", function: { name: "extract_cash_expense" } },
+      }),
+    });
+    if (!res.ok) {
+      console.error("Cash AI parse failed:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!toolCall) return null;
+    return JSON.parse(toolCall.function.arguments);
+  } catch (e) {
+    console.error("Cash AI parse error:", e);
+    return null;
+  }
+}
+
 const ANALYSIS_PROMPT = `วิเคราะห์สลิปการโอนเงินนี้และจัดหมวดหมู่ตามระบบ:
 
 ## ระบบหมวดหมู่ 3 ระดับ:
