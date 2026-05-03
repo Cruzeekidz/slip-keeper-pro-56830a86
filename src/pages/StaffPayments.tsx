@@ -14,7 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search, Copy, AlertTriangle, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
@@ -59,6 +63,28 @@ const StaffPayments = () => {
   const [slipUploading, setSlipUploading] = useState(false);
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
+  const cashSlipRef = useRef<HTMLInputElement>(null);
+  const [cashNote, setCashNote] = useState("");
+  const [cashSlipFile, setCashSlipFile] = useState<File | null>(null);
+  const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(undefined);
+  const [creditNote, setCreditNote] = useState("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+    toast({ title: "คัดลอกแล้ว", description: text });
+  };
+
+  const resetPayDialog = () => {
+    setPaySlipDialog(null);
+    setPayMethod("transfer");
+    setCashNote("");
+    setCashSlipFile(null);
+    setCreditDueDate(undefined);
+    setCreditNote("");
+  };
   const [editDialog, setEditDialog] = useState<any | null>(null);
   const [linkDialog, setLinkDialog] = useState<any | null>(null);
   const [bulkReconcileOpen, setBulkReconcileOpen] = useState(false);
@@ -183,7 +209,7 @@ const StaffPayments = () => {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async ({ id, slipFile, paymentMethod }: { id: string; slipFile?: File; paymentMethod: string }) => {
+    mutationFn: async ({ id, slipFile, paymentMethod, extraNote, dueDate }: { id: string; slipFile?: File; paymentMethod: string; extraNote?: string; dueDate?: string }) => {
       if (!user) throw new Error("Not authenticated");
       let slipPath: string | null = null;
 
@@ -197,10 +223,17 @@ const StaffPayments = () => {
         slipPath = path;
       }
 
+      const noteParts: string[] = [];
+      if (paymentMethod !== "transfer") {
+        noteParts.push(`จ่ายด้วย: ${paymentMethod === "cash" ? "เงินสด" : "เครดิต"}`);
+      }
+      if (dueDate) noteParts.push(`กำหนดชำระ: ${dueDate}`);
+      if (extraNote && extraNote.trim()) noteParts.push(extraNote.trim());
+
       const updates: Record<string, unknown> = {
         status: "paid",
         paid_at: new Date().toISOString(),
-        notes: paymentMethod !== "transfer" ? `จ่ายด้วย: ${paymentMethod === "cash" ? "เงินสด" : "เครดิต"}` : undefined,
+        notes: noteParts.length > 0 ? noteParts.join(" | ") : undefined,
       };
       if (slipPath) updates.payment_slip_url = slipPath;
 
@@ -275,8 +308,7 @@ const StaffPayments = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
-      setPaySlipDialog(null);
-      setPayMethod("transfer");
+      resetPayDialog();
       toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
     },
     onError: (err: any) => {
@@ -481,8 +513,8 @@ const StaffPayments = () => {
   });
 
   // Duplicate Guard: ตรวจหา expense ที่อาจตรงกันก่อนสร้างใหม่
-  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File }) => {
-    const { invoice, paymentMethod, slipFile } = params;
+  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File; extraNote?: string; dueDate?: string }) => {
+    const { invoice, paymentMethod, slipFile, extraNote, dueDate } = params;
     if (!user) return;
     try {
       const matches = await findMatchingExpenses(
@@ -502,7 +534,7 @@ const StaffPayments = () => {
     } catch (e) {
       // ถ้า scan ล้มเหลว ก็ปล่อยให้สร้างปกติ
     }
-    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod });
+    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod, extraNote, dueDate });
   };
 
   // Auto-fill daily_rate when staff selected
@@ -1015,8 +1047,8 @@ const StaffPayments = () => {
         </Dialog>
 
         {/* Pay with Slip Dialog */}
-        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) { setPaySlipDialog(null); setPayMethod("transfer"); } }}>
-          <DialogContent className="max-w-sm">
+        <Dialog open={!!paySlipDialog} onOpenChange={(open) => { if (!open) resetPayDialog(); }}>
+          <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <Wallet className="h-5 w-5" />
@@ -1072,6 +1104,45 @@ const StaffPayments = () => {
 
                 {/* Transfer: upload slip */}
                 {payMethod === "transfer" && (
+                  <>
+                    {/* Bank account info */}
+                    {paySlipDialog.staff_profiles?.bank_account ? (
+                      <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-3 space-y-2">
+                        <div className="text-xs font-semibold text-primary uppercase">ข้อมูลโอนเงิน</div>
+                        <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center text-sm">
+                          <span className="text-muted-foreground">ธนาคาร</span>
+                          <span className="font-medium">{paySlipDialog.staff_profiles?.bank_name || "-"}</span>
+                          <span></span>
+
+                          <span className="text-muted-foreground">ชื่อบัญชี</span>
+                          <span className="font-medium truncate">{paySlipDialog.staff_profiles?.staff_name}</span>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(paySlipDialog.staff_profiles?.staff_name || "", "name")}>
+                            {copiedField === "name" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+
+                          <span className="text-muted-foreground">เลขบัญชี</span>
+                          <span className="font-mono font-bold text-base">{paySlipDialog.staff_profiles?.bank_account}</span>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(String(paySlipDialog.staff_profiles?.bank_account || "").replace(/\D/g, ""), "acc")}>
+                            {copiedField === "acc" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+
+                          <span className="text-muted-foreground">ยอดโอน</span>
+                          <span className="font-bold text-primary">{Number(paySlipDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(Number(paySlipDialog.net_amount).toFixed(2), "amt")}>
+                            {copiedField === "amt" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border-2 border-warning/40 bg-warning/10 p-3 text-sm flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-medium text-warning">ทีมงานยังไม่ได้กรอกเลขบัญชี</p>
+                          <p className="text-xs text-muted-foreground">ไปที่ทะเบียนทีมงาน เพื่อเพิ่มเลขบัญชี</p>
+                        </div>
+                      </div>
+                    )}
+
                   <div className="border-2 border-dashed rounded-lg p-6 text-center">
                     <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                     <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
@@ -1097,19 +1168,115 @@ const StaffPayments = () => {
                     />
                     <p className="text-xs text-muted-foreground mt-2">หรือส่งสลิปผ่าน LINE ระบบจะจับคู่อัตโนมัติ</p>
                   </div>
+                  </>
                 )}
 
-                {/* Cash / Credit: just confirm */}
-                {(payMethod === "cash" || payMethod === "credit") && (
-                  <Button
-                    className="w-full"
-                    onClick={() => {
-                      triggerPayWithGuard({ invoice: paySlipDialog, paymentMethod: payMethod });
-                    }}
-                    disabled={markPaidMutation.isPending}
-                  >
-                    {markPaidMutation.isPending ? "กำลังบันทึก..." : `ยืนยันจ่ายด้วย${payMethod === "cash" ? "เงินสด" : "เครดิต"}`}
-                  </Button>
+                {/* Cash: confirmation with optional evidence */}
+                {payMethod === "cash" && (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-green-500/10 border border-green-500/30 p-3 text-sm">
+                      จ่ายเงินสด <span className="font-bold">{Number(paySlipDialog.net_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท</span> ให้ <span className="font-bold">{paySlipDialog.staff_profiles?.staff_name}</span>
+                    </div>
+                    <div>
+                      <Label className="text-xs">หมายเหตุ (ไม่บังคับ)</Label>
+                      <Textarea
+                        placeholder="เช่น พี่เอจ่ายที่ออฟฟิศ / รับเงินที่หน้างาน"
+                        value={cashNote}
+                        onChange={(e) => setCashNote(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">แนบรูปใบรับเงิน/ลายเซ็น (ไม่บังคับ)</Label>
+                      <div className="flex gap-2 items-center mt-1">
+                        <input
+                          ref={cashSlipRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={(e) => setCashSlipFile(e.target.files?.[0] || null)}
+                        />
+                        <Button type="button" variant="outline" size="sm" onClick={() => cashSlipRef.current?.click()}>
+                          <ImageIcon className="h-4 w-4 mr-1" />
+                          {cashSlipFile ? "เปลี่ยนรูป" : "ถ่ายรูป / เลือกไฟล์"}
+                        </Button>
+                        {cashSlipFile && <span className="text-xs text-muted-foreground truncate flex-1">{cashSlipFile.name}</span>}
+                      </div>
+                    </div>
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        if (!paySlipDialog) return;
+                        if (cashSlipFile) setSlipUploading(true);
+                        triggerPayWithGuard({
+                          invoice: paySlipDialog,
+                          paymentMethod: "cash",
+                          slipFile: cashSlipFile || undefined,
+                          extraNote: cashNote,
+                        }).finally(() => setSlipUploading(false));
+                      }}
+                      disabled={markPaidMutation.isPending || slipUploading}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      {markPaidMutation.isPending || slipUploading ? "กำลังบันทึก..." : "ยืนยันจ่ายเงินสดแล้ว"}
+                    </Button>
+                  </div>
+                )}
+
+                {/* Credit: due date + reason */}
+                {payMethod === "credit" && (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-blue-500/10 border border-blue-500/30 p-3 text-xs flex gap-2">
+                      <AlertTriangle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+                      <span>บันทึกเป็น <b>เครดิต</b> = ยังไม่ตัดเงินสด/บัญชี ระบบจะถือเป็นเจ้าหนี้รอชำระ</span>
+                    </div>
+                    <div>
+                      <Label className="text-xs">กำหนดชำระภายใน</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !creditDueDate && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {creditDueDate ? format(creditDueDate, "dd MMM yyyy") : "เลือกวันที่"}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={creditDueDate}
+                            onSelect={setCreditDueDate}
+                            initialFocus
+                            className={cn("p-3 pointer-events-auto")}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div>
+                      <Label className="text-xs">เหตุผล / หมายเหตุ</Label>
+                      <Textarea
+                        placeholder="เช่น รอสรุปงานก่อน / รอเงินเข้า"
+                        value={creditNote}
+                        onChange={(e) => setCreditNote(e.target.value)}
+                        rows={2}
+                      />
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        if (!paySlipDialog) return;
+                        triggerPayWithGuard({
+                          invoice: paySlipDialog,
+                          paymentMethod: "credit",
+                          extraNote: creditNote,
+                          dueDate: creditDueDate ? format(creditDueDate, "yyyy-MM-dd") : undefined,
+                        });
+                      }}
+                      disabled={markPaidMutation.isPending}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      {markPaidMutation.isPending ? "กำลังบันทึก..." : "บันทึกเป็นเครดิต"}
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
