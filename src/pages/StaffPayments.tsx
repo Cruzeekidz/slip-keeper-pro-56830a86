@@ -14,7 +14,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search } from "lucide-react";
+import { ArrowLeft, CreditCard, CheckCircle, Trash2, Gift, Plus, MessageCircle, Upload, ImageIcon, Banknote, Wallet, Pencil, Receipt, Link2, Search, Copy, AlertTriangle, CalendarIcon } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 import { buildUploadPath } from "@/lib/storage-path";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import StaffReimbursementTab from "@/components/staff/StaffReimbursementTab";
@@ -59,6 +63,28 @@ const StaffPayments = () => {
   const [slipUploading, setSlipUploading] = useState(false);
   const [payMethod, setPayMethod] = useState<"transfer" | "cash" | "credit">("transfer");
   const slipFileRef = useRef<HTMLInputElement>(null);
+  const cashSlipRef = useRef<HTMLInputElement>(null);
+  const [cashNote, setCashNote] = useState("");
+  const [cashSlipFile, setCashSlipFile] = useState<File | null>(null);
+  const [creditDueDate, setCreditDueDate] = useState<Date | undefined>(undefined);
+  const [creditNote, setCreditNote] = useState("");
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 1500);
+    toast({ title: "คัดลอกแล้ว", description: text });
+  };
+
+  const resetPayDialog = () => {
+    setPaySlipDialog(null);
+    setPayMethod("transfer");
+    setCashNote("");
+    setCashSlipFile(null);
+    setCreditDueDate(undefined);
+    setCreditNote("");
+  };
   const [editDialog, setEditDialog] = useState<any | null>(null);
   const [linkDialog, setLinkDialog] = useState<any | null>(null);
   const [bulkReconcileOpen, setBulkReconcileOpen] = useState(false);
