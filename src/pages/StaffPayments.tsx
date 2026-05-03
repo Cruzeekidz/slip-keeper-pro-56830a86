@@ -209,7 +209,7 @@ const StaffPayments = () => {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async ({ id, slipFile, paymentMethod }: { id: string; slipFile?: File; paymentMethod: string }) => {
+    mutationFn: async ({ id, slipFile, paymentMethod, extraNote, dueDate }: { id: string; slipFile?: File; paymentMethod: string; extraNote?: string; dueDate?: string }) => {
       if (!user) throw new Error("Not authenticated");
       let slipPath: string | null = null;
 
@@ -223,10 +223,17 @@ const StaffPayments = () => {
         slipPath = path;
       }
 
+      const noteParts: string[] = [];
+      if (paymentMethod !== "transfer") {
+        noteParts.push(`จ่ายด้วย: ${paymentMethod === "cash" ? "เงินสด" : "เครดิต"}`);
+      }
+      if (dueDate) noteParts.push(`กำหนดชำระ: ${dueDate}`);
+      if (extraNote && extraNote.trim()) noteParts.push(extraNote.trim());
+
       const updates: Record<string, unknown> = {
         status: "paid",
         paid_at: new Date().toISOString(),
-        notes: paymentMethod !== "transfer" ? `จ่ายด้วย: ${paymentMethod === "cash" ? "เงินสด" : "เครดิต"}` : undefined,
+        notes: noteParts.length > 0 ? noteParts.join(" | ") : undefined,
       };
       if (slipPath) updates.payment_slip_url = slipPath;
 
