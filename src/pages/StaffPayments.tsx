@@ -308,8 +308,7 @@ const StaffPayments = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
-      setPaySlipDialog(null);
-      setPayMethod("transfer");
+      resetPayDialog();
       toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
     },
     onError: (err: any) => {
@@ -514,8 +513,8 @@ const StaffPayments = () => {
   });
 
   // Duplicate Guard: ตรวจหา expense ที่อาจตรงกันก่อนสร้างใหม่
-  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File }) => {
-    const { invoice, paymentMethod, slipFile } = params;
+  const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File; extraNote?: string; dueDate?: string }) => {
+    const { invoice, paymentMethod, slipFile, extraNote, dueDate } = params;
     if (!user) return;
     try {
       const matches = await findMatchingExpenses(
@@ -535,7 +534,7 @@ const StaffPayments = () => {
     } catch (e) {
       // ถ้า scan ล้มเหลว ก็ปล่อยให้สร้างปกติ
     }
-    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod });
+    markPaidMutation.mutate({ id: invoice.id, slipFile, paymentMethod, extraNote, dueDate });
   };
 
   // Auto-fill daily_rate when staff selected
