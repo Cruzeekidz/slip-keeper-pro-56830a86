@@ -1,96 +1,86 @@
-## สรุปผลตรวจสอบ
+## ปัญหา
 
-ผมตรวจฐานข้อมูลและโค้ดแล้ว พบ 2 สาเหตุ:
+ทีมงาน 18 คนในระบบ **ไม่มี LINE ID ผูกเลย** เพราะ:
 
-### ปัญหา 1: ทีมงานไม่ได้รับแจ้งเตือน LINE
-- ระบบมี edge function `notify-staff-payment` พร้อมใช้งานแล้ว (ส่งทั้งรูปสลิป + ข้อความขอบคุณ)
-- แต่จากตรวจสอบ DB: **ทีมงาน 4 คนล่าสุดที่ถูกจ่ายเงินไป (ลัลน์ลลิต, สิขรินทร์, พรเทพ, ปวีณา) ทุกคน `line_user_id = null`** → function เลย return ออกโดยไม่ส่ง
-- ข้อความปัจจุบันยังขาดข้อมูลสำคัญที่คุณต้องการ: วันที่/เวลา/ยอด Gross/WHT/Net
+1. ฟอร์ม `StaffRegistrationForm` / `VendorRegistrationForm` ดึง `lineUserId` จาก LIFF อัตโนมัติได้อยู่แล้ว ✅
+2. **แต่** ถ้าทีมงานเก่ามากรอกฟอร์มซ้ำ → ระบบ **insert profile ใหม่** กลายเป็นข้อมูลซ้ำ แทนที่จะ "ผูก LINE ID เข้า profile เดิม"
+3. ไม่มีหน้า/ปุ่ม "แค่ผูก LINE" สำหรับทีมงานเก่าที่ข้อมูลครบแล้ว ต้องการแค่เชื่อม LINE
 
-### ปัญหา 2: สลิปไม่เข้าแฟ้มค่าใช้จ่ายฝั่งบัญชี
-- ตอนกด "จ่ายแล้ว" ระบบเก็บสลิปไว้ที่ `staff_invoices.payment_slip_url` เท่านั้น
-- ระบบสร้าง expense record เฉพาะ **WHT** (ภาษีหัก ณ ที่จ่าย) แต่**ไม่สร้าง expense สำหรับค่าจ้าง Gross เลย** → P&L ฝั่งบัญชีไม่เห็นค่าใช้จ่ายตัวนี้ และสลิปไม่ผูกกับ expense ใดทั้งสิ้น
+## เป้าหมาย
 
----
-
-## แผนแก้ไข
-
-### 1. สร้าง Expense สำหรับค่าจ้าง + ผูกสลิปเข้าแฟ้มบัญชี
-แก้ `markPaidMutation` ใน `src/pages/StaffPayments.tsx` (บรรทัด ~211–306):
-
-เพิ่มการ insert expense ใหม่สำหรับ Gross Amount (ก่อนหรือหลัง WHT insert):
-
-```text
-expenses.insert({
-  amount: gross_amount,                   // ยอดเต็ม ก่อนหัก WHT (Liability Settlement Model)
-  category: "ค่าจ้างทีมงาน",
-  subcategory: ตำแหน่ง/ประเภทงาน,
-  description: "ค่าจ้าง [ชื่อ] - [event_name] - [invoice_number]",
-  expense_date: paid_at (วันจ่ายจริง),
-  transaction_direction: "EXPENSE",
-  transaction_type: "BUSINESS",
-  category_group: "EVENT",
-  project_tag: ดึงจาก event_registry,
-  staff_name, event_name,
-  receiver: ชื่อทีมงาน,
-  receipt_url: slipPath,                  // ★ ผูกสลิปเข้าแฟ้มบัญชี
-  is_cash: paymentMethod === 'cash',
-  memo_text: "จ่ายด้วย[โอน/เงินสด/เครดิต] - WHT [amount] - Net [amount]",
-})
-```
-
-- ใช้ **Gross Amount** เป็นค่าใช้จ่าย (ตาม Liability Settlement Model ที่บันทึกไว้ใน core memory)
-- บันทึก `expense.id` เก็บไว้ แล้วอัปเดต `staff_invoices.matched_expense_id` (column มีอยู่แล้ว) เพื่อกัน duplicate และตามรอย
-
-### 2. ปรับข้อความแจ้ง LINE ให้ครบถ้วน (ไม่ส่งรูปสลิปซ้ำซ้อน)
-แก้ `supabase/functions/notify-staff-payment/index.ts`:
-
-- **ตัดการส่งรูปสลิป** (เพื่อประหยัดโควต้า LINE และลดความซ้ำซ้อน) — ลบ block lines 50–62
-- เพิ่ม payload จากฝั่ง client: `gross_amount`, `wht_amount`, `paid_at`, `invoice_number`, `event_name`
-- เปลี่ยนข้อความเป็น Flex Message หรือ text หลายบรรทัดแบบนี้:
-
-```text
-✅ โอนเงินค่าจ้างเรียบร้อยแล้ว
-
-📋 บิล: SI-2569-1936
-📅 วันที่: 4 พ.ค. 2569 เวลา 17:55 น.
-🎪 งาน: [event_name]
-
-💰 ยอดเต็ม:    1,870.00 บาท
-➖ หัก ณ ที่จ่าย 3%: 120.00 บาท
-─────────────
-💵 ยอดสุทธิที่โอน: 1,750.00 บาท
-
-ขอบคุณที่มาช่วยกันจัดงานดีๆให้เด็กๆนะคะ 🙏❤️
-```
-
-- ใช้ Thai Buddhist Era (ปี + 543) + ชื่อเดือนไทย ตาม core memory
-- ถ้า `wht_amount = 0` ให้ซ่อนบรรทัด WHT
-- ถ้า `payment_method = cash/credit` → เปลี่ยนหัวเป็น "✅ บันทึกการจ่ายเงินสด/เครดิตแล้ว"
-
-### 3. ส่ง payload เพิ่มจาก client
-แก้ call `supabase.functions.invoke("notify-staff-payment", ...)` (บรรทัด 277) ให้ส่ง:
-```text
-{
-  staff_id, payment_method,
-  gross_amount, wht_amount, net_amount,
-  paid_at, invoice_number, event_name
-}
-// ไม่ต้องส่ง payment_slip_path อีก
-```
-
-### 4. แจ้งเตือนเมื่อทีมงานยังไม่ได้ผูก LINE
-ปัจจุบัน edge function เงียบเฉยถ้าไม่มี `line_user_id` → admin ไม่รู้ว่าทำไมไม่ส่ง
-
-เพิ่มใน UI หลังกด "ยืนยันจ่ายแล้ว":
-- ถ้า response `sent: false, reason: 'no LINE ID'` → toast สีส้มแจ้ง "ทีมงาน [ชื่อ] ยังไม่ได้ผูก LINE — แนะนำให้ส่งลิงก์ /link-line ให้"
-- ถ้า `sent: true` → toast เขียว "แจ้งเตือนทีมงานทาง LINE แล้ว"
+ให้ทีมงาน/คู่ค้ากด Rich Menu ครั้งเดียวก็ผูก LINE ได้อัตโนมัติ — โดยไม่ต้องกรอกรหัส 6 หลัก ไม่ต้องสร้าง profile ซ้ำ
 
 ---
 
-## Technical Notes
-- **ไม่มีการเปลี่ยนแปลง schema** — ใช้ `expenses.receipt_url` และ `staff_invoices.matched_expense_id` ที่มีอยู่แล้ว
-- **กัน duplicate**: ก่อน insert expense เช็ค `staff_invoices.matched_expense_id` ก่อน หรือ check `expenses` ที่มี `description LIKE %invoice_number%` (กรณี repay)
-- **กรณี Reopen → Repay**: ลบ expense เดิมทิ้ง หรืออัปเดต expense เดิมแทนการสร้างใหม่ (ใช้ `matched_expense_id`)
-- ไม่กระทบ logic WHT, slip auto-matching, หรือ duplicate guard ที่มีอยู่
-- Edge function CORS, JWT validation คงเดิม
+## แผนการทำงาน
+
+### 1. เปลี่ยน Logic ฟอร์มลงทะเบียน — รองรับ "Upsert by LINE ID + Phone/Tax ID"
+
+**StaffRegistrationForm**
+- ก่อน insert ตรวจหา profile ที่ match กับเจ้าของ (`user_id = ownerId`) ด้วยลำดับ:
+  1. `line_user_id = lineUserId` (เคยผูกแล้ว → update)
+  2. `phone = form.phone` AND `line_user_id IS NULL` (ทีมงานเก่า → ผูก LINE)
+  3. `tax_id = form.tax_id` AND `tax_id IS NOT NULL` AND `line_user_id IS NULL` (กรณีไม่มีเบอร์ตรงกัน)
+- ถ้าเจอ → `update` profile เดิม (เติม `line_user_id` + ฟิลด์ที่ยังว่าง) แล้วแสดงข้อความ "เชื่อม LINE สำเร็จ — เป็นทีมงานเดิมของระบบ"
+- ถ้าไม่เจอ → `insert` profile ใหม่เหมือนเดิม
+
+**VendorRegistrationForm** — ใช้ logic เดียวกัน match ด้วย `tax_id` หรือ `phone`
+
+### 2. เพิ่มหน้าใหม่ `/portal/quick-link` — สำหรับทีมงานเก่าที่อยากแค่ผูก LINE
+
+หน้านี้ออกแบบให้กรอก **ขั้นต่ำที่สุด** (เบอร์โทรอย่างเดียว):
+- ถ้าเปิดจาก LIFF → ดึง `lineUserId` อัตโนมัติ
+- ฟอร์มมีแค่ช่อง "เบอร์โทรของคุณ" + ปุ่ม "เชื่อม LINE"
+- กดปุ่ม → ค้นหา `staff_profiles` (และ `vendor_profiles`) ที่ `user_id = ownerId` AND `phone = X` AND `line_user_id IS NULL`
+  - เจอ 1 รายการ → update `line_user_id` → แสดง "✓ เชื่อมสำเร็จ คุณคือ {staff_name}"
+  - เจอหลายรายการ → แสดง dropdown ให้เลือกชื่อตัวเอง แล้วยืนยัน
+  - ไม่เจอ → แสดงปุ่มลิงก์ไปหน้า "ลงทะเบียนใหม่"
+
+### 3. เพิ่มปุ่มใน Rich Menu (LINE Developers Console) — งานของ user
+
+เพิ่มปุ่มใหม่ชื่อ **"เชื่อม LINE กับโปรไฟล์"** ที่ลิงก์ไปยัง LIFF URL ของ `/portal/quick-link?owner={ADMIN_UUID}`
+
+(แผนนี้จะเตรียม URL ให้พร้อม ส่วนการตั้งค่า Rich Menu user ทำเองใน LINE Console — ไม่ต้องเขียนโค้ด)
+
+### 4. แสดงสถานะ "ผูก LINE แล้ว/ยังไม่ผูก" ในหน้า Admin
+
+ในหน้า `/staff-management` และ `/vendors`:
+- เพิ่ม Badge สีเขียว "🟢 LINE Linked" หรือสีเทา "⚪ ยังไม่ผูก LINE" ข้างชื่อ
+- เพิ่มปุ่ม **"คัดลอกลิงก์เชื่อม LINE"** สำหรับคนที่ยังไม่ผูก (admin ส่งให้ทีมงานทาง LINE 1-on-1)
+
+### 5. ลบ/ลดความสำคัญของ flow `/link-line` (รหัส 6 หลัก)
+
+- คงไว้เป็น fallback แต่ไม่แนะนำในข้อความหลัก
+- เปลี่ยน toast ใน `/staff-payments` (ตอนเจอทีมงานไม่มี LINE ID) → ให้คัดลอก **ลิงก์ Quick-Link** แทนคำสั่ง `/link-line`
+
+---
+
+## รายละเอียดทางเทคนิค
+
+**ไฟล์ที่จะแก้:**
+- `src/components/portal/StaffRegistrationForm.tsx` — เพิ่ม logic upsert
+- `src/components/portal/VendorRegistrationForm.tsx` — เพิ่ม logic upsert
+- `src/components/portal/QuickLinkForm.tsx` *(ใหม่)* — ฟอร์มเชื่อม LINE แบบ minimal
+- `src/pages/PublicPortal.tsx` — เพิ่ม route `view=quick-link`
+- `src/pages/StaffManagement.tsx` — เพิ่ม Badge + ปุ่มคัดลอกลิงก์
+- `src/pages/Vendors.tsx` — เพิ่ม Badge + ปุ่มคัดลอกลิงก์
+- `src/pages/StaffPayments.tsx` — เปลี่ยน toast แนะนำลิงก์ Quick-Link
+
+**Database:** ไม่ต้องเปลี่ยน schema — ใช้ฟิลด์ `line_user_id`, `phone`, `tax_id` ที่มีอยู่แล้ว
+
+**Security:** RLS policy `Anon can insert staff profiles with valid owner` ปัจจุบันอนุญาตให้ insert เท่านั้น → ต้อง**เพิ่ม policy ใหม่** ให้ anon สามารถ `UPDATE` ได้ **เฉพาะ** เมื่อ:
+- `user_id = ownerId` (admin ที่ระบุใน URL)
+- `is_valid_user_id(user_id) = true`
+- เปลี่ยนได้เฉพาะฟิลด์ `line_user_id` (ผ่าน column-level constraint หรือ trigger ตรวจว่าฟิลด์อื่นไม่เปลี่ยน)
+- WITH CHECK: `line_user_id IS NOT NULL` (กันการล้าง LINE ID ของคนอื่น)
+
+**LIFF:** ใช้ `useLiff()` hook เดิม — ไม่ต้องเปลี่ยน
+
+---
+
+## ผลลัพธ์ที่ user จะเห็น
+
+- **ทีมงานใหม่:** เปิด Rich Menu → กรอกฟอร์มลงทะเบียน → ผูก LINE อัตโนมัติ ✅
+- **ทีมงานเก่า 18 คน:** เปิด Rich Menu → กดปุ่ม "เชื่อม LINE" → กรอกเบอร์โทร → ผูกสำเร็จใน 5 วินาที ✅
+- **Admin:** เห็นชัดเจนว่าใครยังไม่ผูก LINE และคัดลอกลิงก์ส่งได้ใน 1 คลิก
+- **ไม่ต้อง** ใช้รหัส 6 หลักอีกต่อไปสำหรับการใช้งานปกติ
