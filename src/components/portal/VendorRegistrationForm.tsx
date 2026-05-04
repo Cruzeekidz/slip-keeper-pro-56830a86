@@ -70,6 +70,27 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
     setSubmitting(true);
 
     try {
+      // Auto-link: ถ้าเปิดผ่าน LIFF + มี LINE ID → ลองผูกกับคู่ค้าเดิมก่อน
+      if (lineUserId) {
+        const { data: linkResult } = await supabase.rpc("link_vendor_line_id", {
+          p_owner: ownerId,
+          p_phone: form.phone,
+          p_tax_id: form.tax_id,
+          p_line_user_id: lineUserId,
+        });
+        const status = (linkResult as any)?.status;
+        if (status === "linked" || status === "already_linked") {
+          const profile = (linkResult as any)?.profile;
+          toast({
+            title: status === "already_linked" ? "เชื่อม LINE อยู่แล้ว" : "✓ เชื่อม LINE สำเร็จ",
+            description: `ระบบพบว่าคุณคือคู่ค้า ${profile?.company_name} — ไม่ต้องลงทะเบียนซ้ำ`,
+          });
+          setSubmitted(true);
+          setSubmitting(false);
+          return;
+        }
+      }
+
       let taxDocUrl = null;
       if (taxDocFile) {
         const fileName = `tax-docs/${ownerId}/${Date.now()}-${taxDocFile.name}`;
