@@ -186,7 +186,14 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>เบอร์โทร *</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} required placeholder="08x-xxx-xxxx" />
+              <Input
+                inputMode="tel"
+                maxLength={12}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                required
+                placeholder="0812345678"
+              />
             </div>
             <div>
               <Label>อีเมล</Label>
