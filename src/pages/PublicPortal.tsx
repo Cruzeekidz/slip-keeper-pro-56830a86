@@ -2,14 +2,15 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, FileText, Building2, Upload } from "lucide-react";
+import { Users, FileText, Building2, Upload, Link2 } from "lucide-react";
 import StaffRegistrationForm from "@/components/portal/StaffRegistrationForm";
 import StaffInvoicePublicForm from "@/components/portal/StaffInvoicePublicForm";
 import VendorRegistrationForm from "@/components/portal/VendorRegistrationForm";
 import VendorBillUpload from "@/components/portal/VendorBillUpload";
+import QuickLinkForm from "@/components/portal/QuickLinkForm";
 import { useLiff } from "@/hooks/useLiff";
 
-type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill";
+type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill" | "quick-link";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -18,6 +19,7 @@ const VIEW_PARAM_MAP: Record<string, PortalView> = {
   "staff-invoice": "staff-invoice",
   "vendor-register": "vendor-register",
   "vendor-bill": "vendor-bill",
+  "quick-link": "quick-link",
 };
 
 const getDecodedVariants = (value: string): string[] => {
@@ -125,6 +127,7 @@ const PublicPortal = () => {
           {view === "staff-invoice" && <StaffInvoicePublicForm ownerId={ownerId} />}
           {view === "vendor-register" && <VendorRegistrationForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} ownerId={ownerId} />}
           {view === "vendor-bill" && <VendorBillUpload ownerId={ownerId} />}
+          {view === "quick-link" && <QuickLinkForm lineUserId={lineUserId} lineDisplayName={lineProfile?.displayName} ownerId={ownerId} />}
         </div>
       </div>
     );
@@ -191,6 +194,18 @@ const PublicPortal = () => {
             <div>
               <CardTitle className="text-base">ส่งบิล / ใบแจ้งหนี้</CardTitle>
               <CardDescription>อัพโหลดไฟล์ภาพหรือ PDF ใบแจ้งหนี้จากคู่ค้า</CardDescription>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="cursor-pointer hover:border-primary transition-colors border-primary/30" onClick={() => setManualView("quick-link")}>
+          <CardContent className="flex items-center gap-4 pt-6">
+            <div className="bg-primary/10 p-3 rounded-lg">
+              <Link2 className="h-6 w-6 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-base">เชื่อม LINE กับโปรไฟล์เดิม</CardTitle>
+              <CardDescription>สำหรับทีมงาน/คู่ค้าที่ลงทะเบียนแล้วแต่ยังไม่ได้ผูก LINE</CardDescription>
             </div>
           </CardContent>
         </Card>
