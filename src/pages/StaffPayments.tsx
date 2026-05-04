@@ -358,9 +358,10 @@ const StaffPayments = () => {
       if (nr?.sent) {
         toast({ title: "📲 แจ้งเตือนทีมงานทาง LINE แล้ว" });
       } else if (nr?.reason === "no LINE ID") {
+        const portalUrl = `${window.location.origin}/portal?view=quick-link&owner=${nr?.owner_id || ""}`;
         toast({
           title: `⚠️ ${result?.staffName || "ทีมงาน"} ยังไม่ได้ผูก LINE`,
-          description: "แนะนำให้ส่งลิงก์ /link-line ให้ทีมงานเพื่อรับแจ้งเตือนการจ่ายเงิน",
+          description: "ส่งลิงก์ 'เชื่อม LINE กับโปรไฟล์เดิม' ในเมนูพอร์ทัลให้ทีมงาน เพื่อให้ได้รับแจ้งเตือนครั้งต่อไป",
           variant: "destructive",
         });
       }
