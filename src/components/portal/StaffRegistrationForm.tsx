@@ -68,6 +68,27 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
     setSubmitting(true);
 
     try {
+      // Auto-link: ถ้าเปิดผ่าน LIFF + มี LINE ID → ลองผูกกับ profile เดิมก่อน
+      if (lineUserId) {
+        const { data: linkResult } = await supabase.rpc("link_staff_line_id", {
+          p_owner: ownerId,
+          p_phone: form.phone,
+          p_line_user_id: lineUserId,
+        });
+        const status = (linkResult as any)?.status;
+        if (status === "linked" || status === "already_linked") {
+          const profile = (linkResult as any)?.profile;
+          toast({
+            title: status === "already_linked" ? "เชื่อม LINE อยู่แล้ว" : "✓ เชื่อม LINE สำเร็จ",
+            description: `ระบบพบว่าคุณคือ ${profile?.staff_name}${profile?.nickname ? ` (${profile.nickname})` : ""} — ไม่ต้องลงทะเบียนซ้ำ`,
+          });
+          setSubmitted(true);
+          setSubmitting(false);
+          return;
+        }
+        // status === "multiple": ผู้ใช้ควรไปใช้ /portal/quick-link เพื่อเลือกชื่อ
+        // status === "not_found" / "invalid_phone": ดำเนินการสมัครใหม่ตามปกติ
+      }
 
       let idCardUrl = null;
 

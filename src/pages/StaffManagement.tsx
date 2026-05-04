@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye, ArrowRightLeft } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Users, Copy, Check, Upload, Eye, ArrowRightLeft, Link2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -81,6 +81,22 @@ const StaffManagement = () => {
     setCopiedId(staffId);
     setTimeout(() => setCopiedId(null), 2000);
     toast({ title: "คัดลอกลิงก์แล้ว" });
+  };
+
+  const copyQuickLinkUrl = async (staffId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({ title: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" });
+      return;
+    }
+    const url = `${window.location.origin}/portal?view=quick-link&owner=${user.id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedId(`ql-${staffId}`);
+    setTimeout(() => setCopiedId(null), 2000);
+    toast({
+      title: "คัดลอกลิงก์เชื่อม LINE แล้ว",
+      description: "ส่งให้ทีมงานทาง LINE — เปิดผ่าน Rich Menu จะดีที่สุด",
+    });
   };
 
   const viewIdCard = async (path: string) => {
@@ -230,7 +246,14 @@ const StaffManagement = () => {
                           />
                         </TableCell>
                         <TableCell className="font-medium">
-                          <div className="truncate">{s.staff_name}</div>
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="truncate">{s.staff_name}</span>
+                            {s.line_user_id ? (
+                              <Badge variant="default" className="h-5 px-1.5 text-[10px] bg-green-600 hover:bg-green-600">LINE</Badge>
+                            ) : (
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">ยังไม่ผูก LINE</Badge>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground md:hidden truncate">
                             {[s.nickname, s.position].filter(Boolean).join(" • ") || ""}
                           </div>
@@ -257,6 +280,11 @@ const StaffManagement = () => {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex gap-0.5 justify-end">
+                            {!s.line_user_id && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyQuickLinkUrl(s.id)} title="คัดลอกลิงก์เชื่อม LINE">
+                                {copiedId === `ql-${s.id}` ? <Check className="h-4 w-4 text-green-500" /> : <Link2 className="h-4 w-4 text-primary" />}
+                              </Button>
+                            )}
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => copyInvoiceLink(s.id)} title="คัดลอกลิงก์ฟอร์ม">
                               {copiedId === s.id ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                             </Button>
