@@ -240,20 +240,52 @@ const StaffPayments = () => {
       const { error } = await supabase.from("staff_invoices").update(updates as any).eq("id", id);
       if (error) throw error;
 
-      // Find the invoice to create WHT expense
+      // Find the invoice to create expenses
       const inv = invoices.find((i: any) => i.id === id);
+
+      // Look up project_tag once (shared by Gross + WHT expenses)
+      let projectTag: string | null = null;
+      if (inv?.event_id) {
+        const { data: evReg } = await supabase
+          .from("event_registry")
+          .select("project_tag")
+          .eq("id", inv.event_id)
+          .maybeSingle();
+        if (evReg) projectTag = evReg.project_tag;
+      }
+
+      const methodLabel = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
+      const paidDateStr = new Date().toISOString().split("T")[0];
+
+      // ★ Create wage expense (Gross) — links slip to accounting file
+      // Skip for credit (not actually paid yet) and skip if already linked (re-pay scenario)
+      if (inv && paymentMethod !== "credit" && !inv.matched_expense_id) {
+        const { data: wageExp, error: wageErr } = await supabase.from("expenses").insert({
+          user_id: user.id,
+          amount: Number(inv.gross_amount),
+          category: "ค่าจ้างทีมงาน",
+          subcategory: (inv.staff_profiles as any)?.position || "Staff",
+          description: `ค่าจ้าง ${inv.staff_profiles?.staff_name || ""} - ${inv.event_name || ""} - ${inv.invoice_number}`.trim(),
+          expense_date: paidDateStr,
+          transaction_direction: "EXPENSE",
+          transaction_type: "BUSINESS",
+          category_group: "EVENT",
+          project_tag: projectTag,
+          staff_name: inv.staff_profiles?.staff_name || null,
+          event_name: inv.event_name || null,
+          receiver: inv.staff_profiles?.staff_name || null,
+          receipt_url: slipPath,
+          is_cash: paymentMethod === "cash",
+          memo_text: `${inv.invoice_number} - จ่ายด้วย${methodLabel} | Gross ${Number(inv.gross_amount).toFixed(2)} | WHT ${Number(inv.wht_amount).toFixed(2)} | Net ${Number(inv.net_amount).toFixed(2)}`,
+        }).select("id").maybeSingle();
+
+        if (!wageErr && wageExp?.id) {
+          await supabase.from("staff_invoices").update({ matched_expense_id: wageExp.id }).eq("id", id);
+        }
+      }
+
       if (inv && Number(inv.wht_amount) > 0) {
         const whtExpenseType = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
-        // Look up project_tag from event_registry if event_id exists
-        let projectTag: string | null = null;
-        if (inv.event_id) {
-          const { data: evReg } = await supabase
-            .from("event_registry")
-            .select("project_tag")
-            .eq("id", inv.event_id)
-            .maybeSingle();
-          if (evReg) projectTag = evReg.project_tag;
-        }
         await supabase.from("expenses").insert({
           user_id: user.id,
           amount: Number(inv.wht_amount),
@@ -272,16 +304,26 @@ const StaffPayments = () => {
         });
       }
 
-      // Notify staff via LINE (fire-and-forget)
+      // Notify staff via LINE (fire-and-forget) — return result so onSuccess can toast
+      let notifyResult: { sent?: boolean; reason?: string; staff_name?: string } | null = null;
       if (inv) {
-        supabase.functions.invoke("notify-staff-payment", {
-          body: {
-            staff_id: inv.staff_id,
-            amount: Number(inv.net_amount),
-            payment_slip_path: slipPath,
-            payment_method: paymentMethod,
-          },
-        }).catch((err: any) => console.error("LINE notify error:", err));
+        try {
+          const { data: notifyData } = await supabase.functions.invoke("notify-staff-payment", {
+            body: {
+              staff_id: inv.staff_id,
+              payment_method: paymentMethod,
+              gross_amount: Number(inv.gross_amount),
+              wht_amount: Number(inv.wht_amount),
+              net_amount: Number(inv.net_amount),
+              paid_at: new Date().toISOString(),
+              invoice_number: inv.invoice_number,
+              event_name: inv.event_name,
+            },
+          });
+          notifyResult = notifyData as any;
+        } catch (err: any) {
+          console.error("LINE notify error:", err);
+        }
       }
 
       // Audit log: pay or repay (if previously reopened)
@@ -304,12 +346,24 @@ const StaffPayments = () => {
           new_data: { payment_method: paymentMethod, payment_slip_path: slipPath, net_amount: Number(inv.net_amount) },
         });
       }
+
+      return { notifyResult, staffName: inv?.staff_profiles?.staff_name };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       resetPayDialog();
-      toast({ title: "บันทึกการจ่ายเงินสำเร็จ" });
+      toast({ title: "บันทึกการจ่ายเงินสำเร็จ", description: "สลิปถูกผูกเข้าแฟ้มค่าใช้จ่ายให้บัญชีแล้ว" });
+      const nr = result?.notifyResult;
+      if (nr?.sent) {
+        toast({ title: "📲 แจ้งเตือนทีมงานทาง LINE แล้ว" });
+      } else if (nr?.reason === "no LINE ID") {
+        toast({
+          title: `⚠️ ${result?.staffName || "ทีมงาน"} ยังไม่ได้ผูก LINE`,
+          description: "แนะนำให้ส่งลิงก์ /link-line ให้ทีมงานเพื่อรับแจ้งเตือนการจ่ายเงิน",
+          variant: "destructive",
+        });
+      }
     },
     onError: (err: any) => {
       toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });

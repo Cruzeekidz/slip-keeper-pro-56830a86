@@ -23,7 +23,16 @@ serve(async (req) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const { staff_id, amount, payment_slip_path, payment_method } = await req.json();
+    const {
+      staff_id,
+      payment_method,
+      gross_amount,
+      wht_amount,
+      net_amount,
+      paid_at,
+      invoice_number,
+      event_name,
+    } = await req.json();
 
     if (!staff_id) {
       return new Response(JSON.stringify({ ok: false, error: 'staff_id required' }), {
@@ -39,35 +48,39 @@ serve(async (req) => {
       .maybeSingle();
 
     if (!staff?.line_user_id) {
-      return new Response(JSON.stringify({ ok: true, sent: false, reason: 'no LINE ID' }), {
+      return new Response(JSON.stringify({ ok: true, sent: false, reason: 'no LINE ID', staff_name: staff?.staff_name }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    const messages: Array<{type: string; text?: string; originalContentUrl?: string; previewImageUrl?: string}> = [];
+    // Format Thai Buddhist date/time
+    const thaiMonths = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const d = paid_at ? new Date(paid_at) : new Date();
+    const dateStr = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+    const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')} น.`;
+    const fmt = (n: number) => Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    // If there's a slip image, forward it
-    if (payment_slip_path) {
-      const { data: signedData } = await supabase.storage
-        .from('receipts')
-        .createSignedUrl(payment_slip_path, 86400);
-      const slipImageUrl = signedData?.signedUrl || null;
-      if (slipImageUrl) {
-        messages.push({
-          type: "image",
-          originalContentUrl: slipImageUrl,
-          previewImageUrl: slipImageUrl,
-        });
-      }
+    const headerText = payment_method === 'cash'
+      ? '✅ บันทึกการจ่ายเงินสดแล้ว'
+      : payment_method === 'credit'
+        ? '📝 บันทึกเป็นเครดิตแล้ว (ยังไม่ได้โอน)'
+        : '✅ โอนเงินค่าจ้างเรียบร้อยแล้ว';
+
+    const lines: string[] = [headerText, ''];
+    if (invoice_number) lines.push(`📋 บิล: ${invoice_number}`);
+    lines.push(`📅 วันที่: ${dateStr} เวลา ${timeStr}`);
+    if (event_name) lines.push(`🎪 งาน: ${event_name}`);
+    lines.push('');
+    if (gross_amount != null) lines.push(`💰 ยอดเต็ม: ${fmt(gross_amount)} บาท`);
+    if (wht_amount != null && Number(wht_amount) > 0) {
+      lines.push(`➖ หัก ณ ที่จ่าย: ${fmt(wht_amount)} บาท`);
     }
+    lines.push('─────────────');
+    if (net_amount != null) lines.push(`💵 ยอดสุทธิ: ${fmt(net_amount)} บาท`);
+    lines.push('');
+    lines.push('ขอบคุณที่มาช่วยกันจัดงานดีๆให้เด็กๆนะคะ 🙏❤️');
 
-    // Thank-you message
-    const amountText = amount ? ` 💰 ${Number(amount).toLocaleString()} บาท` : '';
-    const methodText = payment_method === 'cash' ? ' (เงินสด)' : payment_method === 'credit' ? ' (เครดิต)' : '';
-    messages.push({
-      type: "text",
-      text: `โอนเงินเรียบร้อย${amountText}${methodText}\nขอบคุณที่มาช่วยกันจัดงานดีๆให้เด็กๆนะคะ 🙏❤️`,
-    });
+    const messages = [{ type: 'text', text: lines.join('\n') }];
 
     // Push to staff LINE
     const res = await fetch("https://api.line.me/v2/bot/message/push", {
