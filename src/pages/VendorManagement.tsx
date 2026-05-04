@@ -63,6 +63,19 @@ const VendorManagement = () => {
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
   };
 
+  const copyQuickLinkUrl = () => {
+    if (!user) {
+      toast({ title: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" });
+      return;
+    }
+    const url = `${window.location.origin}/portal?view=quick-link&owner=${user.id}`;
+    navigator.clipboard.writeText(url);
+    toast({
+      title: "คัดลอกลิงก์เชื่อม LINE แล้ว",
+      description: "ส่งให้คู่ค้าทาง LINE — เปิดผ่าน Rich Menu จะดีที่สุด",
+    });
+  };
+
   const viewFile = async (filePath: string) => {
     const { data } = await supabase.storage.from("documents").createSignedUrl(filePath, 3600);
     if (data?.signedUrl) {
@@ -216,6 +229,11 @@ const VendorManagement = () => {
                             <Badge variant={v.vendor_type === "company" ? "default" : "secondary"}>
                               {v.vendor_type === "company" ? "นิติบุคคล" : "บุคคลธรรมดา"}
                             </Badge>
+                            {(v as any).line_user_id ? (
+                              <Badge className="bg-green-600 hover:bg-green-600 text-white">LINE</Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">ยังไม่ผูก LINE</Badge>
+                            )}
                           </div>
                           <div className="text-sm text-muted-foreground mt-1 space-y-0.5">
                             {v.tax_id && <p>เลขภาษี: {v.tax_id}</p>}
@@ -235,6 +253,11 @@ const VendorManagement = () => {
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          {!(v as any).line_user_id && (
+                            <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์เชื่อม LINE">
+                              <Link2 className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
                           {v.tax_doc_url && (
                             <Button variant="ghost" size="icon" onClick={() => viewFile(v.tax_doc_url!)}>
                               <Eye className="h-4 w-4" />
