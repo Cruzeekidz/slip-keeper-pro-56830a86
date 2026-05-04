@@ -264,7 +264,7 @@ const StaffPayments = () => {
           user_id: user.id,
           amount: Number(inv.gross_amount),
           category: "ค่าจ้างทีมงาน",
-          subcategory: inv.staff_profiles?.position || "Staff",
+          subcategory: (inv.staff_profiles as any)?.position || "Staff",
           description: `ค่าจ้าง ${inv.staff_profiles?.staff_name || ""} - ${inv.event_name || ""} - ${inv.invoice_number}`.trim(),
           expense_date: paidDateStr,
           transaction_direction: "EXPENSE",
