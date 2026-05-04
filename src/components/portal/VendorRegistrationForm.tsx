@@ -67,6 +67,19 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
       toast({ title: "กรุณากรอกชื่อบริษัท/ร้านค้า", variant: "destructive" });
       return;
     }
+    if (!form.phone) {
+      toast({ title: "กรุณากรอกเบอร์โทร", variant: "destructive" });
+      return;
+    }
+    const phoneDigits = form.phone.replace(/[^0-9]/g, "");
+    if (phoneDigits.length !== 10 || !phoneDigits.startsWith("0")) {
+      toast({
+        title: "เบอร์โทรไม่ถูกต้อง",
+        description: "ต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 (เช่น 0812345678)",
+        variant: "destructive",
+      });
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -180,8 +193,15 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>เบอร์โทร</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0xx-xxx-xxxx" />
+              <Label>เบอร์โทร *</Label>
+              <Input
+                inputMode="tel"
+                maxLength={12}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                required
+                placeholder="0812345678"
+              />
             </div>
             <div>
               <Label>อีเมล</Label>

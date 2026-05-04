@@ -68,6 +68,28 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       toast({ title: "กรุณากรอกเบอร์โทรหรือเลขผู้เสียภาษี", variant: "destructive" });
       return;
     }
+    if (phone) {
+      const digits = phone.replace(/[^0-9]/g, "");
+      if (digits.length !== 10 || !digits.startsWith("0")) {
+        toast({
+          title: "เบอร์โทรไม่ถูกต้อง",
+          description: "ต้องเป็นตัวเลข 10 หลัก ขึ้นต้นด้วย 0 (เช่น 0812345678)",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    if (taxId) {
+      const digits = taxId.replace(/[^0-9]/g, "");
+      if (digits.length !== 13) {
+        toast({
+          title: "เลขผู้เสียภาษีไม่ถูกต้อง",
+          description: "ต้องเป็นตัวเลข 13 หลัก",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       // ลองทีมงานก่อน (เบอร์โทร)
