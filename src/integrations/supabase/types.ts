@@ -1793,6 +1793,25 @@ export type Database = {
         Returns: boolean
       }
       is_valid_user_id: { Args: { p_user_id: string }; Returns: boolean }
+      link_staff_line_id: {
+        Args: {
+          p_line_user_id: string
+          p_owner: string
+          p_phone: string
+          p_staff_id?: string
+        }
+        Returns: Json
+      }
+      link_vendor_line_id: {
+        Args: {
+          p_line_user_id: string
+          p_owner: string
+          p_phone: string
+          p_tax_id: string
+          p_vendor_id?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "super_admin" | "accountant"
