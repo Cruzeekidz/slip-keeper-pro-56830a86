@@ -193,8 +193,15 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>เบอร์โทร</Label>
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="0xx-xxx-xxxx" />
+              <Label>เบอร์โทร *</Label>
+              <Input
+                inputMode="tel"
+                maxLength={12}
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                required
+                placeholder="0812345678"
+              />
             </div>
             <div>
               <Label>อีเมล</Label>
