@@ -361,10 +361,9 @@ serve(async (req) => {
         const text = event.message.text?.trim();
         if (!text) continue;
 
-        // --- Help command (everyone) ---
-        if (/^(help|วิธีใช้|\?|？|menu|เมนู)$/i.test(text)) {
-          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
-            userRole === 'admin' ? getAdminHelpMessage() : getHelpMessage());
+        // --- Help / User guide command (everyone) ---
+        if (/^(help|วิธีใช้|\?|？|menu|เมนู|คู่มือ|ดูคู่มือ|ดูคู่มือการใช้งาน|guide|manual)$/i.test(text)) {
+          await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getUserGuideFlex(userRole === 'admin'));
           continue;
         }
 
