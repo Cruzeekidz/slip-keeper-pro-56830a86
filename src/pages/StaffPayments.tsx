@@ -700,6 +700,7 @@ const StaffPayments = () => {
                       <TableHead>เลขที่</TableHead>
                       <TableHead>ทีมงาน / เลขผู้เสียภาษี</TableHead>
                       <TableHead>อีเวนท์</TableHead>
+                      <TableHead>วันที่</TableHead>
                       <TableHead className="text-right">วัน</TableHead>
                       <TableHead className="text-right">ค่าแรง/วัน</TableHead>
                       <TableHead className="text-right">โบนัส</TableHead>
@@ -726,6 +727,27 @@ const StaffPayments = () => {
                           )}
                         </TableCell>
                         <TableCell>{inv.event_name || "-"}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {(() => {
+                            const thMonths = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+                            const fmt = (d?: string | null) => {
+                              if (!d) return null;
+                              const dt = new Date(d);
+                              if (isNaN(dt.getTime())) return null;
+                              return `${dt.getDate()} ${thMonths[dt.getMonth()]} ${(dt.getFullYear() + 543).toString().slice(-2)}`;
+                            };
+                            const billed = fmt(inv.submitted_at || inv.created_at);
+                            const paid = fmt(inv.paid_at);
+                            return (
+                              <div className="space-y-0.5">
+                                <div className="text-muted-foreground">📋 {billed || "-"}</div>
+                                <div className={paid ? "text-success font-medium" : "text-muted-foreground"}>
+                                  💸 {paid || "-"}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-right">{inv.days_worked}</TableCell>
                         <TableCell className="text-right">{Number(inv.daily_rate).toLocaleString()}</TableCell>
                         <TableCell className="text-right">
