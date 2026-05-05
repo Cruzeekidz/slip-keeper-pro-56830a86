@@ -106,6 +106,90 @@ function getAdminHelpMessage(): string {
    หรือ: จ่ายค่าแท็กซี่ 160 บาท เงินสด`;
 }
 
+function getUserGuideFlex(isAdmin: boolean): Record<string, unknown> {
+  const LIFF_BASE = "https://liff.line.me/2008893199-xaJITz5y";
+  const sectionHeader = (text: string, color: string) => ({
+    type: "text", text, weight: "bold", size: "md", color, margin: "md",
+  });
+  const item = (label: string, detail: string) => ({
+    type: "box", layout: "vertical", margin: "sm", spacing: "xs",
+    contents: [
+      { type: "text", text: label, size: "sm", weight: "bold", color: "#333333", wrap: true },
+      { type: "text", text: detail, size: "xs", color: "#666666", wrap: true },
+    ],
+  });
+
+  const bodyContents: Array<Record<string, unknown>> = [
+    {
+      type: "text",
+      text: "ยินดีต้อนรับสู่ Cruzee Finance! เลือกหัวข้อด้านล่างเพื่อดูวิธีใช้งานแต่ละกลุ่ม",
+      size: "xs", color: "#888888", wrap: true,
+    },
+    { type: "separator", margin: "md" },
+
+    sectionHeader("👥 สำหรับทีมงาน (Staff)", "#2563EB"),
+    item("1. ลงทะเบียน/ผูก LINE", "กดปุ่ม 'ลงทะเบียน/ผูก LINE' ในเมนูล่าง → กรอกเบอร์โทร 10 หลัก ระบบจะผูก LINE ให้อัตโนมัติ"),
+    item("2. วางบิลค่าจ้าง/ค่าใช้จ่าย", "พิมพ์ในแชต: 'วางบิล 5000 ค่าออกแบบ' → ส่งรูปใบเสร็จ/หลักฐานภายใน 10 นาที"),
+    item("3. ส่งใบเสร็จเรียกเงินคืน", "พิมพ์: 'ใบเสร็จ 350 ค่าเดินทาง' → ส่งรูป"),
+    item("4. เช็คสถานะการจ่ายเงิน", "เปิดเมนู 'Portal' → ดูรายการที่รออนุมัติ/จ่ายแล้ว"),
+
+    { type: "separator", margin: "md" },
+
+    sectionHeader("🏢 สำหรับคู่ค้า (Vendor)", "#059669"),
+    item("1. ลงทะเบียนคู่ค้า", "กดเมนู 'ลงทะเบียนคู่ค้า' → กรอกชื่อบริษัท เลขผู้เสียภาษี เบอร์โทร 10 หลัก"),
+    item("2. ส่งใบแจ้งหนี้/บิล", "อัปโหลดบิลผ่าน Portal หรือส่งรูปบิลในแชต LINE นี้"),
+    item("3. อัปโหลด ภพ.20", "เข้า Portal → หน้าคู่ค้า → อัปโหลดเอกสาร ภพ.20 เพื่อใช้ลดภาษี ณ ที่จ่าย"),
+
+    { type: "separator", margin: "md" },
+
+    sectionHeader("⌨️ คำสั่งพิมพ์ในแชต", "#DC2626"),
+    item("วางบิล [จำนวน] [คำอธิบาย]", "เช่น: วางบิล 5000 ค่าออกแบบโปสเตอร์"),
+    item("ใบเสร็จ [จำนวน] [คำอธิบาย]", "เช่น: ใบเสร็จ 350 ค่าเดินทาง"),
+    item("ส่งรูปสลิปได้เลย", "ระบบ AI จะอ่านสลิปและบันทึกค่าใช้จ่ายให้อัตโนมัติ"),
+    item("help / คู่มือ", "ดูข้อความนี้อีกครั้ง"),
+  ];
+
+  if (isAdmin) {
+    bodyContents.push(
+      { type: "separator", margin: "md" },
+      sectionHeader("👑 สำหรับแอดมิน", "#9333EA"),
+      item("จ่ายเงินสด", "เช่น: 'จ่ายเงินสด ให้นายทูน 150 บาท เป็นค่าน้ำมัน /สนามจักรยาน'"),
+      item("เปิด Dashboard", "เปิด Portal → จัดการทีมงาน คู่ค้า บิล และรายงาน WHT"),
+    );
+  }
+
+  return {
+    type: "bubble",
+    size: "giga",
+    header: {
+      type: "box", layout: "vertical", paddingAll: "lg",
+      backgroundColor: "#1E40AF",
+      contents: [
+        { type: "text", text: "📖 คู่มือการใช้งาน", weight: "bold", size: "xl", color: "#FFFFFF" },
+        { type: "text", text: "Cruzee Finance LINE Bot", size: "sm", color: "#BFDBFE", margin: "xs" },
+      ],
+    },
+    body: {
+      type: "box", layout: "vertical", spacing: "sm", paddingAll: "lg",
+      contents: bodyContents,
+    },
+    footer: {
+      type: "box", layout: "vertical", spacing: "sm", paddingAll: "lg",
+      contents: [
+        {
+          type: "button", style: "primary", color: "#1E40AF", height: "sm",
+          action: { type: "uri", label: "🔗 เปิด Portal", uri: `${LIFF_BASE}?view=quick-link` },
+        },
+        {
+          type: "text",
+          text: "หากพบปัญหา ติดต่อแอดมินได้ในแชตนี้",
+          size: "xxs", color: "#888888", align: "center", margin: "sm", wrap: true,
+        },
+      ],
+    },
+  };
+}
+
 async function parseCashExpenseWithAI(text: string, apiKey: string): Promise<any | null> {
   try {
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
