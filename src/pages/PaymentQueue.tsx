@@ -135,17 +135,24 @@ const PaymentQueue = () => {
 
   const openVendorBillFile = async (path: string | null) => {
     if (!path) return;
-    let signed = await supabase.storage.from("documents").createSignedUrl(path, 3600);
+    // Open blank window synchronously to preserve user gesture (avoid popup blocker)
+    const win = window.open("about:blank", "_blank");
+    let signed = await supabase.storage.from("receipts").createSignedUrl(path, 3600);
     if (!signed.data?.signedUrl) {
-      signed = await supabase.storage.from("receipts").createSignedUrl(path, 3600);
+      signed = await supabase.storage.from("documents").createSignedUrl(path, 3600);
     }
-    if (signed.data?.signedUrl) window.open(signed.data.signedUrl, "_blank");
-    else toast({ title: "เปิดไฟล์ไม่ได้", variant: "destructive" });
+    if (signed.data?.signedUrl) {
+      if (win) win.location.href = signed.data.signedUrl;
+      else window.location.href = signed.data.signedUrl;
+    } else {
+      if (win) win.close();
+      toast({ title: "เปิดไฟล์ไม่ได้", variant: "destructive" });
+    }
   };
 
   const claimActionMutation = useMutation({
-    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
-      const newStatus = action === "approve" ? "approved" : "rejected";
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" | "revert" }) => {
+      const newStatus = action === "approve" ? "approved" : action === "revert" ? "submitted" : "rejected";
       const { error } = await supabase.from("staff_expense_claims").update({ status: newStatus }).eq("id", id);
       if (error) throw error;
       return action;
@@ -154,7 +161,7 @@ const PaymentQueue = () => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue-claims"] });
       queryClient.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
       setRejectClaim(null);
-      toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
+      toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : action === "revert" ? "ย้อนสถานะเป็นรออนุมัติแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
@@ -708,9 +715,29 @@ const PaymentQueue = () => {
                         </>
                       )}
                       {c.status === "approved" && (
-                        <Button size="sm" onClick={() => navigate("/staff-payments?tab=reimbursement")}>
-                          <Banknote className="h-3 w-3 mr-1" />จ่ายคืน
-                        </Button>
+                        <>
+                          <Button size="sm" onClick={() => navigate("/staff-payments?tab=reimbursement")}>
+                            <Banknote className="h-3 w-3 mr-1" />จ่ายคืน
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => claimActionMutation.mutate({ id: c.id, action: "revert" })}
+                            disabled={claimActionMutation.isPending}
+                            title="ย้อนสถานะเป็นรออนุมัติ"
+                          >
+                            ย้อน
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setRejectClaim({ id: c.id, staff_name: c.staff_profiles?.staff_name || "", amount: Number(c.amount) })}
+                            title="ยกเลิก/ปฏิเสธใบเบิก"
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />ยกเลิก
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
