@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { LineChatButton } from "@/components/line/LineChatButton";
 import {
   useVendorProfiles,
   useVendorInvoices,
