@@ -45,6 +45,7 @@ const CashAdvance        = lazy(() => import("./pages/CashAdvance"));
 const ReanalyzeFailed    = lazy(() => import("./pages/ReanalyzeFailed"));
 const CashExpense        = lazy(() => import("./pages/CashExpense"));
 const AdminTools         = lazy(() => import("./pages/AdminTools"));
+const EventAnalysisPage  = lazy(() => import("./pages/EventAnalysisPage"));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="/reanalyze-failed" element={<ReanalyzeFailed />} />
               <Route path="/cash-expense" element={<CashExpense />} />
               <Route path="/admin" element={<AdminTools />} />
+              <Route path="/event-analysis" element={<EventAnalysisPage />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
