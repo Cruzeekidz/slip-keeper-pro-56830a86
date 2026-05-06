@@ -727,7 +727,20 @@ const StaffPayments = () => {
   const createWht = createForm.wht_mode === "none" ? 0 : Math.round(createGross * 0.03 * 100) / 100;
   const createNet = createGross - createWht;
 
-  const filtered = filterStatus === "all" ? invoices : invoices.filter((i: any) => i.status === filterStatus);
+  const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const invoiceMonthOf = (i: any): string | null => {
+    const raw = i.work_start_date || i.work_end_date || i.paid_at || i.submitted_at || i.created_at;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const uniqueMonths = Array.from(new Set((invoices as any[]).map(invoiceMonthOf).filter(Boolean) as string[])).sort().reverse();
+  const uniqueEvents = Array.from(new Set((invoices as any[]).map((i) => i.event_name).filter(Boolean) as string[])).sort();
+
+  let filtered = filterStatus === "all" ? invoices : (invoices as any[]).filter((i: any) => i.status === filterStatus);
+  if (filterMonth !== "all") filtered = (filtered as any[]).filter((i: any) => invoiceMonthOf(i) === filterMonth);
+  if (filterEvent !== "all") filtered = (filtered as any[]).filter((i: any) => i.event_name === filterEvent);
 
   const totalGross = filtered.reduce((sum: number, i: any) => sum + Number(i.gross_amount), 0);
   const totalWht = filtered.reduce((sum: number, i: any) => sum + Number(i.wht_amount), 0);
