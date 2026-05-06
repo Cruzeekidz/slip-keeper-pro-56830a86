@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -428,6 +428,42 @@ const PaymentQueue = () => {
                         onClick={() => setPayDialog(inv)}
                       >
                         <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      {inv.status === "submitted" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => invoiceActionMutation.mutate({ id: inv.id, action: "approve" })}
+                          disabled={invoiceActionMutation.isPending}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />อนุมัติ
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => navigate(`/staff-payments?edit=${inv.id}`)}
+                        title="แก้ไขใบเรียกเก็บ"
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />แก้ไข
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() =>
+                          setRejectInvoice({
+                            id: inv.id,
+                            staff_name: inv.staff_profiles?.staff_name || "",
+                            amount: netAmount,
+                          })
+                        }
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />ปฏิเสธ
                       </Button>
                     </div>
                   </CardContent>
