@@ -52,47 +52,37 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     };
   }, [emblaApi]);
 
-  // Load image URLs with signed URLs for private bucket
+  // Lazy-load: only sign URL for current image + 2 neighbors. Re-runs when user navigates.
   useEffect(() => {
-    const loadImageUrls = async () => {
-      // Priority: current image first, then neighbors, then the rest — all in parallel
-      const total = receiptsWithImages.length;
-      const order: number[] = [];
-      const seen = new Set<number>();
-      const push = (i: number) => {
-        if (i >= 0 && i < total && !seen.has(i)) { seen.add(i); order.push(i); }
-      };
-      push(currentIndex);
-      for (let d = 1; d < total; d++) { push(currentIndex - d); push(currentIndex + d); }
+    if (!open || receiptsWithImages.length === 0) return;
+    const total = receiptsWithImages.length;
+    const targets = [currentIndex, currentIndex - 1, currentIndex + 1, currentIndex - 2, currentIndex + 2]
+      .filter((i) => i >= 0 && i < total);
 
-      const sign = async (idx: number) => {
-        const r = receiptsWithImages[idx];
-        if (!r?.receipt_url || imageUrls.has(r.id)) return null;
-        try {
-          const { data, error } = await supabase.storage
-            .from('receipts')
-            .createSignedUrl(r.receipt_url, 3600);
-          if (error || !data?.signedUrl) return null;
-          return [r.id, data.signedUrl] as const;
-        } catch { return null; }
-      };
-
-      // Load current immediately, then the rest in parallel
-      const first = await sign(order[0]);
-      if (first) setImageUrls(prev => new Map(prev).set(first[0], first[1]));
-
-      const rest = await Promise.all(order.slice(1).map(sign));
-      const newUrls = new Map<string, string>();
-      rest.forEach(r => { if (r) newUrls.set(r[0], r[1]); });
-      if (newUrls.size > 0) {
-        setImageUrls(prev => new Map([...prev, ...newUrls]));
-      }
+    const sign = async (idx: number) => {
+      const r = receiptsWithImages[idx];
+      if (!r?.receipt_url || imageUrls.has(r.id)) return null;
+      try {
+        const { data, error } = await supabase.storage
+          .from('receipts')
+          .createSignedUrl(r.receipt_url, 3600);
+        if (error || !data?.signedUrl) return null;
+        return [r.id, data.signedUrl] as const;
+      } catch { return null; }
     };
 
-    if (open && receiptsWithImages.length > 0) {
-      loadImageUrls();
-    }
-  }, [open, receiptsWithImages.length, initialIndex]);
+    (async () => {
+      const results = await Promise.all(targets.map(sign));
+      const newUrls = results.filter(Boolean) as Array<readonly [string, string]>;
+      if (newUrls.length > 0) {
+        setImageUrls((prev) => {
+          const next = new Map(prev);
+          newUrls.forEach(([id, url]) => next.set(id, url));
+          return next;
+        });
+      }
+    })();
+  }, [open, currentIndex, receiptsWithImages.length]);
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();
