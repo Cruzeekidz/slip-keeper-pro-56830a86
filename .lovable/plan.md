@@ -1,39 +1,58 @@
-แผนแก้ไขจอดำตอนกดปุ่มลูกตาดูสลิป
+# ปรับหน้าหลักให้เป็นมืออาชีพและลื่นบนมือถือ
 
-สาเหตุที่ตรวจพบ
-- ปุ่มลูกตาเรียก `ReceiptGallery` ได้ถูกต้อง และระบบสร้าง signed URL สำเร็จแล้ว
-- Network แสดงว่าไฟล์ภาพโหลดจาก Storage สำเร็จ HTTP 200 และเป็น `image/jpeg`
-- ปัญหาจึงอยู่ที่ layout ของ `receipt-gallery.tsx`: ตัว dialog ใช้ `max-h` แต่ไม่มีความสูงจริง (`height`) ทำให้พื้นที่รูป (`flex-1` ภายใน `h-full`) ยุบ/แสดงไม่เต็ม จึงเห็นพื้นหลังดำแทนภาพ
-- มี warning/error ของ Dialog เพราะไม่มี `DialogTitle`/`DialogDescription` ซึ่งควรแก้ไปพร้อมกัน
+## ปัญหาปัจจุบัน
+- หน้า `/` (Index) โหลด **ทุกรายการ** (`fetchAllExpenses` วนทีละ 1000 จนหมด) → มือถือหน่วง
+- โหลด `EventAnalysis` (515 บรรทัด) ฝังอยู่ในหน้าหลัก → หน้าจอเด้งตอนเรนเดอร์เสร็จ
+- ตัวกรอง/Tabs/ปุ่มแถวยาว เปิดค้างอยู่ → กินพื้นที่จอ
 
-สิ่งที่จะทำ
+## สิ่งที่จะทำ
 
-1. ปรับ `ReceiptGallery` ให้มีพื้นที่ภาพจริง
-- เปลี่ยน `DialogContent` จาก `max-h-[80vh]` เป็นขนาดที่ชัดเจน เช่น `h-[90vh] max-w-[95vw] sm:max-w-3xl lg:max-w-4xl`
-- แยก header/footer เป็น absolute overlay เหมือนเดิม แต่ให้ main image area มี `min-h-0 h-full`
-- ปรับ slide container และ wrapper ให้ `h-full w-full` เพื่อให้ `<img>` คำนวณขนาดได้จริง
-- ใช้ `max-h-[calc(90vh-...)]` หรือ container `h-full` เพื่อไม่ให้รูปถูกบีบจนมองไม่เห็น
+### 1. ย้าย P&L อีเวนท์ออกจากหน้าหลัก
+- ลบ `<EventAnalysis recentOnly />` ออกจาก `src/pages/Index.tsx`
+- เพิ่มปุ่ม **"P&L อีเวนท์"** ในแถบเมนูบน header → ลิงก์ไปหน้าใหม่ `/event-analysis`
+- สร้าง `src/pages/EventAnalysisPage.tsx` ที่ห่อ `<EventAnalysis />` พร้อม header + ปุ่มย้อนกลับ
+- เพิ่ม route ใน `src/App.tsx`
 
-2. ให้แสดง “ภาพสลิปจริงตามที่อัปโหลด” มากขึ้น
-- ใช้ `object-contain` เพื่อแสดงรูปเต็ม ไม่ครอป
-- ตั้งพื้นหลังของพื้นที่รูปเป็นสีอ่อน/โปร่งแทนดำล้วน หรือให้ดำเฉพาะขอบรอบนอก เพื่อเห็นภาพใบเสร็จ/สลิปชัด
-- คงปุ่มซูม/ดาวน์โหลด/เลื่อนซ้ายขวาไว้
+### 2. โหลดรายการเคลื่อนไหวแบบจำกัด (Pagination จากเซิร์ฟเวอร์)
+- แก้ `fetchAllExpenses` ใน `expense-list-real.tsx` → รับ `{ limit, offset, monthFilter }`
+- ค่าเริ่มต้น: **โหลด 1 เดือนล่าสุด** (filter `expense_date >= first day of current month`)
+- เพิ่มตัวเลือกที่ส่วนหัวรายการ: `1 เดือน / 3 เดือน / 6 เดือน / ทั้งหมด` + page size `50 / 100 / 200`
+- ปุ่ม **"โหลดเพิ่ม"** (load-more) ที่ท้ายตาราง — append ผลลัพธ์ใน React Query infinite cache (ใช้ `useInfiniteQuery`)
+- เก็บการนับรวม (count) แสดง "แสดง X จาก Y รายการ"
 
-3. ทำ fallback เมื่อไฟล์เปิดไม่ได้จริง
-- เพิ่ม state เก็บ error ต่อรูป
-- ถ้าโหลดรูปล้มเหลว จะแสดงข้อความ “โหลดภาพไม่สำเร็จ” พร้อมปุ่มดาวน์โหลด/เปิดไฟล์แทน ไม่ปล่อยเป็นจอดำ
-- เพิ่ม `onLoad` เพื่อยืนยันว่ารูปโหลดแล้ว และ `onError` เพื่อเก็บ error แทนการตั้ง `src=''`
+### 3. ซ่อน/ยุบตัวกรองโดยปริยาย (โดยเฉพาะมือถือ)
+- ห่อบล็อกตัวกรอง (search, entity tabs, type, category, project, date range) ด้วย `<Collapsible>` 
+- ค่าเริ่มต้น: **ปิด** บนมือถือ (`useIsMobile`), เปิดบน desktop
+- มีปุ่ม `[🔍 ตัวกรอง (n)]` แสดงจำนวนตัวกรองที่ active — กดเพื่อ toggle
+- คงแถบ Entity tabs ที่ใช้บ่อยให้เห็นเสมอ (compact pill row)
 
-4. แก้ accessibility warning ของ Dialog
-- เพิ่ม `DialogTitle` และ `DialogDescription` แบบซ่อนสำหรับ screen reader หรือแสดงเป็น header ที่ถูกต้อง
-- จะช่วยลด console error ที่เกิดทุกครั้งเมื่อเปิด dialog
+### 4. ลดการเด้ง/Layout shift
+- เพิ่ม `min-height` ให้ Suspense fallback ของ `ExpenseListReal` (`min-h-[60vh]`) → เนื้อหาขึ้นมาแล้วไม่ดันหน้า
+- เพิ่ม skeleton สูงคงที่แทนข้อความ "กำลังโหลด..."
+- ใส่ `min-h` ให้ `MonthlyQuickStats` กันการกระโดด
+- ปิด `shouldScaleBackground` ของ Drawer ที่อาจทำให้ scroll สั่น (ตรวจหน้า edit dialog)
 
-5. ตรวจสอบ index และการโหลด signed URL
-- ปรับ dependency ของ effect ให้ไม่พึ่ง `receiptsWithImages` object ที่สร้างใหม่ทุก render มากเกินไป
-- เคลียร์/รีเซ็ต zoom เมื่อเปิดรูปใหม่
-- ยังโหลดเฉพาะรูปปัจจุบัน + รูปใกล้เคียงเหมือนเดิม เพื่อไม่ยิง URL 4,000 รูปพร้อมกัน
+### 5. ดีไซน์ระดับมืออาชีพ (ปรับเล็ก-ไม่รื้อ)
+- Header ส่วนปุ่มยาว → ย้ายปุ่ม `สรุปภาพรวม / รอจ่ายเงิน / P&L อีเวนท์ / CSV / ออก` เข้า dropdown "เครื่องมือ" เดียว บนมือถือ
+- เก็บไว้ที่ header เฉพาะ: `[เพิ่มรายการ]` + `[≡ เมนู]` (แบบแอปธนาคาร)
+- เพิ่ม **bottom sticky bar** บนมือถือ (FAB style): ปุ่ม `เพิ่มรายการ` + `กรอง` ลอยมุมขวาล่าง — ใช้งานด้วยนิ้วโป้งสะดวก
+- การ์ดรายการบนมือถือใช้ layout 2 บรรทัด: บรรทัดบน = วันที่ + จำนวนเงิน (เด่น), บรรทัดล่าง = ผู้รับ + ประเภท (badge สี)
 
-ผลลัพธ์ที่คาดหวัง
-- กดลูกตาที่รายการเคลื่อนไหวแล้วเห็นภาพสลิปจริงทันที ไม่ใช่กล่องดำ
-- ใช้ได้กับรูปเดิมที่อัปโหลดไว้แล้ว เพราะเป็นการแก้ตัว viewer/display ไม่ได้เปลี่ยนข้อมูลไฟล์
-- หากไฟล์เสียหรือ path ผิด จะเห็นข้อความ error ชัดเจนพร้อมทางเลือกดาวน์โหลด/เปิดไฟล์ ไม่ใช่จอดำ
+## ไฟล์ที่จะแก้
+- `src/pages/Index.tsx` — ลบ EventAnalysis, ย่อแถวปุ่ม, เพิ่ม min-h ใน Suspense
+- `src/pages/EventAnalysisPage.tsx` — สร้างใหม่
+- `src/App.tsx` — เพิ่ม route `/event-analysis`
+- `src/components/expense-list-real.tsx` — เปลี่ยน fetch เป็น infinite query + month filter, ห่อ filters ใน Collapsible, sticky bottom bar มือถือ, skeleton min-h
+- `src/components/monthly-quick-stats.tsx` — ใส่ min-h กันเด้ง
+
+## รายละเอียดเทคนิค
+- ใช้ `useInfiniteQuery` ของ TanStack Query — `getNextPageParam` ตามจำนวน rows ที่ได้รับ
+- Query key: `['expenses', { range, pageSize }]` เพื่อ cache แยกตามตัวเลือก
+- Default range = `>= startOfMonth(new Date())` ใช้ `date-fns`
+- Mobile detection: `useIsMobile()` (มีอยู่แล้ว) ใช้ตัดสินใจ default `open` ของ Collapsible
+- ไม่แตะ realtime hook ปัจจุบัน (`useExpensesRealtime`) — invalidate query เดิมยังใช้ได้
+
+## สิ่งที่จะ**ไม่**ทำในแผนนี้
+- ไม่รื้อโครงสีหรือ theme
+- ไม่ย้ายเมนูอื่น (StaffPayments, VendorManagement)
+- ไม่แตะ schema ฐานข้อมูล

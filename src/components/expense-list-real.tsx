@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText, CheckSquare, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText, CheckSquare, Loader2, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,29 +55,23 @@ interface Expense {
   settled_batch_id: string | null;
 }
 
-// Query functions
-const fetchAllExpenses = async (): Promise<Expense[]> => {
-  let allExpenses: Expense[] = [];
-  let from = 0;
-  const pageSize = 1000;
-  let hasMore = true;
+// Query functions — fetch limited window for performance
+const fetchExpensesWindow = async (params: { months: number; limit: number }): Promise<Expense[]> => {
+  let q = supabase
+    .from('expenses')
+    .select('*')
+    .order('expense_date', { ascending: false })
+    .limit(params.limit);
 
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .range(from, from + pageSize - 1)
-      .order('expense_date', { ascending: false });
-    if (error) throw error;
-    if (data && data.length > 0) {
-      allExpenses = [...allExpenses, ...data];
-      from += pageSize;
-      hasMore = data.length === pageSize;
-    } else {
-      hasMore = false;
-    }
+  if (params.months > 0) {
+    const from = new Date();
+    from.setMonth(from.getMonth() - params.months);
+    from.setHours(0, 0, 0, 0);
+    q = q.gte('expense_date', from.toISOString().split('T')[0]);
   }
-  return allExpenses;
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
 };
 
 const fetchEventNamesList = async (): Promise<string[]> => {
@@ -135,6 +131,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
 
+  const isMobile = useIsMobile();
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+
+  // Open filters by default on desktop
+  useEffect(() => {
+    setFiltersOpen(!isMobile);
+  }, [isMobile]);
+
   // Multi-select / bulk edit state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -158,10 +162,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     payee_group: "",
   });
 
+  // Data window settings (default = current month, 100 rows)
+  const [windowMonths, setWindowMonths] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+
   // Data queries
-  const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ['expenses'],
-    queryFn: fetchAllExpenses,
+  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
+    queryKey: ['expenses', windowMonths, pageSize],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize }),
   });
 
   const { data: eventNames = [] } = useQuery({
@@ -194,18 +202,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (error) throw error;
     },
     onMutate: async ({ id, updateData }) => {
-      // Optimistic update
+      // Optimistic update across all expense windows
       await queryClient.cancelQueries({ queryKey: ['expenses'] });
-      const previous = queryClient.getQueryData<Expense[]>(['expenses']);
-      queryClient.setQueryData<Expense[]>(['expenses'], (old) =>
+      queryClient.setQueriesData<Expense[]>({ queryKey: ['expenses'] }, (old) =>
         (old || []).map(e => e.id === id ? { ...e, ...updateData } : e)
       );
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['expenses'], context.previous);
-      }
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
       toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
     },
   });
@@ -570,8 +574,41 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       )}
 
+      {/* Window + filter toggle */}
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={String(windowMonths)} onValueChange={(v) => setWindowMonths(Number(v))}>
+            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="1">เดือนนี้</SelectItem>
+              <SelectItem value="3">3 เดือนล่าสุด</SelectItem>
+              <SelectItem value="6">6 เดือนล่าสุด</SelectItem>
+              <SelectItem value="12">1 ปีล่าสุด</SelectItem>
+              <SelectItem value="0">ทั้งหมด</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="50">50 รายการ</SelectItem>
+              <SelectItem value="100">100 รายการ</SelectItem>
+              <SelectItem value="200">200 รายการ</SelectItem>
+              <SelectItem value="500">500 รายการ</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">โหลดแล้ว {expenses.length}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
+          <Filter className="h-3.5 w-3.5 mr-1.5" />
+          ตัวกรอง
+          <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
+        </Button>
+      </div>
+
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <CollapsibleContent>
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
@@ -632,7 +669,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       </div>
 
       {/* Sort & Date Filter */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-4 mb-4">
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
           <SelectContent className="bg-background">
@@ -663,6 +700,8 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
+      </CollapsibleContent>
+      </Collapsible>
 
       {/* Expense List */}
       {filteredExpenses.length === 0 ? (

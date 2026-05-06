@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench } from "lucide-react";
+import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench, TrendingUp } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 // Lazy-load heavy widgets so the menu/header remain responsive
-const EventAnalysis = lazy(() => import("@/components/event-analysis").then(m => ({ default: m.EventAnalysis })));
 const ExpenseListReal = lazy(() => import("@/components/expense-list-real").then(m => ({ default: m.ExpenseListReal })));
 
 const Index = () => {
@@ -188,6 +187,10 @@ const Index = () => {
                     <DollarSign className="h-4 w-4 mr-2" />
                     P&L อีเวนท์ (Ready-go)
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/event-analysis')}>
+                    <TrendingUp className="h-4 w-4 mr-2" />
+                    กำไร/ขาดทุนตามอีเวนท์
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/review-queue')}>
                     <ClipboardCheck className="h-4 w-4 mr-2" />
                     ตรวจสอบรายการ (Review)
@@ -228,10 +231,7 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
-        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดสรุปอีเวนท์…</div>}>
-          <EventAnalysis recentOnly />
-        </Suspense>
-        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดรายการ…</div>}>
+        <Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center text-sm text-muted-foreground">กำลังโหลดรายการ…</div>}>
           <ExpenseListReal editId={editId} />
         </Suspense>
       </main>
