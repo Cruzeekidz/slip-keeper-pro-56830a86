@@ -813,7 +813,7 @@ const StaffPayments = () => {
         </div>
 
         {/* Filter */}
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <span className="text-sm text-muted-foreground">สถานะ:</span>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-40">
@@ -828,6 +828,28 @@ const StaffPayments = () => {
               <SelectItem value="rejected">ปฏิเสธ</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="เดือน" /></SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="all">ทุกเดือน</SelectItem>
+              {uniqueMonths.map((ym) => {
+                const [y, m] = ym.split("-");
+                return <SelectItem key={ym} value={ym}>{`${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+          <Select value={filterEvent} onValueChange={setFilterEvent}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+              {uniqueEvents.map((ev) => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {(filterStatus !== "all" || filterMonth !== "all" || filterEvent !== "all") && (
+            <Button variant="ghost" size="sm" onClick={() => { setFilterStatus("all"); setFilterMonth("all"); setFilterEvent("all"); }}>
+              ล้าง
+            </Button>
+          )}
           <span className="text-sm text-muted-foreground ml-auto">{filtered.length} รายการ</span>
         </div>
 
