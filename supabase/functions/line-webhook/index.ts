@@ -1381,21 +1381,7 @@ async function autoMatchPayment(
   const cleanAccount = (acct: string | null | undefined) => (acct || '').replace(/[-\s]/g, '');
 
   try {
-    // --- Priority 0: If sender's LINE is linked to a staff, match their pending invoice by amount ---
-    if (senderLineUserId) {
-      const { data: linkedStaff } = await supabase
-        .from('staff_profiles')
-        .select('id, staff_name, nickname, line_user_id')
-        .eq('user_id', ownerUserId)
-        .eq('line_user_id', senderLineUserId)
-        .maybeSingle();
-      // (sender is the admin, not the staff — skip if they're admin)
-      // We instead check if there's any staff_profile owned by sender — but main usage:
-      // Look for invoices where staff has THIS line_user_id (i.e., admin sends slip TO that staff)
-      // Actually here sender = admin who paid. So we don't auto-match by sender.
-      void linkedStaff;
-    }
-
+    void senderLineUserId; // reserved for future use
     // --- Staff Invoice matching ---
     const staffName = (extractedData.staff_name as string || '').trim().toLowerCase();
     const receiver = (extractedData.receiver as string || '').trim().toLowerCase();
