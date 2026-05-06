@@ -93,6 +93,48 @@ const PaymentQueue = () => {
     enabled: !!user,
   });
 
+  const { data: pendingVendorBills = [] } = useQuery({
+    queryKey: ["payment-queue-vendor-bills"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendor_invoices")
+        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, vendor_profiles(company_name, bank_name, bank_account)")
+        .in("status", ["pending", "approved"])
+        .neq("link_type", "staff")
+        .order("invoice_date", { ascending: true, nullsFirst: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!user,
+  });
+
+  const vendorBillActionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "paid" | "reject" }) => {
+      const newStatus = action === "approve" ? "approved" : action === "paid" ? "paid" : "rejected";
+      const updates: any = { status: newStatus };
+      if (action === "paid") updates.paid_at = new Date().toISOString();
+      const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
+      if (error) throw error;
+      return action;
+    },
+    onSuccess: (action) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : action === "paid" ? "บันทึกว่าจ่ายแล้ว" : "ปฏิเสธบิลแล้ว" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const openVendorBillFile = async (path: string | null) => {
+    if (!path) return;
+    let signed = await supabase.storage.from("documents").createSignedUrl(path, 3600);
+    if (!signed.data?.signedUrl) {
+      signed = await supabase.storage.from("receipts").createSignedUrl(path, 3600);
+    }
+    if (signed.data?.signedUrl) window.open(signed.data.signedUrl, "_blank");
+    else toast({ title: "เปิดไฟล์ไม่ได้", variant: "destructive" });
+  };
+
   const claimActionMutation = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
       const newStatus = action === "approve" ? "approved" : "rejected";
