@@ -63,6 +63,7 @@ const PaymentQueue = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
+  const [rejectInvoice, setRejectInvoice] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -104,6 +105,22 @@ const PaymentQueue = () => {
       queryClient.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
       setRejectClaim(null);
       toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const invoiceActionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
+      const newStatus = action === "approve" ? "approved" : "rejected";
+      const { error } = await supabase.from("staff_invoices").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      return action;
+    },
+    onSuccess: (action) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      setRejectInvoice(null);
+      toast({ title: action === "approve" ? "อนุมัติใบเรียกเก็บแล้ว" : "ปฏิเสธใบเรียกเก็บแล้ว" });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
