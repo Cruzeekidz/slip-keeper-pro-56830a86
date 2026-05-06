@@ -1,6 +1,6 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench, TrendingUp } from "lucide-react";
+import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench, TrendingUp, BarChart3 } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
 import { useAuth } from "@/hooks/useAuth";
@@ -190,6 +190,10 @@ const Index = () => {
                   <DropdownMenuItem onClick={() => navigate('/event-analysis')}>
                     <TrendingUp className="h-4 w-4 mr-2" />
                     กำไร/ขาดทุนตามอีเวนท์
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate('/transaction-report')}>
+                    <BarChart3 className="h-4 w-4 mr-2" />
+                    รายงานธุรกรรม (ย้อนหลัง)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/review-queue')}>
                     <ClipboardCheck className="h-4 w-4 mr-2" />
