@@ -430,6 +430,24 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   };
 
   const bulkSubcatOptions = [
+
+  const handleBulkConfirmOk = async () => {
+    if (selectedIds.size === 0) return;
+    setBulkSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase
+      .from('expenses')
+      .update({ needs_review: false, confidence_score: 100 })
+      .in('id', ids);
+    setBulkSaving(false);
+    if (error) {
+      toast({ title: "ยืนยันไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ยืนยัน OK แล้ว", description: `${ids.length} รายการ ไม่ต้องตรวจสอบ` });
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
     ...getSubcategoriesForType(bulkValues.transaction_type || null, (bulkValues.category_group || null) as CategoryGroup | null),
     ...dynamicSubcategories,
   ];
