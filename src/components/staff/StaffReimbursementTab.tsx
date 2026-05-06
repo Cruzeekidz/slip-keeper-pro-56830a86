@@ -808,18 +808,37 @@ const StaffReimbursementTab = () => {
                       <Select value={linkExpenseId} onValueChange={(v) => { setLinkExpenseId(v); setSlipFile(null); }}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="เลือกสลิปที่ส่งมาจาก LINE / ระบบ" /></SelectTrigger>
                         <SelectContent>
-                          {slipCandidates.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.expense_date} · {Number(c.amount).toLocaleString()}฿ · {(c.receiver || c.receiver_account_name || c.description || "—").toString().slice(0, 40)}
-                            </SelectItem>
-                          ))}
+                          {slipCandidates.map((c: any) => {
+                            const used = usedExpenseMap[c.id];
+                            return (
+                              <SelectItem key={c.id} value={c.id}>
+                                {used ? "⚠️ " : ""}
+                                {c.expense_date} · {Number(c.amount).toLocaleString()}฿ · {(c.receiver || c.receiver_account_name || c.description || "—").toString().slice(0, 40)}
+                                {used ? `  (ผูกแล้ว: ${used.ref})` : ""}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
-                      {linkExpenseId && (
+                      {linkExpenseId && !linkedConflict && (
                         <div className="flex items-center gap-2 text-xs">
                           <CheckCircle2 className="h-3 w-3 text-green-600" />
                           <span>จะผูกกับ expense นี้เป็นหลักฐาน (ไม่สร้างรายการซ้ำ)</span>
                           <Button size="sm" variant="ghost" className="h-6 ml-auto" onClick={() => setLinkExpenseId("")}>ยกเลิก</Button>
+                        </div>
+                      )}
+                      {linkExpenseId && linkedConflict && (
+                        <div className="flex items-start gap-2 text-xs rounded-md border border-destructive/40 bg-destructive/10 p-2 text-destructive">
+                          <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-semibold">สลิปนี้ถูกผูกไปแล้ว!</p>
+                            <p className="opacity-80">
+                              {linkedConflict.type === "claim" ? "ใช้กับใบเบิก: " : "ใช้กับบิลคู่ค้า: "}
+                              {linkedConflict.ref}
+                            </p>
+                            <p className="opacity-80">กรุณาเลือกสลิปอื่น หรืออัปโหลดสลิปใหม่</p>
+                          </div>
+                          <Button size="sm" variant="ghost" className="h-6" onClick={() => setLinkExpenseId("")}>ยกเลิก</Button>
                         </div>
                       )}
                     </div>
