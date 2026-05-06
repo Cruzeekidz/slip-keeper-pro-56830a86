@@ -56,6 +56,34 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     setZoom(1);
   }, [initialIndex, open, receiptsWithImages.length, revokeObjectUrls]);
 
+  const loadReceiptBlob = useCallback(async (receipt: typeof receiptsWithImages[number]) => {
+    if (!receipt?.receipt_url || imageUrlsRef.current.has(receipt.id) || loadingIdsRef.current.has(receipt.id)) return;
+    loadingIdsRef.current.add(receipt.id);
+    try {
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .download(receipt.receipt_url);
+      if (error || !data) throw error;
+      const objectUrl = URL.createObjectURL(data);
+      objectUrlsRef.current.push(objectUrl);
+      setImageUrls((prev) => {
+        const next = new Map(prev);
+        next.set(receipt.id, objectUrl);
+        imageUrlsRef.current = next;
+        return next;
+      });
+    } catch (error) {
+      console.error('Image download failed:', error);
+      setErrorIds((prev) => {
+        const next = new Set(prev);
+        next.add(receipt.id);
+        return next;
+      });
+    } finally {
+      loadingIdsRef.current.delete(receipt.id);
+    }
+  }, []);
+
   // Lazy-load: download blobs for current image + 2 neighbors. This uses the same path as the working download button.
   useEffect(() => {
     if (!open || receiptsWithImages.length === 0) return;
@@ -63,35 +91,8 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     const targets = [currentIndex, currentIndex - 1, currentIndex + 1, currentIndex - 2, currentIndex + 2]
       .filter((i) => i >= 0 && i < total);
 
-    const load = async (idx: number) => {
-      const r = receiptsWithImages[idx];
-      if (!r?.receipt_url || imageUrlsRef.current.has(r.id) || loadingIdsRef.current.has(r.id)) return null;
-      loadingIdsRef.current.add(r.id);
-      try {
-        const { data, error } = await supabase.storage
-          .from('receipts')
-          .download(r.receipt_url);
-        if (error || !data) return null;
-        const objectUrl = URL.createObjectURL(data);
-        objectUrlsRef.current.push(objectUrl);
-        return [r.id, objectUrl] as const;
-      } catch { return null; }
-      finally { loadingIdsRef.current.delete(r.id); }
-    };
-
-    (async () => {
-      const results = await Promise.all(targets.map(load));
-      const newUrls = results.filter(Boolean) as Array<readonly [string, string]>;
-      if (newUrls.length > 0) {
-        setImageUrls((prev) => {
-          const next = new Map(prev);
-          newUrls.forEach(([id, url]) => next.set(id, url));
-          imageUrlsRef.current = next;
-          return next;
-        });
-      }
-    })();
-  }, [open, currentIndex, receiptsWithImages]);
+    targets.forEach((idx) => loadReceiptBlob(receiptsWithImages[idx]));
+  }, [open, currentIndex, receiptsWithImages, loadReceiptBlob]);
 
   const scrollPrev = useCallback(() => {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
@@ -144,6 +145,17 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
         variant: "destructive",
       });
     }
+  };
+
+  const handleRetryCurrent = () => {
+    const receipt = receiptsWithImages[currentIndex];
+    if (!receipt) return;
+    setErrorIds((prev) => {
+      const next = new Set(prev);
+      next.delete(receipt.id);
+      return next;
+    });
+    loadReceiptBlob(receipt);
   };
 
   if (receiptsWithImages.length === 0) return null;
