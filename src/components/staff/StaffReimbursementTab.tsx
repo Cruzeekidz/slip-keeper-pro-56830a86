@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X, Building2 } from "lucide-react";
+import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X, Building2, Copy, Upload, Image as ImageIcon, AlertTriangle } from "lucide-react";
+import { buildUploadPath } from "@/lib/storage-path";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,7 +73,12 @@ interface StaffClaim {
   reimbursed_at: string | null;
   reimbursed_expense_id: string | null;
   notes: string | null;
-  staff_profiles?: { staff_name: string; nickname: string | null } | null;
+  staff_profiles?: {
+    staff_name: string;
+    nickname: string | null;
+    bank_name?: string | null;
+    bank_account?: string | null;
+  } | null;
 }
 
 const StaffReimbursementTab = () => {
