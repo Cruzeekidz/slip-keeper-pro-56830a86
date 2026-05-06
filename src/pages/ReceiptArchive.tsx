@@ -138,22 +138,36 @@ const ReceiptArchive = () => {
   // Load signed URLs when files change
   useEffect(() => {
     if (currentFiles.length === 0) return;
+    let cancelled = false;
     const loadUrls = async () => {
       setLoadingUrls(true);
       const paths = currentFiles.map((f) => f.receipt_url);
-      const { data } = await supabase.storage.from("receipts").createSignedUrls(paths, 3600);
-      if (data) {
-        const map = new Map<string, string>();
-        data.forEach((d) => {
-          if (d.signedUrl && d.path) {
-            map.set(d.path, d.signedUrl);
+      const map = new Map<string, string>();
+      const CHUNK = 50;
+      for (let i = 0; i < paths.length; i += CHUNK) {
+        if (cancelled) return;
+        const chunk = paths.slice(i, i + CHUNK);
+        try {
+          const { data } = await supabase.storage
+            .from("receipts")
+            .createSignedUrls(chunk, 3600);
+          if (data) {
+            data.forEach((d) => {
+              if (d.signedUrl && d.path) map.set(d.path, d.signedUrl);
+            });
+            // progressive update so user sees images as they load
+            setSignedUrls(new Map(map));
           }
-        });
-        setSignedUrls(map);
+        } catch (e) {
+          console.error("createSignedUrls chunk failed", e);
+        }
       }
       setLoadingUrls(false);
     };
     loadUrls();
+    return () => {
+      cancelled = true;
+    };
   }, [currentFiles]);
 
   // Determine current level
@@ -478,6 +492,19 @@ const ReceiptArchive = () => {
                           alt={receipt.description || "สลิป"}
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          onError={async (e) => {
+                            const img = e.currentTarget;
+                            if (img.dataset.retried) return;
+                            img.dataset.retried = "1";
+                            try {
+                              const { data } = await supabase.storage
+                                .from("receipts")
+                                .download(receipt.receipt_url);
+                              if (data) img.src = URL.createObjectURL(data);
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
