@@ -71,7 +71,14 @@ serve(async (req) => {
     }
 
     const { data: file, error: downloadError } = await admin.storage.from("receipts").download(path);
-    if (downloadError || !file) throw downloadError || new Error("File download failed");
+    if (downloadError || !file) {
+      const status = (downloadError as any)?.statusCode === "404" ? 404 : 500;
+      console.error("receipt-file download failed", { path, downloadError });
+      return new Response(
+        JSON.stringify({ error: status === 404 ? "ไฟล์ไม่พบในคลัง (อาจถูกลบแล้ว)" : "ไม่สามารถดาวน์โหลดไฟล์ได้" }),
+        { status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const ext = path.toLowerCase().endsWith(".pdf") ? "pdf" : path.split(".").pop()?.toLowerCase() || "jpg";
     const filename = safeFilename(`receipt_${receipt.expense_date}_${Math.round(Number(receipt.amount || 0))}_${receipt.description || receipt.id}.${ext}`);
