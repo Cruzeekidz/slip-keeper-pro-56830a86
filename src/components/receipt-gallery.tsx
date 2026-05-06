@@ -184,15 +184,15 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
           </div>
 
           {/* Main Image Area */}
-          <div className="flex-1 min-h-0 overflow-hidden" ref={emblaRef}>
-            <div className="flex h-full touch-pan-y">
-              {receiptsWithImages.map((receipt) => {
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="h-full">
+              {receiptsWithImages.map((receipt, index) => {
                 const url = imageUrls.get(receipt.id);
                 const hasError = errorIds.has(receipt.id);
                 return (
                   <div
                     key={receipt.id}
-                    className="flex-[0_0_100%] min-w-0 h-full flex items-center justify-center px-4 pt-24 pb-32 sm:pb-28"
+                    className={`${index === currentIndex ? 'flex' : 'hidden'} h-full items-center justify-center px-4 pt-24 pb-32 sm:pb-28`}
                   >
                     {hasError ? (
                       <div className="flex flex-col items-center gap-3 text-white text-center px-6">
@@ -301,7 +301,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                 {receiptsWithImages.map((receipt, index) => (
                   <button
                     key={receipt.id}
-                    onClick={() => emblaApi?.scrollTo(index)}
+                    onClick={() => { setCurrentIndex(index); setZoom(1); }}
                     className={`flex-shrink-0 w-16 h-16 rounded overflow-hidden border-2 transition-all ${
                       index === currentIndex
                         ? 'border-primary scale-110'
