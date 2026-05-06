@@ -577,6 +577,96 @@ const StaffPayments = () => {
     },
   });
 
+  // Backfill missing wage expenses for paid invoices that are not linked
+  const backfillMutation = useMutation({
+    mutationFn: async () => {
+      if (!user) throw new Error("Not authenticated");
+      const { data: orphans, error: fetchErr } = await supabase
+        .from("staff_invoices")
+        .select("id, invoice_number, gross_amount, wht_amount, net_amount, event_name, event_id, paid_at, payment_slip_url, staff_id, staff_profiles(staff_name, position)")
+        .eq("user_id", user.id)
+        .eq("status", "paid")
+        .is("matched_expense_id", null);
+      if (fetchErr) throw fetchErr;
+      if (!orphans || orphans.length === 0) return { fixed: 0, failed: 0, total: 0 };
+
+      let fixed = 0, failed = 0;
+      for (const inv of orphans as any[]) {
+        try {
+          let projectTag: string | null = null;
+          if (inv.event_id) {
+            const { data: ev } = await supabase.from("event_registry").select("project_tag").eq("id", inv.event_id).maybeSingle();
+            if (ev) projectTag = ev.project_tag;
+          }
+          const paidDate = inv.paid_at ? inv.paid_at.split("T")[0] : new Date().toISOString().split("T")[0];
+          const staffName = inv.staff_profiles?.staff_name || "";
+
+          const { data: wageExp, error: wageErr } = await supabase.from("expenses").insert({
+            user_id: user.id,
+            amount: Number(inv.gross_amount),
+            category: "ค่าจ้างทีมงาน",
+            subcategory: inv.staff_profiles?.position || "Staff",
+            description: `ค่าจ้าง ${staffName} - ${inv.event_name || ""} - ${inv.invoice_number}`.trim(),
+            expense_date: paidDate,
+            transaction_direction: "EXPENSE",
+            transaction_type: "BUSINESS",
+            category_group: "EVENT",
+            project_tag: projectTag,
+            staff_name: staffName || null,
+            event_name: inv.event_name || null,
+            receiver: staffName || null,
+            receipt_url: inv.payment_slip_url || null,
+            is_cash: false,
+            memo_text: `${inv.invoice_number} | Gross ${Number(inv.gross_amount).toFixed(2)} | WHT ${Number(inv.wht_amount).toFixed(2)} | Net ${Number(inv.net_amount).toFixed(2)} [backfill]`,
+          }).select("id").maybeSingle();
+          if (wageErr || !wageExp?.id) throw wageErr || new Error("no id returned");
+
+          await supabase.from("staff_invoices").update({ matched_expense_id: wageExp.id }).eq("id", inv.id);
+
+          if (Number(inv.wht_amount) > 0) {
+            await supabase.from("expenses").insert({
+              user_id: user.id,
+              amount: Number(inv.wht_amount),
+              category: "ภาษีหัก ณ ที่จ่าย",
+              subcategory: "Staff",
+              description: `ภาษีหัก ณ ที่จ่าย 3% - ${staffName} ${inv.event_name || ""}`.trim(),
+              expense_date: paidDate,
+              transaction_direction: "EXPENSE",
+              transaction_type: "BUSINESS",
+              category_group: "EVENT",
+              project_tag: projectTag,
+              staff_name: staffName || null,
+              event_name: inv.event_name || null,
+              receiver: "สรรพากร",
+              memo_text: `รอนำส่งสิ้นเดือน - ${inv.invoice_number} [backfill]`,
+            });
+          }
+          fixed++;
+        } catch (e) {
+          console.error("Backfill failed for", inv.invoice_number, e);
+          failed++;
+        }
+      }
+      return { fixed, failed, total: orphans.length };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      if (result.total === 0) {
+        toast({ title: "✅ ไม่มีรายการที่ต้องซ่อม", description: "ใบที่จ่ายแล้วทุกใบลิงก์เรียบร้อย" });
+      } else {
+        toast({
+          title: `🔧 Backfill เสร็จสิ้น`,
+          description: `สำเร็จ ${result.fixed}/${result.total} รายการ${result.failed > 0 ? ` (ล้มเหลว ${result.failed})` : ""}`,
+          variant: result.failed > 0 ? "destructive" : "default",
+        });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Backfill ล้มเหลว", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Duplicate Guard: ตรวจหา expense ที่อาจตรงกันก่อนสร้างใหม่
   const triggerPayWithGuard = async (params: { invoice: any; paymentMethod: string; slipFile?: File; extraNote?: string; dueDate?: string }) => {
     const { invoice, paymentMethod, slipFile, extraNote, dueDate } = params;
