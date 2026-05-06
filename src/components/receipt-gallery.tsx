@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import useEmblaCarousel from 'embla-carousel-react';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface ReceiptGalleryProps {
   receipts: Array<{
@@ -22,76 +19,90 @@ interface ReceiptGalleryProps {
 }
 
 export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: ReceiptGalleryProps) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ startIndex: initialIndex });
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
+  const imageUrlsRef = useRef<Map<string, string>>(new Map());
+  const objectUrlsRef = useRef<string[]>([]);
+  const loadingIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Filter receipts that have images
-  const receiptsWithImages = receipts.filter(r => r.receipt_url);
+  const receiptsWithImages = useMemo(() => receipts.filter(r => r.receipt_url), [receipts]);
+
+  const revokeObjectUrls = useCallback(() => {
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current = [];
+    imageUrlsRef.current = new Map();
+    loadingIdsRef.current = new Set();
+  }, []);
 
   useEffect(() => {
-    if (emblaApi) {
-      emblaApi.scrollTo(initialIndex);
-      setCurrentIndex(initialIndex);
+    return () => revokeObjectUrls();
+  }, [revokeObjectUrls]);
+
+  useEffect(() => {
+    if (!open) {
+      revokeObjectUrls();
+      setImageUrls(new Map());
+      setErrorIds(new Set());
+      setZoom(1);
+      return;
     }
-  }, [emblaApi, initialIndex, open]);
 
-  useEffect(() => {
-    if (!emblaApi) return;
+    const safeIndex = Math.min(Math.max(initialIndex, 0), Math.max(receiptsWithImages.length - 1, 0));
+    setCurrentIndex(safeIndex);
+    setZoom(1);
+  }, [initialIndex, open, receiptsWithImages.length, revokeObjectUrls]);
 
-    const onSelect = () => {
-      setCurrentIndex(emblaApi.selectedScrollSnap());
-      setZoom(1); // Reset zoom when changing slides
-    };
+  const loadReceiptBlob = useCallback(async (receipt: typeof receiptsWithImages[number]) => {
+    if (!receipt?.receipt_url || imageUrlsRef.current.has(receipt.id) || loadingIdsRef.current.has(receipt.id)) return;
+    loadingIdsRef.current.add(receipt.id);
+    try {
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .download(receipt.receipt_url);
+      if (error || !data) throw error;
+      const objectUrl = URL.createObjectURL(data);
+      objectUrlsRef.current.push(objectUrl);
+      setImageUrls((prev) => {
+        const next = new Map(prev);
+        next.set(receipt.id, objectUrl);
+        imageUrlsRef.current = next;
+        return next;
+      });
+    } catch (error) {
+      console.error('Image download failed:', error);
+      setErrorIds((prev) => {
+        const next = new Set(prev);
+        next.add(receipt.id);
+        return next;
+      });
+    } finally {
+      loadingIdsRef.current.delete(receipt.id);
+    }
+  }, []);
 
-    emblaApi.on('select', onSelect);
-    return () => {
-      emblaApi.off('select', onSelect);
-    };
-  }, [emblaApi]);
-
-  // Lazy-load: only sign URL for current image + 2 neighbors. Re-runs when user navigates.
+  // Lazy-load: download blobs for current image + 2 neighbors. This uses the same path as the working download button.
   useEffect(() => {
     if (!open || receiptsWithImages.length === 0) return;
     const total = receiptsWithImages.length;
     const targets = [currentIndex, currentIndex - 1, currentIndex + 1, currentIndex - 2, currentIndex + 2]
       .filter((i) => i >= 0 && i < total);
 
-    const sign = async (idx: number) => {
-      const r = receiptsWithImages[idx];
-      if (!r?.receipt_url || imageUrls.has(r.id)) return null;
-      try {
-        const { data, error } = await supabase.storage
-          .from('receipts')
-          .createSignedUrl(r.receipt_url, 3600);
-        if (error || !data?.signedUrl) return null;
-        return [r.id, data.signedUrl] as const;
-      } catch { return null; }
-    };
-
-    (async () => {
-      const results = await Promise.all(targets.map(sign));
-      const newUrls = results.filter(Boolean) as Array<readonly [string, string]>;
-      if (newUrls.length > 0) {
-        setImageUrls((prev) => {
-          const next = new Map(prev);
-          newUrls.forEach(([id, url]) => next.set(id, url));
-          return next;
-        });
-      }
-    })();
-  }, [open, currentIndex, receiptsWithImages.length]);
+    targets.forEach((idx) => loadReceiptBlob(receiptsWithImages[idx]));
+  }, [open, currentIndex, receiptsWithImages, loadReceiptBlob]);
 
   const scrollPrev = useCallback(() => {
-    if (emblaApi) emblaApi.scrollPrev();
-  }, [emblaApi]);
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+    setZoom(1);
+  }, []);
 
   const scrollNext = useCallback(() => {
-    if (emblaApi) emblaApi.scrollNext();
-  }, [emblaApi]);
+    setCurrentIndex((prev) => Math.min(prev + 1, receiptsWithImages.length - 1));
+    setZoom(1);
+  }, [receiptsWithImages.length]);
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.5, 3));
@@ -136,6 +147,17 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     }
   };
 
+  const handleRetryCurrent = () => {
+    const receipt = receiptsWithImages[currentIndex];
+    if (!receipt) return;
+    setErrorIds((prev) => {
+      const next = new Set(prev);
+      next.delete(receipt.id);
+      return next;
+    });
+    loadReceiptBlob(receipt);
+  };
+
   if (receiptsWithImages.length === 0) return null;
 
   const currentReceipt = receiptsWithImages[currentIndex];
@@ -174,20 +196,28 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
           </div>
 
           {/* Main Image Area */}
-          <div className="flex-1 min-h-0 overflow-hidden" ref={emblaRef}>
-            <div className="flex h-full touch-pan-y">
-              {receiptsWithImages.map((receipt) => {
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="h-full">
+              {receiptsWithImages.map((receipt, index) => {
                 const url = imageUrls.get(receipt.id);
                 const hasError = errorIds.has(receipt.id);
                 return (
                   <div
                     key={receipt.id}
-                    className="flex-[0_0_100%] min-w-0 h-full flex items-center justify-center px-4 pt-24 pb-32 sm:pb-28"
+                    className={`${index === currentIndex ? 'flex' : 'hidden'} h-full items-center justify-center px-4 pt-24 pb-32 sm:pb-28`}
                   >
                     {hasError ? (
                       <div className="flex flex-col items-center gap-3 text-white text-center px-6">
                         <p className="text-base">โหลดภาพไม่สำเร็จ</p>
                         <p className="text-xs opacity-70 break-all max-w-md">{receipt.receipt_url}</p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleRetryCurrent}
+                          className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        >
+                          โหลดภาพใหม่
+                        </Button>
                         <Button
                           size="sm"
                           variant="secondary"
@@ -197,21 +227,24 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         </Button>
                       </div>
                     ) : url ? (
-                      <img
-                        src={url}
-                        alt={receipt.description || 'Receipt'}
-                        className="max-w-full max-h-full object-contain select-none animate-fade-in"
-                        style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
-                        draggable={false}
-                        onError={() => {
-                          console.error('Image failed to load:', receipt.receipt_url);
-                          setErrorIds((prev) => {
-                            const next = new Set(prev);
-                            next.add(receipt.id);
-                            return next;
-                          });
-                        }}
-                      />
+                      <div className="w-full h-full overflow-auto flex items-center justify-center bg-background rounded-sm">
+                        <img
+                          key={url}
+                          src={url}
+                          alt={receipt.description || 'Receipt'}
+                          className="block max-w-full max-h-full object-contain select-none animate-fade-in"
+                          style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
+                          draggable={false}
+                          onError={() => {
+                            console.error('Image failed to load:', receipt.receipt_url);
+                            setErrorIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(receipt.id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="flex items-center justify-center text-white">
                         <div className="text-center">
@@ -291,7 +324,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                 {receiptsWithImages.map((receipt, index) => (
                   <button
                     key={receipt.id}
-                    onClick={() => emblaApi?.scrollTo(index)}
+                    onClick={() => { setCurrentIndex(index); setZoom(1); }}
                     className={`flex-shrink-0 w-16 h-16 rounded overflow-hidden border-2 transition-all ${
                       index === currentIndex
                         ? 'border-primary scale-110'
