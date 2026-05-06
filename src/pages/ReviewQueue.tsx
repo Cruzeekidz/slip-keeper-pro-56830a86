@@ -708,6 +708,166 @@ export default function ReviewQueue() {
           </div>
         )}
       </div>
+
+      {/* Multi-edit Dialog */}
+      <Dialog open={multiEditOpen} onOpenChange={setMultiEditOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>แก้ไขหลายรายการพร้อมกัน</DialogTitle>
+            <DialogDescription>
+              จะอัปเดต {selectedIds.size} รายการที่เลือก — ติ๊กเฉพาะฟิลด์ที่ต้องการเปลี่ยน
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Transaction type */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.transaction_type}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, transaction_type: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, transaction_type: !f.transaction_type }))}>
+                  ประเภทธุรกรรม
+                </Label>
+              </div>
+              {meFields.transaction_type && (
+                <Select
+                  value={meValues.transaction_type}
+                  onValueChange={v => setMeValues(s => ({ ...s, transaction_type: v as TransactionType, category_group: "", project_tag: "" }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger>
+                  <SelectContent>
+                    {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Category group */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.category_group}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, category_group: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, category_group: !f.category_group }))}>
+                  กลุ่มหมวด
+                </Label>
+              </div>
+              {meFields.category_group && (
+                <Select
+                  value={meValues.category_group}
+                  onValueChange={v => setMeValues(s => ({ ...s, category_group: v as CategoryGroup, project_tag: "" }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger>
+                  <SelectContent>
+                    {CATEGORY_GROUPS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Subcategory */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.subcategory}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, subcategory: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, subcategory: !f.subcategory }))}>
+                  ประเภทย่อย
+                </Label>
+              </div>
+              {meFields.subcategory && (
+                <Combobox
+                  options={meAllSubcats}
+                  value={meValues.subcategory}
+                  onValueChange={v => setMeValues(s => ({ ...s, subcategory: v }))}
+                  placeholder="เลือกหรือพิมพ์ประเภทย่อย"
+                />
+              )}
+            </div>
+
+            {/* Project tag */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.project_tag}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, project_tag: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, project_tag: !f.project_tag }))}>
+                  แท็กโปรเจกต์
+                </Label>
+              </div>
+              {meFields.project_tag && (
+                <Combobox
+                  options={meTagOptions.length > 0 ? meTagOptions : eventOptions.map(e => e.project_tag)}
+                  value={meValues.project_tag}
+                  onValueChange={v => setMeValues(s => ({ ...s, project_tag: v }))}
+                  placeholder="เลือกหรือพิมพ์แท็ก"
+                />
+              )}
+            </div>
+
+            {/* Event name */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.event_name}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, event_name: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, event_name: !f.event_name }))}>
+                  ชื่ออีเวนท์
+                </Label>
+              </div>
+              {meFields.event_name && (
+                <Combobox
+                  options={[...new Set(eventOptions.map(e => e.event_name))]}
+                  value={meValues.event_name}
+                  onValueChange={v => setMeValues(s => ({ ...s, event_name: v }))}
+                  placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
+                />
+              )}
+            </div>
+
+            {/* Merchant */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={meFields.merchant}
+                  onCheckedChange={v => setMeFields(f => ({ ...f, merchant: !!v }))}
+                />
+                <Label className="cursor-pointer" onClick={() => setMeFields(f => ({ ...f, merchant: !f.merchant }))}>
+                  ร้านค้า / ผู้รับเงิน
+                </Label>
+              </div>
+              {meFields.merchant && (
+                <Input
+                  value={meValues.merchant}
+                  onChange={e => setMeValues(s => ({ ...s, merchant: e.target.value }))}
+                  placeholder="ชื่อร้านค้า"
+                />
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 pt-2 border-t">
+              <Checkbox checked={meMarkApproved} onCheckedChange={v => setMeMarkApproved(!!v)} />
+              <Label className="cursor-pointer" onClick={() => setMeMarkApproved(v => !v)}>
+                ยืนยัน OK พร้อมกัน (เอาออกจากคิวตรวจสอบ)
+              </Label>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMultiEditOpen(false)} disabled={multiEditSaving}>ยกเลิก</Button>
+            <Button onClick={handleMultiEditApply} disabled={multiEditSaving}>
+              {multiEditSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              บันทึก {selectedIds.size} รายการ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
