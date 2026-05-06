@@ -17,6 +17,7 @@ import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag,
 } from "@/lib/category-constants";
+import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
 
 const CashExpense = () => {
   const { user, loading } = useAuth();
@@ -29,7 +30,6 @@ const CashExpense = () => {
   const [form, setForm] = useState({
     expense_date: today,
     expense_time: "",
-    amount: "",
     description: "",
     merchant: "",
     receiver: "",
@@ -42,6 +42,15 @@ const CashExpense = () => {
     memo_text: "",
     event_name: "",
     payee_group: "",
+  });
+
+  const [tax, setTax] = useState<TaxFieldsValue>({
+    amount: "",
+    inputMode: "net",
+    hasVat: false,
+    vatRate: 7,
+    hasWht: false,
+    whtRate: 3,
   });
 
   useEffect(() => {
@@ -60,8 +69,8 @@ const CashExpense = () => {
     e.preventDefault();
     if (!user) return;
 
-    const amountNum = parseFloat(form.amount);
-    if (!amountNum || amountNum <= 0) {
+    const breakdown = computeTax(tax);
+    if (!breakdown.gross || breakdown.gross <= 0) {
       toast({ title: "กรอกจำนวนเงิน", description: "จำนวนเงินต้องมากกว่า 0", variant: "destructive" });
       return;
     }
@@ -82,7 +91,12 @@ const CashExpense = () => {
 
       const { error } = await supabase.from("expenses").insert({
         user_id: user.id,
-        amount: amountNum,
+        amount: breakdown.gross,
+        vat_amount: breakdown.vat,
+        vat_rate: tax.hasVat ? tax.vatRate : 0,
+        wht_amount: breakdown.wht,
+        wht_rate: tax.hasWht ? tax.whtRate : 0,
+        amount_input_mode: tax.inputMode,
         expense_date: form.expense_date,
         expense_time: form.expense_time || null,
         description: form.description.trim() || null,
@@ -105,11 +119,10 @@ const CashExpense = () => {
 
       if (error) throw error;
 
-      toast({ title: "บันทึกสำเร็จ", description: `บันทึกเงินสด ${amountNum.toLocaleString()} บาท` });
+      toast({ title: "บันทึกสำเร็จ", description: `จ่ายจริง ${breakdown.net.toLocaleString()} บาท` });
       // Reset minimal fields, keep date/category for fast entry
       setForm(prev => ({
         ...prev,
-        amount: "",
         description: "",
         merchant: "",
         receiver: "",
@@ -117,6 +130,7 @@ const CashExpense = () => {
         event_name: "",
         payee_group: "",
       }));
+      setTax(prev => ({ ...prev, amount: "" }));
     } catch (err: any) {
       console.error(err);
       toast({ title: "บันทึกไม่สำเร็จ", description: err.message || "เกิดข้อผิดพลาด", variant: "destructive" });
@@ -163,8 +177,8 @@ const CashExpense = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Date / Time / Amount */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Date / Time */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="expense_date">วันที่ *</Label>
                   <Input
@@ -184,21 +198,10 @@ const CashExpense = () => {
                     onChange={e => setForm({ ...form, expense_time: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">จำนวนเงิน (บาท) *</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    inputMode="decimal"
-                    value={form.amount}
-                    onChange={e => setForm({ ...form, amount: e.target.value })}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
               </div>
+
+              {/* Amount + VAT/WHT */}
+              <TaxFieldsSection value={tax} onChange={setTax} />
 
               {/* Direction + Type */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

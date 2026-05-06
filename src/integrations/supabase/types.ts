@@ -599,6 +599,7 @@ export type Database = {
       expenses: {
         Row: {
           amount: number
+          amount_input_mode: string
           category: string
           category_group: string | null
           confidence_score: number | null
@@ -634,9 +635,14 @@ export type Database = {
           transaction_type: string | null
           updated_at: string
           user_id: string | null
+          vat_amount: number
+          vat_rate: number
+          wht_amount: number
+          wht_rate: number
         }
         Insert: {
           amount: number
+          amount_input_mode?: string
           category: string
           category_group?: string | null
           confidence_score?: number | null
@@ -672,9 +678,14 @@ export type Database = {
           transaction_type?: string | null
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_rate?: number
+          wht_amount?: number
+          wht_rate?: number
         }
         Update: {
           amount?: number
+          amount_input_mode?: string
           category?: string
           category_group?: string | null
           confidence_score?: number | null
@@ -710,6 +721,10 @@ export type Database = {
           transaction_type?: string | null
           updated_at?: string
           user_id?: string | null
+          vat_amount?: number
+          vat_rate?: number
+          wht_amount?: number
+          wht_rate?: number
         }
         Relationships: [
           {
