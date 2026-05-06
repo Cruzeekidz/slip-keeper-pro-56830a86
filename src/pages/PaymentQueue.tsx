@@ -465,15 +465,17 @@ const PaymentQueue = () => {
 
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8">กำลังโหลด...</p>
-        ) : pendingInvoices.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground">ไม่มีรายการรอจ่ายเงิน</p>
-            </CardContent>
-          </Card>
+        ) : filteredInvoices.length === 0 && (typeFilter === "staff" || typeFilter === "all") ? (
+          typeFilter === "staff" ? (
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <p className="text-muted-foreground">ไม่มีรายการรอจ่ายเงิน</p>
+              </CardContent>
+            </Card>
+          ) : null
         ) : (
           <div className="space-y-3">
-            {pendingInvoices.map((inv) => {
+            {filteredInvoices.map((inv) => {
               const grossAmount = Number(inv.gross_amount);
               const whtAmount = Number(inv.wht_amount);
               const netAmount = Number(inv.net_amount);
@@ -586,6 +588,21 @@ const PaymentQueue = () => {
                         <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                       </Button>
                     </div>
+                    {inv.staff_profiles?.bank_name && cleanAcct && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        disabled={sending === `inv-${inv.id}`}
+                        onClick={() => sendInfoToAccounting(
+                          `inv-${inv.id}`,
+                          `💰 ขอโอนเงินค่าแรงทีมงาน\n\n👤 ${inv.staff_profiles?.staff_name}${inv.staff_profiles?.nickname ? ` (${inv.staff_profiles.nickname})` : ""}\n📋 ${inv.invoice_number}${inv.event_name ? `\n🎪 ${inv.event_name}` : ""}\n💵 ยอดโอน: ${netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท\n\n🏦 ${inv.staff_profiles?.bank_name}\nเลขบัญชี: ${cleanAcct}\nชื่อบัญชี: ${inv.staff_profiles?.staff_name}`
+                        )}
+                      >
+                        <Send className="h-4 w-4 mr-1" />
+                        {sending === `inv-${inv.id}` ? "กำลังส่ง..." : "ส่งข้อมูลโอนให้บัญชี"}
+                      </Button>
+                    )}
                     <div className="flex gap-2">
                       {inv.status === "submitted" && (
                         <Button
