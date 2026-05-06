@@ -574,8 +574,41 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       )}
 
+      {/* Window + filter toggle */}
+      <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Select value={String(windowMonths)} onValueChange={(v) => setWindowMonths(Number(v))}>
+            <SelectTrigger className="h-8 w-[140px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="1">เดือนนี้</SelectItem>
+              <SelectItem value="3">3 เดือนล่าสุด</SelectItem>
+              <SelectItem value="6">6 เดือนล่าสุด</SelectItem>
+              <SelectItem value="12">1 ปีล่าสุด</SelectItem>
+              <SelectItem value="0">ทั้งหมด</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+            <SelectTrigger className="h-8 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent className="bg-background">
+              <SelectItem value="50">50 รายการ</SelectItem>
+              <SelectItem value="100">100 รายการ</SelectItem>
+              <SelectItem value="200">200 รายการ</SelectItem>
+              <SelectItem value="500">500 รายการ</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">โหลดแล้ว {expenses.length}</span>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
+          <Filter className="h-3.5 w-3.5 mr-1.5" />
+          ตัวกรอง
+          <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
+        </Button>
+      </div>
+
+      <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+      <CollapsibleContent>
       {/* Filters */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="ค้นหา..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
@@ -636,7 +669,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       </div>
 
       {/* Sort & Date Filter */}
-      <div className="flex flex-wrap gap-4 mb-6">
+      <div className="flex flex-wrap gap-4 mb-4">
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
           <SelectContent className="bg-background">
@@ -667,6 +700,8 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
+      </CollapsibleContent>
+      </Collapsible>
 
       {/* Expense List */}
       {filteredExpenses.length === 0 ? (
