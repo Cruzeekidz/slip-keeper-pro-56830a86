@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X } from "lucide-react";
 
 const CLAIM_STATUS_LABELS: Record<string, string> = {
   submitted: "ส่งแล้ว",
@@ -102,6 +102,7 @@ const StaffReimbursementTab = () => {
         .select("id, invoice_number, invoice_date, amount, description, file_url, vendor_id, link_type, linked_staff_id, created_at")
         .is("vendor_id", null)
         .is("linked_staff_id", null)
+        .neq("link_type", "vendor_only")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as VendorInvoice[];
