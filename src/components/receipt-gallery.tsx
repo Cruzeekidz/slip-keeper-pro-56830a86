@@ -1,12 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import useEmblaCarousel from 'embla-carousel-react';
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 interface ReceiptGalleryProps {
   receipts: Array<{
@@ -22,36 +19,42 @@ interface ReceiptGalleryProps {
 }
 
 export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: ReceiptGalleryProps) {
-  const [emblaRef, emblaApi] = useEmblaCarousel({ startIndex: initialIndex });
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
   const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
+  const imageUrlsRef = useRef<Map<string, string>>(new Map());
+  const objectUrlsRef = useRef<string[]>([]);
+  const loadingIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Filter receipts that have images
-  const receiptsWithImages = receipts.filter(r => r.receipt_url);
+  const receiptsWithImages = useMemo(() => receipts.filter(r => r.receipt_url), [receipts]);
+
+  const revokeObjectUrls = useCallback(() => {
+    objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    objectUrlsRef.current = [];
+    imageUrlsRef.current = new Map();
+    loadingIdsRef.current = new Set();
+  }, []);
 
   useEffect(() => {
-    if (emblaApi) {
-      emblaApi.scrollTo(initialIndex);
-      setCurrentIndex(initialIndex);
+    return () => revokeObjectUrls();
+  }, [revokeObjectUrls]);
+
+  useEffect(() => {
+    if (!open) {
+      revokeObjectUrls();
+      setImageUrls(new Map());
+      setErrorIds(new Set());
+      setZoom(1);
+      return;
     }
-  }, [emblaApi, initialIndex, open]);
 
-  useEffect(() => {
-    if (!emblaApi) return;
-
-    const onSelect = () => {
-      setCurrentIndex(emblaApi.selectedScrollSnap());
-      setZoom(1); // Reset zoom when changing slides
-    };
-
-    emblaApi.on('select', onSelect);
-    return () => {
-      emblaApi.off('select', onSelect);
-    };
-  }, [emblaApi]);
+    const safeIndex = Math.min(Math.max(initialIndex, 0), Math.max(receiptsWithImages.length - 1, 0));
+    setCurrentIndex(safeIndex);
+    setZoom(1);
+  }, [initialIndex, open, receiptsWithImages.length, revokeObjectUrls]);
 
   // Lazy-load: only sign URL for current image + 2 neighbors. Re-runs when user navigates.
   useEffect(() => {
