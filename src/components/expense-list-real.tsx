@@ -704,9 +704,30 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
+          {/* Multi-select toolbar (table) */}
+          <div className="flex items-center gap-2 p-2 mb-2 rounded-lg border bg-muted/30 flex-wrap">
+            <span className="text-sm font-medium">เลือก {selectedIds.size}/{filteredExpenses.length}</span>
+            <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
+              <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
+            </Button>
+            <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+              </Button>
+            )}
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={selectedIds.size > 0 && selectedIds.size === filteredExpenses.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-[90px]">วันที่</TableHead>
                 <TableHead>รายละเอียด</TableHead>
                 <TableHead className="w-[140px]">ประเภท</TableHead>
@@ -740,6 +761,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
                 return (
                   <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(expense.id)}
+                        onCheckedChange={() => toggleSelect(expense.id)}
+                      />
+                    </TableCell>
                     <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
                     <TableCell className="font-medium text-sm">{expense.description || expense.merchant || "-"}</TableCell>
                     
