@@ -167,6 +167,11 @@ const PaymentQueue = () => {
             .maybeSingle();
           if (evReg) projectTag = evReg.project_tag;
         }
+        // Derive entity bucket from tag prefix (BCC Next / Kukanang / Program / Event)
+        const wageGroup = projectTag?.startsWith("BCCNEXT-") ? "ENTITY_BCC_NEXT"
+          : projectTag?.startsWith("KUKAN-") ? "ENTITY_KUKANANG"
+          : projectTag?.startsWith("PROG-") ? "PROGRAM"
+          : "EVENT";
 
         // 1. Record Gross as expense (ค่าแรงทีมงาน - ต้นทุนงาน)
         await supabase.from("expenses").insert({
@@ -178,7 +183,7 @@ const PaymentQueue = () => {
           expense_date: today,
           transaction_direction: "EXPENSE",
           transaction_type: "BUSINESS",
-          category_group: "EVENT",
+          category_group: wageGroup,
           project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
@@ -198,7 +203,7 @@ const PaymentQueue = () => {
             expense_date: today,
             transaction_direction: "EXPENSE",
             transaction_type: "BUSINESS",
-            category_group: "EVENT",
+            category_group: wageGroup,
             project_tag: projectTag,
             staff_name: inv.staff_profiles?.staff_name || null,
             event_name: inv.event_name || null,
