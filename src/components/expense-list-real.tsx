@@ -194,18 +194,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (error) throw error;
     },
     onMutate: async ({ id, updateData }) => {
-      // Optimistic update
+      // Optimistic update across all expense windows
       await queryClient.cancelQueries({ queryKey: ['expenses'] });
-      const previous = queryClient.getQueryData<Expense[]>(['expenses']);
-      queryClient.setQueryData<Expense[]>(['expenses'], (old) =>
+      queryClient.setQueriesData<Expense[]>({ queryKey: ['expenses'] }, (old) =>
         (old || []).map(e => e.id === id ? { ...e, ...updateData } : e)
       );
-      return { previous };
     },
-    onError: (_err, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData(['expenses'], context.previous);
-      }
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['expenses'] });
       toast({ title: "บันทึกไม่สำเร็จ", variant: "destructive" });
     },
   });
