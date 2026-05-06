@@ -501,6 +501,17 @@ const VendorManagement = () => {
                                 <Eye className="h-4 w-4 mr-1" /> ดูบิล
                               </Button>
                             )}
+                            {(() => {
+                              const lineId = (vendor as any)?.line_user_id || (inv as any).submitted_via_line_user_id;
+                              if (!lineId) return null;
+                              return (
+                                <LineChatButton
+                                  lineUserId={lineId}
+                                  recipientName={vendor?.company_name || (inv as any).submitted_via_line_display_name || "ผู้ส่งบิล"}
+                                  context={`เกี่ยวกับบิล ${inv.invoice_number || inv.description || ""}\nยอด: ${inv.amount.toLocaleString()} บาท\n\n`}
+                                />
+                              );
+                            })()}
                             {inv.status === "pending" && (
                               <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "approved" })}>
                                 <CheckCircle className="h-4 w-4 mr-1" /> อนุมัติ
