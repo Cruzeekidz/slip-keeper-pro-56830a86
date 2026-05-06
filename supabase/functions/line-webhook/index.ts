@@ -1178,7 +1178,8 @@ serve(async (req) => {
             extractedData,
             storagePath,
             insertedExpenseId,
-            LINE_CHANNEL_ACCESS_TOKEN
+            LINE_CHANNEL_ACCESS_TOKEN,
+            userId
           );
         }
 
