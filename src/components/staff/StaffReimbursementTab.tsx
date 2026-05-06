@@ -892,7 +892,7 @@ const StaffReimbursementTab = () => {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReimburseDialog(null); setSlipFile(null); setLinkExpenseId(""); }}>ยกเลิก</Button>
-            <Button onClick={() => reimburseMutation.mutate()} disabled={reimburseMutation.isPending}>
+            <Button onClick={() => reimburseMutation.mutate()} disabled={reimburseMutation.isPending || !!linkedConflict}>
               {reimburseMutation.isPending ? "กำลังบันทึก..." : "ยืนยันจ่ายคืน"}
             </Button>
           </DialogFooter>
