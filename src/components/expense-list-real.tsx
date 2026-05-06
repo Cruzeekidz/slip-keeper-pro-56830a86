@@ -56,12 +56,12 @@ interface Expense {
 }
 
 // Query functions — fetch limited window for performance
-const fetchExpensesWindow = async (params: { months: number; limit: number }): Promise<Expense[]> => {
+const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number }): Promise<{ rows: Expense[]; total: number }> => {
   let q = supabase
     .from('expenses')
-    .select('*')
+    .select('*', { count: 'exact' })
     .order('expense_date', { ascending: false })
-    .limit(params.limit);
+    .range(params.offset, params.offset + params.limit - 1);
 
   if (params.months > 0) {
     const from = new Date();
@@ -69,9 +69,9 @@ const fetchExpensesWindow = async (params: { months: number; limit: number }): P
     from.setHours(0, 0, 0, 0);
     q = q.gte('expense_date', from.toISOString().split('T')[0]);
   }
-  const { data, error } = await q;
+  const { data, error, count } = await q;
   if (error) throw error;
-  return data || [];
+  return { rows: data || [], total: count || 0 };
 };
 
 const fetchEventNamesList = async (): Promise<string[]> => {
@@ -165,12 +165,19 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   // Data window settings (default = current month, 100 rows)
   const [windowMonths, setWindowMonths] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(100);
+  const [page, setPage] = useState<number>(1);
+
+  // Reset to page 1 when window/size changes
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize]);
 
   // Data queries
-  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
-    queryKey: ['expenses', windowMonths, pageSize],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize }),
+  const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
+    queryKey: ['expenses', windowMonths, pageSize, page],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize }),
   });
+  const expenses: Expense[] = pageData?.rows ?? [];
+  const totalCount = pageData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const { data: eventNames = [] } = useQuery({
     queryKey: ['event-registry-names'],
@@ -204,9 +211,10 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     onMutate: async ({ id, updateData }) => {
       // Optimistic update across all expense windows
       await queryClient.cancelQueries({ queryKey: ['expenses'] });
-      queryClient.setQueriesData<Expense[]>({ queryKey: ['expenses'] }, (old) =>
-        (old || []).map(e => e.id === id ? { ...e, ...updateData } : e)
-      );
+      queryClient.setQueriesData<{ rows: Expense[]; total: number }>({ queryKey: ['expenses'] }, (old) => {
+        if (!old) return old;
+        return { ...old, rows: old.rows.map(e => e.id === id ? { ...e, ...updateData } : e) };
+      });
     },
     onError: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
@@ -596,7 +604,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
               <SelectItem value="500">500 รายการ</SelectItem>
             </SelectContent>
           </Select>
-          <span className="text-xs text-muted-foreground">โหลดแล้ว {expenses.length}</span>
+          <span className="text-xs text-muted-foreground">
+            แสดง {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} จาก {totalCount.toLocaleString()} รายการ
+          </span>
         </div>
         <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
           <Filter className="h-3.5 w-3.5 mr-1.5" />
@@ -1143,6 +1153,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pagination footer */}
+      {totalCount > pageSize && (
+        <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            หน้า {page} / {totalPages} • รวม {totalCount.toLocaleString()} รายการ
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage(1)}>« แรก</Button>
+            <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ ก่อน</Button>
+            <span className="px-2 text-sm font-medium">{page}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>ถัดไป ›</Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage(totalPages)}>สุดท้าย »</Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
