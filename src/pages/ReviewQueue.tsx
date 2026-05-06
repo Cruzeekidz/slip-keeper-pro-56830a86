@@ -7,11 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2, PlayCircle, PauseCircle, CheckCheck, Pencil } from "lucide-react";
+import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2, PlayCircle, PauseCircle, CheckCheck, Pencil, Edit3 } from "lucide-react";
 import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TransactionType, CategoryGroup,
   getSubcategoriesForType, showProjectTag as shouldShowProjectTag,
@@ -66,6 +67,27 @@ export default function ReviewQueue() {
   // Bulk approve state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkApproving, setBulkApproving] = useState(false);
+
+  // Multi-edit dialog state
+  const [multiEditOpen, setMultiEditOpen] = useState(false);
+  const [multiEditSaving, setMultiEditSaving] = useState(false);
+  const [meFields, setMeFields] = useState({
+    transaction_type: false,
+    category_group: false,
+    subcategory: false,
+    project_tag: false,
+    event_name: false,
+    merchant: false,
+  });
+  const [meValues, setMeValues] = useState({
+    transaction_type: "" as TransactionType | "",
+    category_group: "" as CategoryGroup | "",
+    subcategory: "",
+    project_tag: "",
+    event_name: "",
+    merchant: "",
+  });
+  const [meMarkApproved, setMeMarkApproved] = useState(true);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -341,6 +363,61 @@ export default function ReviewQueue() {
     setCurrentIndex(0);
   };
 
+  const meShowGroup = meValues.transaction_type === 'BUSINESS';
+  const meShowTag = meShowGroup && shouldShowProjectTag(meValues.category_group as CategoryGroup || null);
+  const meDefaultSubcats = getSubcategoriesForType(meValues.transaction_type || null, meValues.category_group || null, 'EXPENSE');
+  const meAllSubcats = [...new Set([...meDefaultSubcats, ...existingSubcategories])];
+  const meTagOptions = meShowTag ? eventOptions
+    .filter(e => {
+      if (meValues.category_group === 'EVENT') return e.project_tag.startsWith('EVT-');
+      if (meValues.category_group === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
+      if (meValues.category_group === 'PROGRAM') return e.project_tag.startsWith('PROG-');
+      if (meValues.category_group === 'ENTITY_KUKANANG') return e.project_tag.startsWith('KUKAN-');
+      return true;
+    })
+    .map(e => e.project_tag) : [];
+
+  const handleMultiEditApply = async () => {
+    if (selectedIds.size === 0) return;
+    const update: Record<string, any> = {};
+    if (meFields.transaction_type && meValues.transaction_type) {
+      update.transaction_type = meValues.transaction_type;
+      update.category = meValues.transaction_type === 'BUSINESS' && (meFields.category_group ? meValues.category_group : null)
+        ? `${meValues.transaction_type}/${meValues.category_group}`
+        : meValues.transaction_type;
+    }
+    if (meFields.category_group) update.category_group = meValues.category_group || null;
+    if (meFields.subcategory) update.subcategory = meValues.subcategory || null;
+    if (meFields.project_tag) update.project_tag = meValues.project_tag || null;
+    if (meFields.event_name) update.event_name = meValues.event_name || null;
+    if (meFields.merchant) update.merchant = meValues.merchant || null;
+    if (meMarkApproved) {
+      update.needs_review = false;
+      update.confidence_score = 100;
+    }
+    if (Object.keys(update).length === 0) {
+      toast({ title: "ไม่มีฟิลด์ที่เลือก", description: "กรุณาติ๊กฟิลด์ที่ต้องการแก้ไข", variant: "destructive" });
+      return;
+    }
+    setMultiEditSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('expenses').update(update).in('id', ids);
+    setMultiEditSaving(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "แก้ไขสำเร็จ", description: `อัปเดต ${ids.length} รายการแล้ว` });
+    setMultiEditOpen(false);
+    if (meMarkApproved) {
+      setItems(prev => prev.filter(i => !selectedIds.has(i.id)));
+      setSelectedIds(new Set());
+      setCurrentIndex(0);
+    } else {
+      fetchItems();
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -392,6 +469,15 @@ export default function ReviewQueue() {
               >
                 {bulkApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-2" />}
                 ยืนยัน OK ที่เลือก ({selectedIds.size})
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setMultiEditOpen(true)}
+                disabled={selectedIds.size === 0}
+              >
+                <Edit3 className="h-4 w-4 mr-2" />
+                แก้ไขหลายรายการ ({selectedIds.size})
               </Button>
             </div>
             <div className="max-h-72 overflow-y-auto divide-y divide-border border rounded-lg">
