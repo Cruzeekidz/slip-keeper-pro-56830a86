@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,10 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder, Wallet, Upload, Image as ImageIcon, X, AlertTriangle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { buildUploadPath } from "@/lib/storage-path";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const docTypeMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   invoice: { label: "ใบแจ้งหนี้", variant: "outline" },
@@ -48,6 +51,15 @@ const VendorManagement = () => {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewBucket, setPreviewBucket] = useState<string>("documents");
 
+  // Pay dialog state
+  const [payInvoice, setPayInvoice] = useState<any | null>(null);
+  const [paySlip, setPaySlip] = useState<File | null>(null);
+  const [linkSlipExpenseId, setLinkSlipExpenseId] = useState<string>("");
+  const [paying, setPaying] = useState(false);
+  const [copiedField, setCopiedField] = useState<string>("");
+  const slipInputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
+
   const { data: vendors = [], isLoading: vendorsLoading } = useVendorProfiles();
   const { data: invoices = [], isLoading: invoicesLoading } = useVendorInvoices();
   const vendorSummaries = useVendorSummaries(vendors, invoices);
@@ -63,6 +75,92 @@ const VendorManagement = () => {
     const clean = account.replace(/[-\s]/g, "");
     navigator.clipboard.writeText(clean);
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
+  };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(""), 1500);
+      toast({ title: "คัดลอกแล้ว" });
+    } catch {}
+  };
+
+  const openPayDialog = (inv: any) => {
+    setPayInvoice(inv);
+    setPaySlip(null);
+    setLinkSlipExpenseId("");
+  };
+
+  // Slip candidates: recent unmatched expenses with similar amount (e.g. from LINE)
+  const payAmount = payInvoice
+    ? Number(payInvoice.net_amount || payInvoice.amount) || 0
+    : 0;
+  const { data: slipCandidates = [] } = useQuery({
+    queryKey: ["vendor-pay-slip-candidates", payInvoice?.id, payAmount],
+    queryFn: async () => {
+      if (!user || !payInvoice || !payAmount) return [];
+      const from = new Date();
+      from.setDate(from.getDate() - 30);
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("id, expense_date, amount, receiver, receiver_account_name, description, receipt_url")
+        .eq("user_id", user.id)
+        .eq("transaction_direction", "EXPENSE")
+        .gte("amount", payAmount - 0.01)
+        .lte("amount", payAmount + 0.01)
+        .gte("expense_date", from.toISOString().split("T")[0])
+        .not("receipt_url", "is", null)
+        .order("expense_date", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!payInvoice && payAmount > 0,
+  });
+
+  const handleConfirmPay = async () => {
+    if (!user || !payInvoice) return;
+    setPaying(true);
+    try {
+      const updates: Record<string, unknown> = {
+        status: "paid",
+        paid_at: new Date().toISOString(),
+      };
+
+      if (linkSlipExpenseId) {
+        const { data: exp } = await supabase
+          .from("expenses")
+          .select("id, receipt_url, expense_date")
+          .eq("id", linkSlipExpenseId)
+          .single();
+        if (exp) {
+          updates.matched_expense_id = exp.id;
+          if (exp.receipt_url) updates.payment_slip_url = exp.receipt_url;
+          if (exp.expense_date) updates.paid_at = new Date(exp.expense_date).toISOString();
+        }
+      } else if (paySlip) {
+        const ext = paySlip.name.split(".").pop() || "jpg";
+        const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_vendor_${payInvoice.id}.${ext}`);
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, paySlip, { contentType: paySlip.type, upsert: false });
+        if (upErr) throw upErr;
+        updates.payment_slip_url = path;
+      }
+
+      const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", payInvoice.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      toast({ title: "บันทึกการจ่ายแล้ว" });
+      setPayInvoice(null);
+      setPaySlip(null);
+      setLinkSlipExpenseId("");
+    } catch (e: any) {
+      toast({ title: e.message || "บันทึกไม่สำเร็จ", variant: "destructive" });
+    } finally {
+      setPaying(false);
+    }
   };
 
   const copyQuickLinkUrl = () => {
