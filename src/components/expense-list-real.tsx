@@ -131,6 +131,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
 
+  const isMobile = useIsMobile();
+  const [filtersOpen, setFiltersOpen] = useState<boolean>(false);
+
+  // Open filters by default on desktop
+  useEffect(() => {
+    setFiltersOpen(!isMobile);
+  }, [isMobile]);
+
   // Multi-select / bulk edit state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkOpen, setBulkOpen] = useState(false);
