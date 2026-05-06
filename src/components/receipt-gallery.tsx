@@ -56,45 +56,52 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     setZoom(1);
   }, [initialIndex, open, receiptsWithImages.length, revokeObjectUrls]);
 
-  // Lazy-load: only sign URL for current image + 2 neighbors. Re-runs when user navigates.
+  // Lazy-load: download blobs for current image + 2 neighbors. This uses the same path as the working download button.
   useEffect(() => {
     if (!open || receiptsWithImages.length === 0) return;
     const total = receiptsWithImages.length;
     const targets = [currentIndex, currentIndex - 1, currentIndex + 1, currentIndex - 2, currentIndex + 2]
       .filter((i) => i >= 0 && i < total);
 
-    const sign = async (idx: number) => {
+    const load = async (idx: number) => {
       const r = receiptsWithImages[idx];
-      if (!r?.receipt_url || imageUrls.has(r.id)) return null;
+      if (!r?.receipt_url || imageUrlsRef.current.has(r.id) || loadingIdsRef.current.has(r.id)) return null;
+      loadingIdsRef.current.add(r.id);
       try {
         const { data, error } = await supabase.storage
           .from('receipts')
-          .createSignedUrl(r.receipt_url, 3600);
-        if (error || !data?.signedUrl) return null;
-        return [r.id, data.signedUrl] as const;
+          .download(r.receipt_url);
+        if (error || !data) return null;
+        const objectUrl = URL.createObjectURL(data);
+        objectUrlsRef.current.push(objectUrl);
+        return [r.id, objectUrl] as const;
       } catch { return null; }
+      finally { loadingIdsRef.current.delete(r.id); }
     };
 
     (async () => {
-      const results = await Promise.all(targets.map(sign));
+      const results = await Promise.all(targets.map(load));
       const newUrls = results.filter(Boolean) as Array<readonly [string, string]>;
       if (newUrls.length > 0) {
         setImageUrls((prev) => {
           const next = new Map(prev);
           newUrls.forEach(([id, url]) => next.set(id, url));
+          imageUrlsRef.current = next;
           return next;
         });
       }
     })();
-  }, [open, currentIndex, receiptsWithImages.length]);
+  }, [open, currentIndex, receiptsWithImages]);
 
   const scrollPrev = useCallback(() => {
-    if (emblaApi) emblaApi.scrollPrev();
-  }, [emblaApi]);
+    setCurrentIndex((prev) => Math.max(prev - 1, 0));
+    setZoom(1);
+  }, []);
 
   const scrollNext = useCallback(() => {
-    if (emblaApi) emblaApi.scrollNext();
-  }, [emblaApi]);
+    setCurrentIndex((prev) => Math.min(prev + 1, receiptsWithImages.length - 1));
+    setZoom(1);
+  }, [receiptsWithImages.length]);
 
   const handleZoomIn = () => {
     setZoom(prev => Math.min(prev + 0.5, 3));
