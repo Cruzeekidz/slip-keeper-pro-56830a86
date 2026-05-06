@@ -717,13 +717,19 @@ const ReceiptArchive = () => {
             >
               ✕
             </Button>
-            {previewUrl && (
+            {previewUrl && previewIsPdf ? (
+              <iframe
+                src={previewUrl}
+                title="Preview"
+                className="w-[85vw] max-w-4xl h-[80vh] border-0 bg-background"
+              />
+            ) : previewUrl ? (
               <img
                 src={previewUrl}
                 alt="Preview"
                 className="w-full h-auto object-contain"
               />
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
