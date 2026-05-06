@@ -35,6 +35,7 @@ const statusColors: Record<string, string> = {
   submitted: "default",
   approved: "outline",
   paid: "default",
+  rejected: "destructive",
 };
 
 const statusLabels: Record<string, string> = {
@@ -42,6 +43,7 @@ const statusLabels: Record<string, string> = {
   submitted: "ส่งแล้ว",
   approved: "อนุมัติแล้ว",
   paid: "จ่ายแล้ว",
+  rejected: "ปฏิเสธ",
 };
 
 const StaffPayments = () => {
