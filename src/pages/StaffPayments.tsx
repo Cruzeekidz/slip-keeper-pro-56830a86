@@ -279,8 +279,18 @@ const StaffPayments = () => {
           memo_text: `${inv.invoice_number} - จ่ายด้วย${methodLabel} | Gross ${Number(inv.gross_amount).toFixed(2)} | WHT ${Number(inv.wht_amount).toFixed(2)} | Net ${Number(inv.net_amount).toFixed(2)}`,
         }).select("id").maybeSingle();
 
-        if (!wageErr && wageExp?.id) {
-          await supabase.from("staff_invoices").update({ matched_expense_id: wageExp.id }).eq("id", id);
+        if (wageErr) {
+          console.error("Failed to create wage expense:", wageErr);
+          toast({
+            title: "⚠️ บันทึกค่าใช้จ่ายไม่สำเร็จ",
+            description: `ใบ ${inv.invoice_number}: ${wageErr.message}. กรุณาลองใหม่หรือสร้างรายการเอง`,
+            variant: "destructive",
+          });
+          throw new Error(`Wage expense insert failed: ${wageErr.message}`);
+        }
+        if (wageExp?.id) {
+          const { error: linkErr } = await supabase.from("staff_invoices").update({ matched_expense_id: wageExp.id }).eq("id", id);
+          if (linkErr) console.error("Failed to link expense to invoice:", linkErr);
         }
       }
 
