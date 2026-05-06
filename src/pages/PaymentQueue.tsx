@@ -944,6 +944,27 @@ const PaymentQueue = () => {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* Revert claim confirmation */}
+        <AlertDialog open={!!revertClaim} onOpenChange={(o) => !o && setRevertClaim(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันย้อนสถานะใบเบิก</AlertDialogTitle>
+              <AlertDialogDescription>
+                ย้อนสถานะใบเบิกของ <span className="font-semibold">{revertClaim?.staff_name}</span> ยอด{" "}
+                <span className="font-semibold">{revertClaim?.amount.toLocaleString()} ฿</span> กลับเป็น "รออนุมัติ" ใช่หรือไม่?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => revertClaim && claimActionMutation.mutate({ id: revertClaim.id, action: "revert" })}
+              >
+                ยืนยันย้อนสถานะ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* Reject staff invoice confirmation */}
         <AlertDialog open={!!rejectInvoice} onOpenChange={(o) => !o && setRejectInvoice(null)}>
           <AlertDialogContent>
