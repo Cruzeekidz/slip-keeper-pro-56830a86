@@ -399,7 +399,7 @@ const PaymentQueue = () => {
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">สรุปรวม</p>
-              <Badge variant="secondary">{pendingInvoices.length} รายการ</Badge>
+              <Badge variant="secondary">{pendingInvoices.length + pendingClaims.length + pendingVendorBills.length} รายการ</Badge>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-muted rounded-lg p-3">
@@ -415,6 +415,51 @@ const PaymentQueue = () => {
                 <p className="text-sm font-bold text-primary">{totals.net.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Filter bar */}
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <Tabs value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+              <TabsList className="grid grid-cols-4 w-full">
+                <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
+                <TabsTrigger value="staff">ทีมงาน</TabsTrigger>
+                <TabsTrigger value="claim">เบิกคืน</TabsTrigger>
+                <TabsTrigger value="vendor">คู่ค้า</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="all">ทุกสถานะ</TabsTrigger>
+                <TabsTrigger value="pending">รออนุมัติ</TabsTrigger>
+                <TabsTrigger value="approved">อนุมัติแล้ว · รอจ่าย</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหา ชื่อ / เลขบิล / อีเวนท์"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">ครบกำหนด ตั้งแต่</label>
+                <Input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">ถึง</label>
+                <Input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} />
+              </div>
+            </div>
+            {(search || dueFrom || dueTo || typeFilter !== "all" || statusFilter !== "all") && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setDueFrom(""); setDueTo(""); setTypeFilter("all"); setStatusFilter("all"); }}>
+                ล้างตัวกรอง
+              </Button>
+            )}
           </CardContent>
         </Card>
 
