@@ -13,7 +13,12 @@ export async function getReceiptFileUrl(path: string, forceDownload = false) {
 
 export async function downloadReceiptFile(path: string) {
   const { url, token } = await getReceiptFileUrl(path, true);
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+    },
+  });
   if (!res.ok) throw new Error(`Download failed: ${res.status}`);
   return res.blob();
 }
