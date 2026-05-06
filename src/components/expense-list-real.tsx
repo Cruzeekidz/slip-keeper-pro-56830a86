@@ -1153,6 +1153,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Pagination footer */}
+      {totalCount > pageSize && (
+        <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            หน้า {page} / {totalPages} • รวม {totalCount.toLocaleString()} รายการ
+          </span>
+          <div className="flex items-center gap-1">
+            <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage(1)}>« แรก</Button>
+            <Button variant="outline" size="sm" disabled={page <= 1 || isFetching} onClick={() => setPage(p => Math.max(1, p - 1))}>‹ ก่อน</Button>
+            <span className="px-2 text-sm font-medium">{page}</span>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage(p => Math.min(totalPages, p + 1))}>ถัดไป ›</Button>
+            <Button variant="outline" size="sm" disabled={page >= totalPages || isFetching} onClick={() => setPage(totalPages)}>สุดท้าย »</Button>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
