@@ -366,6 +366,78 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   const isIncome = (e: Expense) => e.transaction_direction === 'INCOME';
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredExpenses.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredExpenses.map(e => e.id)));
+  };
+
+  const handleBulkApply = async () => {
+    if (selectedIds.size === 0) return;
+    const update: Record<string, any> = {};
+    if (bulkFields.transaction_type && bulkValues.transaction_type) {
+      update.transaction_type = bulkValues.transaction_type;
+      const grp = bulkFields.category_group ? bulkValues.category_group : null;
+      update.category = bulkValues.transaction_type === 'BUSINESS' && grp
+        ? `BUSINESS > ${grp}` : bulkValues.transaction_type;
+    }
+    if (bulkFields.category_group) update.category_group = bulkValues.category_group || null;
+    if (bulkFields.subcategory) update.subcategory = bulkValues.subcategory || null;
+    if (bulkFields.project_tag) update.project_tag = bulkValues.project_tag || null;
+    if (bulkFields.event_name) update.event_name = bulkValues.event_name || null;
+    if (bulkFields.merchant) update.merchant = bulkValues.merchant || null;
+    if (bulkFields.payee_group) update.payee_group = bulkValues.payee_group || null;
+
+    if (Object.keys(update).length === 0) {
+      toast({ title: "ไม่มีฟิลด์ที่เลือก", description: "กรุณาติ๊กฟิลด์ที่ต้องการแก้ไข", variant: "destructive" });
+      return;
+    }
+    setBulkSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('expenses').update(update).in('id', ids);
+    setBulkSaving(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "อัปเดตสำเร็จ", description: `แก้ไข ${ids.length} รายการแล้ว` });
+    setBulkOpen(false);
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`ลบ ${selectedIds.size} รายการที่เลือก?`)) return;
+    setBulkSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('expenses').delete().in('id', ids);
+    setBulkSaving(false);
+    if (error) {
+      toast({ title: "ลบไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ลบสำเร็จ", description: `ลบ ${ids.length} รายการแล้ว` });
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
+
+  const bulkSubcatOptions = [
+    ...getSubcategoriesForType(bulkValues.transaction_type || null, (bulkValues.category_group || null) as CategoryGroup | null),
+    ...dynamicSubcategories,
+  ];
+  const bulkTagOptions = [
+    ...getDefaultProjectTags((bulkValues.category_group || null) as CategoryGroup | null),
+    ...dynamicProjectTags,
+  ];
+
   return (
     <Card className="p-6 bg-gradient-card shadow-elevated">
       <div className="flex items-center justify-between mb-4">
