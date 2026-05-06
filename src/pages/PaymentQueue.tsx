@@ -10,7 +10,17 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2 } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { buildUploadPath } from "@/lib/storage-path";
 
 interface PaymentItem {
@@ -52,6 +62,7 @@ const PaymentQueue = () => {
   const [payDialog, setPayDialog] = useState<PaymentItem | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -66,6 +77,42 @@ const PaymentQueue = () => {
     },
     enabled: !!user,
   });
+
+  const { data: pendingClaims = [] } = useQuery({
+    queryKey: ["payment-queue-claims"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("staff_expense_claims")
+        .select("id, staff_id, amount, description, category, expense_date, event_name, receipt_url, status, staff_profiles(staff_name, nickname)")
+        .in("status", ["submitted", "approved"])
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!user,
+  });
+
+  const claimActionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
+      const newStatus = action === "approve" ? "approved" : "rejected";
+      const { error } = await supabase.from("staff_expense_claims").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      return action;
+    },
+    onSuccess: (action) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue-claims"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
+      setRejectClaim(null);
+      toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const openClaimReceipt = async (path: string | null) => {
+    if (!path) return;
+    const { data } = await supabase.storage.from("receipts").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
 
   const markPaidMutation = useMutation({
     mutationFn: async ({ invoiceId, slipFile }: { invoiceId: string; slipFile: File }) => {
@@ -373,6 +420,79 @@ const PaymentQueue = () => {
           </div>
         )}
 
+        {/* Staff expense reimbursement claims */}
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-amber-500" />
+                ใบเบิกค่าใช้จ่ายทีมงาน
+              </p>
+              <Badge variant="secondary">{pendingClaims.length} รายการ</Badge>
+            </div>
+            {pendingClaims.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">ไม่มีใบเบิกค้างอยู่</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingClaims.map((c) => (
+                  <div key={c.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{c.staff_profiles?.staff_name}</span>
+                        {c.staff_profiles?.nickname && (
+                          <span className="text-xs text-muted-foreground">({c.staff_profiles.nickname})</span>
+                        )}
+                        <Badge variant={c.status === "approved" ? "default" : "secondary"} className="text-[10px]">
+                          {c.status === "approved" ? "อนุมัติแล้ว · รอจ่ายคืน" : "รออนุมัติ"}
+                        </Badge>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{c.category}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">{c.description}</p>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <span className="font-semibold text-foreground">{Number(c.amount).toLocaleString()} ฿</span>
+                        {c.expense_date && <span>· {c.expense_date}</span>}
+                        {c.event_name && <span>· {c.event_name}</span>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {c.receipt_url && (
+                        <Button size="icon" variant="ghost" onClick={() => openClaimReceipt(c.receipt_url)} title="ดูใบเสร็จ">
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      )}
+                      {c.status === "submitted" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => claimActionMutation.mutate({ id: c.id, action: "approve" })}
+                            disabled={claimActionMutation.isPending}
+                          >
+                            <CheckCircle2 className="h-3 w-3 mr-1" />อนุมัติ
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setRejectClaim({ id: c.id, staff_name: c.staff_profiles?.staff_name || "", amount: Number(c.amount) })}
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />ปฏิเสธ
+                          </Button>
+                        </>
+                      )}
+                      {c.status === "approved" && (
+                        <Button size="sm" onClick={() => navigate("/staff-payments?tab=reimbursement")}>
+                          <Banknote className="h-3 w-3 mr-1" />จ่ายคืน
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Mark as Paid Dialog */}
         <Dialog open={!!payDialog} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
           <DialogContent className="max-w-sm">
@@ -431,6 +551,29 @@ const PaymentQueue = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Reject claim confirmation */}
+        <AlertDialog open={!!rejectClaim} onOpenChange={(o) => !o && setRejectClaim(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันปฏิเสธใบเบิก</AlertDialogTitle>
+              <AlertDialogDescription>
+                ปฏิเสธใบเบิกของ <span className="font-semibold">{rejectClaim?.staff_name}</span> ยอด{" "}
+                <span className="font-semibold">{rejectClaim?.amount.toLocaleString()} ฿</span> ใช่หรือไม่?
+                <br />ระบบจะเปลี่ยนสถานะเป็น "ปฏิเสธ" และไม่สามารถอนุมัติได้อีก
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => rejectClaim && claimActionMutation.mutate({ id: rejectClaim.id, action: "reject" })}
+              >
+                ปฏิเสธ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
