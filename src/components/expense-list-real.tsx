@@ -941,6 +941,100 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           onOpenChange={setGalleryOpen}
         />
       )}
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>แก้ไขหลายรายการพร้อมกัน</DialogTitle>
+            <DialogDescription>
+              จะอัปเดต {selectedIds.size} รายการที่เลือก — ติ๊กเฉพาะฟิลด์ที่ต้องการเปลี่ยน
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.transaction_type} onCheckedChange={v => setBulkFields(f => ({ ...f, transaction_type: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, transaction_type: !f.transaction_type }))}>ประเภทธุรกรรม</Label>
+              </div>
+              {bulkFields.transaction_type && (
+                <Select value={bulkValues.transaction_type} onValueChange={v => setBulkValues(s => ({ ...s, transaction_type: v as TransactionType, category_group: "", project_tag: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger>
+                  <SelectContent className="bg-background">
+                    {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.category_group} onCheckedChange={v => setBulkFields(f => ({ ...f, category_group: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, category_group: !f.category_group }))}>กลุ่มหมวด</Label>
+              </div>
+              {bulkFields.category_group && (
+                <Select value={bulkValues.category_group} onValueChange={v => setBulkValues(s => ({ ...s, category_group: v as CategoryGroup, project_tag: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger>
+                  <SelectContent className="bg-background">
+                    {CATEGORY_GROUPS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.subcategory} onCheckedChange={v => setBulkFields(f => ({ ...f, subcategory: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, subcategory: !f.subcategory }))}>ประเภทย่อย</Label>
+              </div>
+              {bulkFields.subcategory && (
+                <Combobox options={bulkSubcatOptions} value={bulkValues.subcategory} onValueChange={v => setBulkValues(s => ({ ...s, subcategory: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.project_tag} onCheckedChange={v => setBulkFields(f => ({ ...f, project_tag: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, project_tag: !f.project_tag }))}>แท็กโปรเจกต์</Label>
+              </div>
+              {bulkFields.project_tag && (
+                <Combobox options={bulkTagOptions} value={bulkValues.project_tag} onValueChange={v => setBulkValues(s => ({ ...s, project_tag: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.event_name} onCheckedChange={v => setBulkFields(f => ({ ...f, event_name: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, event_name: !f.event_name }))}>ชื่ออีเวนท์</Label>
+              </div>
+              {bulkFields.event_name && (
+                <Combobox options={eventNames} value={bulkValues.event_name} onValueChange={v => setBulkValues(s => ({ ...s, event_name: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.merchant} onCheckedChange={v => setBulkFields(f => ({ ...f, merchant: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, merchant: !f.merchant }))}>ร้านค้า / ผู้รับเงิน</Label>
+              </div>
+              {bulkFields.merchant && (
+                <Input value={bulkValues.merchant} onChange={e => setBulkValues(s => ({ ...s, merchant: e.target.value }))} placeholder="ชื่อร้านค้า" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.payee_group} onCheckedChange={v => setBulkFields(f => ({ ...f, payee_group: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, payee_group: !f.payee_group }))}>กลุ่มผู้รับเงิน</Label>
+              </div>
+              {bulkFields.payee_group && (
+                <Combobox options={dynamicPayeeGroups} value={bulkValues.payee_group} onValueChange={v => setBulkValues(s => ({ ...s, payee_group: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={bulkSaving}>ยกเลิก</Button>
+            <Button onClick={handleBulkApply} disabled={bulkSaving}>
+              {bulkSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckSquare className="h-4 w-4 mr-2" />}
+              บันทึก {selectedIds.size} รายการ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
