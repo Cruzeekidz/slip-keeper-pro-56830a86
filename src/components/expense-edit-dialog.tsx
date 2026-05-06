@@ -234,10 +234,16 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
     setLoading(true);
     try {
+      const breakdown = computeTax(tax);
       const { error } = await supabase
         .from('expenses')
         .update({
-          amount: parseFloat(formData.amount),
+          amount: breakdown.gross,
+          vat_amount: breakdown.vat,
+          vat_rate: tax.hasVat ? tax.vatRate : 0,
+          wht_amount: breakdown.wht,
+          wht_rate: tax.hasWht ? tax.whtRate : 0,
+          amount_input_mode: tax.inputMode,
           category: formData.category,
           subcategory: formData.subcategory || null,
           project: formData.project || null,
@@ -407,11 +413,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             </div>
           )}
 
-          <div>
-            <Label htmlFor="amount">จำนวนเงิน (บาท)</Label>
-            <Input id="amount" type="number" step="0.01" value={formData.amount}
-              onChange={(e) => setFormData({ ...formData, amount: e.target.value })} required />
-          </div>
+          <TaxFieldsSection value={tax} onChange={setTax} />
 
           <div>
             <Label htmlFor="expense_date">วันที่</Label>
