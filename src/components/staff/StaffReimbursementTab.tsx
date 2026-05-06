@@ -469,16 +469,16 @@ const StaffReimbursementTab = () => {
             <p className="text-sm text-muted-foreground text-center py-4">ไม่มีบิลรอผูก ✓</p>
           ) : (
             unlinkedBills.map((bill) => (
-              <div key={bill.id} className="flex items-center justify-between gap-2 p-3 border rounded-md hover:bg-muted/30">
+              <div key={bill.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border rounded-md hover:bg-muted/30">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{bill.invoice_number || "—"}</span>
                     <span className="font-semibold">{Number(bill.amount).toLocaleString()} ฿</span>
                     {bill.invoice_date && <span className="text-xs text-muted-foreground">{bill.invoice_date}</span>}
                   </div>
-                  <p className="text-sm text-muted-foreground truncate mt-0.5">{bill.description || "—"}</p>
+                  <p className="text-sm text-muted-foreground break-words mt-0.5">{bill.description || "—"}</p>
                 </div>
-                <div className="flex gap-1 shrink-0">
+                <div className="flex gap-1 flex-wrap sm:flex-nowrap shrink-0 w-full sm:w-auto">
                   {bill.file_url && (
                     <Button size="icon" variant="ghost" onClick={() => openBillFile(bill.file_url)} title="ดูบิล">
                       <FileText className="h-4 w-4" />
@@ -527,7 +527,7 @@ const StaffReimbursementTab = () => {
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีรายการ</p>
             ) : (
               section.list.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
+                <div key={c.id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3 border rounded-md">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium">{c.staff_profiles?.staff_name}</span>
@@ -535,14 +535,14 @@ const StaffReimbursementTab = () => {
                       <Badge variant={CLAIM_STATUS_COLORS[c.status]} className="text-[10px]">{CLAIM_STATUS_LABELS[c.status]}</Badge>
                       <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{c.category}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">{c.description}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                    <p className="text-sm text-muted-foreground break-words">{c.description}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
                       <span className="font-semibold text-foreground">{Number(c.amount).toLocaleString()} ฿</span>
                       {c.expense_date && <span>· {c.expense_date}</span>}
                       {c.event_name && <span>· {c.event_name}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-1 shrink-0">
+                  <div className="flex gap-1 flex-wrap sm:flex-nowrap shrink-0 w-full sm:w-auto">
                     {c.receipt_url && (
                       <Button size="icon" variant="ghost" onClick={() => openBillFile(c.receipt_url)} title="ดูใบเสร็จ">
                         <FileText className="h-4 w-4" />

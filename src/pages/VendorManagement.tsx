@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -18,10 +18,13 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder, Wallet, Upload, Image as ImageIcon, X, AlertTriangle } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { buildUploadPath } from "@/lib/storage-path";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 const docTypeMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   invoice: { label: "ใบแจ้งหนี้", variant: "outline" },
@@ -48,6 +51,15 @@ const VendorManagement = () => {
   const [previewPath, setPreviewPath] = useState<string | null>(null);
   const [previewBucket, setPreviewBucket] = useState<string>("documents");
 
+  // Pay dialog state
+  const [payInvoice, setPayInvoice] = useState<any | null>(null);
+  const [paySlip, setPaySlip] = useState<File | null>(null);
+  const [linkSlipExpenseId, setLinkSlipExpenseId] = useState<string>("");
+  const [paying, setPaying] = useState(false);
+  const [copiedField, setCopiedField] = useState<string>("");
+  const slipInputRef = useRef<HTMLInputElement>(null);
+  const qc = useQueryClient();
+
   const { data: vendors = [], isLoading: vendorsLoading } = useVendorProfiles();
   const { data: invoices = [], isLoading: invoicesLoading } = useVendorInvoices();
   const vendorSummaries = useVendorSummaries(vendors, invoices);
@@ -63,6 +75,92 @@ const VendorManagement = () => {
     const clean = account.replace(/[-\s]/g, "");
     navigator.clipboard.writeText(clean);
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
+  };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(""), 1500);
+      toast({ title: "คัดลอกแล้ว" });
+    } catch {}
+  };
+
+  const openPayDialog = (inv: any) => {
+    setPayInvoice(inv);
+    setPaySlip(null);
+    setLinkSlipExpenseId("");
+  };
+
+  // Slip candidates: recent unmatched expenses with similar amount (e.g. from LINE)
+  const payAmount = payInvoice
+    ? Number(payInvoice.net_amount || payInvoice.amount) || 0
+    : 0;
+  const { data: slipCandidates = [] } = useQuery({
+    queryKey: ["vendor-pay-slip-candidates", payInvoice?.id, payAmount],
+    queryFn: async () => {
+      if (!user || !payInvoice || !payAmount) return [];
+      const from = new Date();
+      from.setDate(from.getDate() - 30);
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("id, expense_date, amount, receiver, receiver_account_name, description, receipt_url")
+        .eq("user_id", user.id)
+        .eq("transaction_direction", "EXPENSE")
+        .gte("amount", payAmount - 0.01)
+        .lte("amount", payAmount + 0.01)
+        .gte("expense_date", from.toISOString().split("T")[0])
+        .not("receipt_url", "is", null)
+        .order("expense_date", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!payInvoice && payAmount > 0,
+  });
+
+  const handleConfirmPay = async () => {
+    if (!user || !payInvoice) return;
+    setPaying(true);
+    try {
+      const updates: Record<string, unknown> = {
+        status: "paid",
+        paid_at: new Date().toISOString(),
+      };
+
+      if (linkSlipExpenseId) {
+        const { data: exp } = await supabase
+          .from("expenses")
+          .select("id, receipt_url, expense_date")
+          .eq("id", linkSlipExpenseId)
+          .single();
+        if (exp) {
+          updates.matched_expense_id = exp.id;
+          if (exp.receipt_url) updates.payment_slip_url = exp.receipt_url;
+          if (exp.expense_date) updates.paid_at = new Date(exp.expense_date).toISOString();
+        }
+      } else if (paySlip) {
+        const ext = paySlip.name.split(".").pop() || "jpg";
+        const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_vendor_${payInvoice.id}.${ext}`);
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, paySlip, { contentType: paySlip.type, upsert: false });
+        if (upErr) throw upErr;
+        updates.payment_slip_url = path;
+      }
+
+      const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", payInvoice.id);
+      if (error) throw error;
+      qc.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      toast({ title: "บันทึกการจ่ายแล้ว" });
+      setPayInvoice(null);
+      setPaySlip(null);
+      setLinkSlipExpenseId("");
+    } catch (e: any) {
+      toast({ title: e.message || "บันทึกไม่สำเร็จ", variant: "destructive" });
+    } finally {
+      setPaying(false);
+    }
   };
 
   const copyQuickLinkUrl = () => {
@@ -347,7 +445,7 @@ const VendorManagement = () => {
                   return (
                     <Card key={inv.id}>
                       <CardContent className="py-4">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold">{inv.description || "บิลจากคู่ค้า"}</span>
@@ -387,7 +485,7 @@ const VendorManagement = () => {
                               </div>
                             )}
                           </div>
-                          <div className="flex flex-col gap-1 items-end">
+                          <div className="flex flex-row sm:flex-col gap-1 sm:items-end flex-wrap">
                             {inv.file_url && (
                               <Button variant="outline" size="sm" onClick={() => viewFile(inv.file_url!)}>
                                 <Eye className="h-4 w-4 mr-1" /> ดูบิล
@@ -399,8 +497,8 @@ const VendorManagement = () => {
                               </Button>
                             )}
                             {inv.status === "approved" && (
-                              <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "paid" })}>
-                                <CheckCircle className="h-4 w-4 mr-1" /> จ่ายแล้ว
+                              <Button size="sm" onClick={() => openPayDialog(inv)}>
+                                <Wallet className="h-4 w-4 mr-1" /> จ่ายเงิน
                               </Button>
                             )}
                             <AlertDialog>
@@ -563,6 +661,140 @@ const VendorManagement = () => {
               <Download className="h-4 w-4 mr-1" />ดาวน์โหลด
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pay vendor invoice dialog */}
+      <Dialog open={!!payInvoice} onOpenChange={(o) => { if (!o) { setPayInvoice(null); setPaySlip(null); setLinkSlipExpenseId(""); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> จ่ายบิลคู่ค้า</DialogTitle>
+          </DialogHeader>
+          {payInvoice && (() => {
+            const vendor = vendors.find((v) => v.id === payInvoice.vendor_id);
+            const netAmt = Number(payInvoice.net_amount || payInvoice.amount) || 0;
+            return (
+              <div className="space-y-3">
+                <div className="rounded-md bg-muted/40 p-3 text-sm space-y-1">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">คู่ค้า</span>
+                    <span className="font-semibold text-right">{vendor?.company_name || "—"}</span>
+                  </div>
+                  {payInvoice.invoice_number && (
+                    <div className="flex justify-between gap-2">
+                      <span className="text-muted-foreground">เลขที่บิล</span>
+                      <span className="font-mono">{payInvoice.invoice_number}</span>
+                    </div>
+                  )}
+                  {payInvoice.description && (
+                    <p className="text-xs text-muted-foreground break-words">{payInvoice.description}</p>
+                  )}
+                </div>
+
+                {vendor?.bank_account ? (
+                  <div className="rounded-lg border-2 border-primary/30 bg-primary/5 p-3 space-y-2">
+                    <div className="text-xs font-semibold text-primary uppercase">ข้อมูลโอนเงิน</div>
+                    <div className="grid grid-cols-[auto_1fr_auto] gap-2 items-center text-sm">
+                      <span className="text-muted-foreground">ธนาคาร</span>
+                      <span className="font-medium">{vendor.bank_name || "-"}</span>
+                      <span></span>
+
+                      <span className="text-muted-foreground">ชื่อบัญชี</span>
+                      <span className="font-medium truncate">{vendor.company_name}</span>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(vendor.company_name, "name")}>
+                        {copiedField === "name" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+
+                      <span className="text-muted-foreground">เลขบัญชี</span>
+                      <span className="font-mono font-bold text-base break-all">{vendor.bank_account}</span>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(String(vendor.bank_account || "").replace(/\D/g, ""), "acc")}>
+                        {copiedField === "acc" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+
+                      <span className="text-muted-foreground">ยอดโอน</span>
+                      <span className="font-bold text-primary">{netAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => copyToClipboard(netAmt.toFixed(2), "amt")}>
+                        {copiedField === "amt" ? <CheckCircle className="h-3 w-3 text-green-600" /> : <Copy className="h-3 w-3" />}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border-2 border-amber-500/40 bg-amber-500/10 p-3 text-sm flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-amber-700">คู่ค้ายังไม่ได้กรอกเลขบัญชี</p>
+                      <p className="text-xs text-muted-foreground">เพิ่มเลขบัญชีในแท็บคู่ค้า</p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>หลักฐานการโอน</Label>
+
+                  {slipCandidates.length > 0 && (
+                    <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-2 space-y-2">
+                      <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1">
+                        <Link2 className="h-3 w-3" /> พบสลิปที่ยอดตรงในระบบ ({slipCandidates.length})
+                      </p>
+                      <Select value={linkSlipExpenseId} onValueChange={(v) => { setLinkSlipExpenseId(v); setPaySlip(null); }}>
+                        <SelectTrigger className="h-9"><SelectValue placeholder="เลือกสลิปที่ส่งจาก LINE / ระบบ" /></SelectTrigger>
+                        <SelectContent>
+                          {slipCandidates.map((c: any) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.expense_date} · {Number(c.amount).toLocaleString()}฿ · {(c.receiver || c.receiver_account_name || c.description || "—").toString().slice(0, 40)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {linkSlipExpenseId && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <CheckCircle className="h-3 w-3 text-green-600" />
+                          <span>จะผูกกับ expense นี้เป็นหลักฐาน</span>
+                          <Button size="sm" variant="ghost" className="h-6 ml-auto" onClick={() => setLinkSlipExpenseId("")}>ยกเลิก</Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {!linkSlipExpenseId && (
+                    <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                      {paySlip ? (
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ImageIcon className="h-4 w-4 shrink-0" />
+                            <span className="text-sm truncate">{paySlip.name}</span>
+                          </div>
+                          <Button size="sm" variant="ghost" onClick={() => setPaySlip(null)}>
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="h-6 w-6 mx-auto text-muted-foreground mb-2" />
+                          <p className="text-xs text-muted-foreground mb-2">แนบสลิปการโอน (ไม่บังคับ)</p>
+                          <Button variant="outline" size="sm" onClick={() => slipInputRef.current?.click()}>เลือกไฟล์</Button>
+                          <input
+                            ref={slipInputRef}
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={(e) => setPaySlip(e.target.files?.[0] || null)}
+                          />
+                          <p className="text-[10px] text-muted-foreground mt-2">หรือส่งสลิปทาง LINE แล้วกลับมาเลือกในรายการด้านบน</p>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setPayInvoice(null); setPaySlip(null); setLinkSlipExpenseId(""); }}>ยกเลิก</Button>
+            <Button onClick={handleConfirmPay} disabled={paying}>
+              {paying ? "กำลังบันทึก..." : "ยืนยันจ่ายแล้ว"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
