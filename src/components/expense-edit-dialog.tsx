@@ -14,10 +14,16 @@ import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
+import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
 
 interface Expense {
   id: string;
   amount: number;
+  vat_amount?: number | null;
+  vat_rate?: number | null;
+  wht_amount?: number | null;
+  wht_rate?: number | null;
+  amount_input_mode?: string | null;
   category: string;
   subcategory: string | null;
   project: string | null;
@@ -59,7 +65,6 @@ interface ExpenseEditDialogProps {
 
 export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: ExpenseEditDialogProps) {
   const [formData, setFormData] = useState({
-    amount: "",
     category: "",
     subcategory: "",
     project: "",
@@ -82,6 +87,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     receiver_account_number: "",
     receiver_bank: "",
   });
+  const [tax, setTax] = useState<TaxFieldsValue>({
+    amount: "",
+    inputMode: "gross",
+    hasVat: false,
+    vatRate: 7,
+    hasWht: false,
+    whtRate: 3,
+  });
   const [senders, setSenders] = useState<string[]>([]);
   const [receivers, setReceivers] = useState<string[]>([]);
   const [merchants, setMerchants] = useState<string[]>([]);
@@ -98,7 +111,6 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   useEffect(() => {
     if (expense) {
       setFormData({
-        amount: expense.amount.toString(),
         category: expense.category,
         subcategory: expense.subcategory || "",
         project: expense.project || "",
@@ -120,6 +132,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         receiver_account_name: expense.receiver_account_name || "",
         receiver_account_number: expense.receiver_account_number || "",
         receiver_bank: expense.receiver_bank || "",
+      });
+      setTax({
+        amount: expense.amount.toString(),
+        inputMode: (expense.amount_input_mode === "net" ? "net" : "gross"),
+        hasVat: !!(expense.vat_amount && Number(expense.vat_amount) > 0),
+        vatRate: Number(expense.vat_rate) || 7,
+        hasWht: !!(expense.wht_amount && Number(expense.wht_amount) > 0),
+        whtRate: Number(expense.wht_rate) || 3,
       });
       const y = new Date(expense.expense_date).getFullYear();
       if (y > 2500) setDateWarning(`⚠️ ปีที่บันทึก (${y}) ดูเป็น พ.ศ. — ควรเป็น ค.ศ. ${y - 543}`);
