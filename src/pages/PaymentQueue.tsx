@@ -627,6 +627,29 @@ const PaymentQueue = () => {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Reject staff invoice confirmation */}
+        <AlertDialog open={!!rejectInvoice} onOpenChange={(o) => !o && setRejectInvoice(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันปฏิเสธใบเรียกเก็บ</AlertDialogTitle>
+              <AlertDialogDescription>
+                ปฏิเสธใบเรียกเก็บของ <span className="font-semibold">{rejectInvoice?.staff_name}</span> ยอด{" "}
+                <span className="font-semibold">{rejectInvoice?.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span> ใช่หรือไม่?
+                <br />ระบบจะเปลี่ยนสถานะเป็น "ปฏิเสธ" (ดูประวัติได้ภายหลัง)
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => rejectInvoice && invoiceActionMutation.mutate({ id: rejectInvoice.id, action: "reject" })}
+              >
+                ปฏิเสธ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
