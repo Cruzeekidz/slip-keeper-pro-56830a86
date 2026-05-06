@@ -28,13 +28,14 @@ import LinkExpenseDialog from "@/components/staff/LinkExpenseDialog";
 import BulkReconcileDialog from "@/components/staff/BulkReconcileDialog";
 import { findMatchingExpenses } from "@/hooks/useInvoiceMatching";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Unlock, History } from "lucide-react";
+import { Unlock, History, XCircle } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
   submitted: "default",
   approved: "outline",
   paid: "default",
+  rejected: "destructive",
 };
 
 const statusLabels: Record<string, string> = {
@@ -42,6 +43,7 @@ const statusLabels: Record<string, string> = {
   submitted: "ส่งแล้ว",
   approved: "อนุมัติแล้ว",
   paid: "จ่ายแล้ว",
+  rejected: "ปฏิเสธ",
 };
 
 const StaffPayments = () => {
@@ -793,6 +795,7 @@ const StaffPayments = () => {
               <SelectItem value="approved">อนุมัติแล้ว</SelectItem>
               <SelectItem value="paid">จ่ายแล้ว</SelectItem>
               <SelectItem value="draft">ฉบับร่าง</SelectItem>
+              <SelectItem value="rejected">ปฏิเสธ</SelectItem>
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground ml-auto">{filtered.length} รายการ</span>
@@ -909,6 +912,20 @@ const StaffPayments = () => {
                             {inv.status === "submitted" && (
                               <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "approved" })}>
                                 <CheckCircle className="h-3 w-3 mr-1" />อนุมัติ
+                              </Button>
+                            )}
+                            {(inv.status === "submitted" || inv.status === "approved") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10"
+                                title="ปฏิเสธ/ยกเลิกใบเรียกเก็บนี้"
+                                onClick={() => {
+                                  if (!confirm(`ปฏิเสธใบเรียกเก็บนี้?\n\nสถานะจะเปลี่ยนเป็น 'ปฏิเสธ' (ไม่ลบทิ้ง — ดูประวัติได้)`)) return;
+                                  updateStatusMutation.mutate({ id: inv.id, status: "rejected" });
+                                }}
+                              >
+                                <XCircle className="h-3 w-3 mr-1" />ปฏิเสธ
                               </Button>
                             )}
                             {inv.status === "approved" && (

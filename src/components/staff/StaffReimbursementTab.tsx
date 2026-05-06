@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle } from "lucide-react";
+import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X } from "lucide-react";
 
 const CLAIM_STATUS_LABELS: Record<string, string> = {
   submitted: "ส่งแล้ว",
@@ -102,6 +102,7 @@ const StaffReimbursementTab = () => {
         .select("id, invoice_number, invoice_date, amount, description, file_url, vendor_id, link_type, linked_staff_id, created_at")
         .is("vendor_id", null)
         .is("linked_staff_id", null)
+        .neq("link_type", "vendor_only")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as VendorInvoice[];
@@ -324,6 +325,26 @@ const StaffReimbursementTab = () => {
                   )}
                   <Button size="sm" onClick={() => openLinkDialog(bill)}>
                     <Link2 className="h-3 w-3 mr-1" />ผูก
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    title="ไม่ใช่บิลทีมงาน — ย้ายไปคู่ค้า"
+                    onClick={async () => {
+                      if (!confirm(`บิล ${bill.invoice_number || ""} ไม่ใช่บิลที่ทีมงานสำรองจ่ายใช่ไหม?\n\nระบบจะซ่อนจากแท็บนี้ และคุณสามารถไปผูกกับคู่ค้าได้ที่หน้า "คู่ค้า"`)) return;
+                      const { error } = await supabase
+                        .from("vendor_invoices")
+                        .update({ link_type: "vendor_only" })
+                        .eq("id", bill.id);
+                      if (error) {
+                        toast({ title: error.message, variant: "destructive" });
+                        return;
+                      }
+                      qc.invalidateQueries({ queryKey: ["unlinked-vendor-bills"] });
+                      toast({ title: "ย้ายไปยังบิลคู่ค้าแล้ว", description: "ไปจัดการที่หน้า 'คู่ค้า'" });
+                    }}
+                  >
+                    <X className="h-3 w-3 mr-1" />ไม่ใช่ทีมงาน
                   </Button>
                 </div>
               </div>
