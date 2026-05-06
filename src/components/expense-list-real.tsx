@@ -634,6 +634,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
               <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
             </Button>
+            <Button size="sm" variant="secondary" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkConfirmOk} title="ยืนยันว่าจัดกลุ่มถูกแล้ว ไม่ต้องตรวจสอบ">
+              <CheckSquare className="h-3.5 w-3.5 mr-1" /> ยืนยัน OK (ไม่แก้)
+            </Button>
             <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
               <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
             </Button>
@@ -727,6 +730,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             <span className="text-sm font-medium">เลือก {selectedIds.size}/{filteredExpenses.length}</span>
             <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
               <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
+            </Button>
+            <Button size="sm" variant="secondary" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkConfirmOk} title="ยืนยันว่าจัดกลุ่มถูกแล้ว ไม่ต้องตรวจสอบ">
+              <CheckSquare className="h-3.5 w-3.5 mr-1" /> ยืนยัน OK (ไม่แก้)
             </Button>
             <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
               <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
