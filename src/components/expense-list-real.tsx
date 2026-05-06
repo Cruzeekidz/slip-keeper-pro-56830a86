@@ -606,9 +606,34 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         <div className="text-center py-8"><p className="text-muted-foreground">ไม่พบรายการ</p></div>
       ) : viewMode === "card" ? (
         <div className="space-y-3">
+          {/* Multi-select toolbar */}
+          <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 flex-wrap">
+            <Checkbox
+              checked={selectedIds.size > 0 && selectedIds.size === filteredExpenses.length}
+              onCheckedChange={toggleSelectAll}
+            />
+            <span className="text-sm font-medium">เลือก {selectedIds.size}/{filteredExpenses.length}</span>
+            <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
+              <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
+            </Button>
+            <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+              </Button>
+            )}
+          </div>
           {filteredExpenses.map((expense, index) => (
             <Card key={expense.id} className={cn("hover:shadow-md transition-shadow", expense.needs_review && "ring-1 ring-warning/50")}>
               <div className="p-3 md:p-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-4 border-b">
+                <div className="md:pt-1 shrink-0">
+                  <Checkbox
+                    checked={selectedIds.has(expense.id)}
+                    onCheckedChange={() => toggleSelect(expense.id)}
+                  />
+                </div>
                 <div className="flex items-center justify-between md:contents">
                   <div className="shrink-0 flex items-center gap-1.5 md:w-24">
                     <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
