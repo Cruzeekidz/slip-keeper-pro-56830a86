@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
+import JSZip from "jszip";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FolderOpen, Download, Share2, ChevronRight, Copy, Check, Eye, Image } from "lucide-react";
+import { ArrowLeft, FolderOpen, Download, Share2, ChevronRight, Copy, Check, Eye, Image, Package } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,6 +60,11 @@ const ReceiptArchive = () => {
   // Signed URLs cache
   const [signedUrls, setSignedUrls] = useState<Map<string, string>>(new Map());
   const [loadingUrls, setLoadingUrls] = useState(false);
+  const [failedPaths, setFailedPaths] = useState<Set<string>>(new Set());
+  const objectUrlsRef = useRef<string[]>([]);
+
+  // Zip download progress
+  const [zipProgress, setZipProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Share dialog
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
@@ -135,33 +141,64 @@ const ReceiptArchive = () => {
     );
   }, [allReceipts, selectedEntity, selectedYear, selectedMonth]);
 
-  // Load signed URLs when files change
+  // Cleanup blob URLs on unmount/change
+  useEffect(() => {
+    return () => {
+      objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      objectUrlsRef.current = [];
+    };
+  }, []);
+
+  // Load images when files change — use blob download (more reliable than signed URLs)
   useEffect(() => {
     if (currentFiles.length === 0) return;
     let cancelled = false;
+    // Reset state for new folder
+    objectUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+    objectUrlsRef.current = [];
+    setSignedUrls(new Map());
+    setFailedPaths(new Set());
+
     const loadUrls = async () => {
       setLoadingUrls(true);
-      const paths = currentFiles.map((f) => f.receipt_url);
       const map = new Map<string, string>();
-      const CHUNK = 50;
-      for (let i = 0; i < paths.length; i += CHUNK) {
-        if (cancelled) return;
-        const chunk = paths.slice(i, i + CHUNK);
-        try {
-          const { data } = await supabase.storage
-            .from("receipts")
-            .createSignedUrls(chunk, 3600);
-          if (data) {
-            data.forEach((d) => {
-              if (d.signedUrl && d.path) map.set(d.path, d.signedUrl);
-            });
-            // progressive update so user sees images as they load
-            setSignedUrls(new Map(map));
+      const failed = new Set<string>();
+      // Concurrency-limited blob downloads (same path as the working "download" button)
+      const CONCURRENCY = 6;
+      let cursor = 0;
+      const worker = async () => {
+        while (!cancelled && cursor < currentFiles.length) {
+          const i = cursor++;
+          const f = currentFiles[i];
+          // skip PDFs from preview thumbnails (handled separately)
+          if (f.receipt_url.endsWith(".pdf")) continue;
+          let success = false;
+          for (let attempt = 0; attempt < 3 && !success && !cancelled; attempt++) {
+            try {
+              const { data, error } = await supabase.storage
+                .from("receipts")
+                .download(f.receipt_url);
+              if (error || !data) throw error || new Error("no data");
+              const objUrl = URL.createObjectURL(data);
+              objectUrlsRef.current.push(objUrl);
+              map.set(f.receipt_url, objUrl);
+              if (i % 8 === 0) setSignedUrls(new Map(map));
+              success = true;
+            } catch (e) {
+              if (attempt === 2) {
+                failed.add(f.receipt_url);
+                console.warn("Image load failed:", f.receipt_url, e);
+              } else {
+                await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+              }
+            }
           }
-        } catch (e) {
-          console.error("createSignedUrls chunk failed", e);
         }
-      }
+      };
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+      if (cancelled) return;
+      setSignedUrls(new Map(map));
+      setFailedPaths(failed);
       setLoadingUrls(false);
     };
     loadUrls();
@@ -233,11 +270,70 @@ const ReceiptArchive = () => {
 
   const handleDownloadAll = async () => {
     if (currentFiles.length === 0) return;
-    toast({ title: "กำลังดาวน์โหลด", description: `${currentFiles.length} ไฟล์...` });
-    for (const file of currentFiles) {
-      await handleDownload(file);
-      await new Promise((r) => setTimeout(r, 300));
+    const total = currentFiles.length;
+    setZipProgress({ done: 0, total });
+    toast({ title: "กำลังเตรียมไฟล์ ZIP", description: `${total} ไฟล์...` });
+
+    const zip = new JSZip();
+    const used = new Map<string, number>();
+    let done = 0;
+    let failures = 0;
+
+    const CONCURRENCY = 6;
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < currentFiles.length) {
+        const i = cursor++;
+        const f = currentFiles[i];
+        let ok = false;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+          try {
+            const { data, error } = await supabase.storage
+              .from("receipts")
+              .download(f.receipt_url);
+            if (error || !data) throw error || new Error("no data");
+            const ext = f.receipt_url.toLowerCase().endsWith(".pdf") ? "pdf" : "jpg";
+            const safeDesc = (f.description || "slip").replace(/[^\u0E00-\u0E7F\w\-]+/g, "_").slice(0, 40);
+            let baseName = `${f.expense_date}_${Math.round(f.amount)}_${safeDesc}.${ext}`;
+            const count = used.get(baseName) || 0;
+            if (count > 0) baseName = baseName.replace(`.${ext}`, `_${count}.${ext}`);
+            used.set(baseName, count + 1);
+            zip.file(baseName, data);
+            ok = true;
+          } catch (e) {
+            if (attempt === 2) failures++;
+            else await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+          }
+        }
+        done++;
+        setZipProgress({ done, total });
+      }
+    };
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
+    try {
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const folderLabel = [
+        ENTITY_LABELS[selectedEntity || ""]?.label || selectedEntity,
+        selectedYear,
+        MONTH_NAMES[parseInt(selectedMonth || "0")] || selectedMonth,
+      ].filter(Boolean).join("_");
+      link.href = url;
+      link.download = `slips_${folderLabel}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      toast({
+        title: "ดาวน์โหลด ZIP สำเร็จ",
+        description: `${done - failures}/${total} ไฟล์${failures ? ` (โหลดไม่สำเร็จ ${failures} ไฟล์)` : ""}`,
+      });
+    } catch (e) {
+      toast({ title: "สร้าง ZIP ไม่สำเร็จ", variant: "destructive" });
     }
+    setZipProgress(null);
   };
 
   const handleShareFolder = async () => {
@@ -355,14 +451,21 @@ const ReceiptArchive = () => {
         {/* Action buttons when viewing files */}
         {level === "files" && currentFiles.length > 0 && (
           <div className="flex gap-2 flex-wrap">
-            <Button size="sm" onClick={handleDownloadAll} variant="outline">
-              <Download className="h-4 w-4 mr-1.5" />
-              ดาวน์โหลดทั้งหมด ({currentFiles.length})
+            <Button size="sm" onClick={handleDownloadAll} variant="outline" disabled={!!zipProgress}>
+              <Package className="h-4 w-4 mr-1.5" />
+              {zipProgress
+                ? `กำลังโหลด ${zipProgress.done}/${zipProgress.total}...`
+                : `ดาวน์โหลด ZIP ทั้งหมด (${currentFiles.length})`}
             </Button>
             <Button size="sm" onClick={handleShareFolder} variant="outline">
               <Share2 className="h-4 w-4 mr-1.5" />
               สร้างลิงก์แชร์ทั้งโฟลเดอร์
             </Button>
+            {failedPaths.size > 0 && (
+              <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30">
+                โหลดภาพไม่สำเร็จ {failedPaths.size} ไฟล์ (ZIP จะลองโหลดใหม่)
+              </Badge>
+            )}
           </div>
         )}
 
