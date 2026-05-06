@@ -307,6 +307,53 @@ const StaffReimbursementTab = () => {
       const claim = reimburseDialog;
       const staffName = claim.staff_profiles?.staff_name || "";
 
+      // ★ Mode A: Link to existing expense (slip already in system, e.g. from LINE)
+      if (linkExpenseId) {
+        const { data: existingExp, error: fetchErr } = await supabase
+          .from("expenses")
+          .select("id, receipt_url, expense_date")
+          .eq("id", linkExpenseId)
+          .single();
+        if (fetchErr) throw fetchErr;
+
+        const { error: clErr } = await supabase
+          .from("staff_expense_claims")
+          .update({
+            status: "reimbursed",
+            reimbursed_at: new Date().toISOString(),
+            reimbursed_expense_id: existingExp.id,
+          })
+          .eq("id", claim.id);
+        if (clErr) throw clErr;
+
+        if (claim.vendor_invoice_id) {
+          await supabase
+            .from("vendor_invoices")
+            .update({
+              status: "paid",
+              paid_at: existingExp.expense_date
+                ? new Date(existingExp.expense_date).toISOString()
+                : new Date().toISOString(),
+              matched_expense_id: existingExp.id,
+              payment_slip_url: existingExp.receipt_url || null,
+            })
+            .eq("id", claim.vendor_invoice_id);
+        }
+        return;
+      }
+
+      // ★ Mode B: New expense, with optional uploaded slip
+      let slipPath: string | null = null;
+      if (slipFile) {
+        const ext = slipFile.name.split(".").pop() || "jpg";
+        const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_reimburse_${claim.id}.${ext}`);
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, slipFile, { contentType: slipFile.type, upsert: false });
+        if (upErr) throw upErr;
+        slipPath = path;
+      }
+
       const { data: exp, error: expErr } = await supabase
         .from("expenses")
         .insert({
@@ -323,7 +370,7 @@ const StaffReimbursementTab = () => {
           event_name: claim.event_name,
           receiver: staffName,
           memo_text: `จ่ายคืนค่าใช้จ่ายสำรอง (${reimburseForm.payment_method === "cash" ? "เงินสด" : "โอน"})${reimburseForm.notes ? ` - ${reimburseForm.notes}` : ""}`,
-          receipt_url: claim.receipt_url,
+          receipt_url: slipPath || claim.receipt_url,
         })
         .select("id")
         .single();
@@ -342,7 +389,12 @@ const StaffReimbursementTab = () => {
       if (claim.vendor_invoice_id) {
         await supabase
           .from("vendor_invoices")
-          .update({ status: "paid", paid_at: new Date().toISOString(), matched_expense_id: exp.id })
+          .update({
+            status: "paid",
+            paid_at: new Date().toISOString(),
+            matched_expense_id: exp.id,
+            payment_slip_url: slipPath || null,
+          })
           .eq("id", claim.vendor_invoice_id);
       }
     },
@@ -350,6 +402,8 @@ const StaffReimbursementTab = () => {
       qc.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
       qc.invalidateQueries({ queryKey: ["expenses"] });
       setReimburseDialog(null);
+      setSlipFile(null);
+      setLinkExpenseId("");
       toast({ title: "บันทึกการจ่ายคืนสำเร็จ", description: "สร้างรายการ expense แล้ว" });
     },
     onError: (err: any) => {
