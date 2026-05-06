@@ -109,6 +109,10 @@ const StaffReimbursementTab = () => {
     payment_method: "transfer" as "transfer" | "cash",
     notes: "",
   });
+  const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [linkExpenseId, setLinkExpenseId] = useState<string>("");
+  const [copiedField, setCopiedField] = useState<string>("");
+  const slipInputRef = useRef<HTMLInputElement>(null);
 
   // Move-to-vendor (link with vendor) dialog state
   const [vendorLinkDialog, setVendorLinkDialog] = useState<VendorInvoice | null>(null);
@@ -198,7 +202,7 @@ const StaffReimbursementTab = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_expense_claims")
-        .select("*, staff_profiles(staff_name, nickname)")
+        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as StaffClaim[];
