@@ -611,6 +611,24 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             {uniqueReceivers.map(r => <SelectItem key={r!} value={r!}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterMonth} onValueChange={setFilterMonth}>
+          <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ทุกเดือน</SelectItem>
+            {uniqueMonths.map(ym => {
+              const [y, m] = ym.split("-");
+              const label = `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+              return <SelectItem key={ym} value={ym}>{label}</SelectItem>;
+            })}
+          </SelectContent>
+        </Select>
+        <Select value={filterEvent} onValueChange={setFilterEvent}>
+          <SelectTrigger><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+            {uniqueEvents.map(ev => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Sort & Date Filter */}
@@ -639,9 +657,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </div>
           </PopoverContent>
         </Popover>
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || filterMonth !== "all" || filterEvent !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setFilterMonth("all"); setFilterEvent("all"); setDateFrom(undefined); setDateTo(undefined);
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
