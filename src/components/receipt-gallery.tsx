@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -144,12 +143,10 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] sm:max-w-3xl lg:max-w-4xl w-full h-[90vh] p-0 bg-black/95 overflow-hidden">
-        <VisuallyHidden.Root>
-          <DialogTitle>ดูสลิป</DialogTitle>
-          <DialogDescription>
-            แสดงรูปภาพสลิป/ใบเสร็จที่อัปโหลดไว้ พร้อมตัวเลื่อนและปุ่มดาวน์โหลด
-          </DialogDescription>
-        </VisuallyHidden.Root>
+        <DialogTitle className="sr-only">ดูสลิป</DialogTitle>
+        <DialogDescription className="sr-only">
+          แสดงรูปภาพสลิป/ใบเสร็จที่อัปโหลดไว้ พร้อมตัวเลื่อนและปุ่มดาวน์โหลด
+        </DialogDescription>
         <div className="relative w-full h-full flex flex-col">
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
