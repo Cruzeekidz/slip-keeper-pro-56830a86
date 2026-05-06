@@ -165,12 +165,19 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   // Data window settings (default = current month, 100 rows)
   const [windowMonths, setWindowMonths] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(100);
+  const [page, setPage] = useState<number>(1);
+
+  // Reset to page 1 when window/size changes
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize]);
 
   // Data queries
-  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
-    queryKey: ['expenses', windowMonths, pageSize],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize }),
+  const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
+    queryKey: ['expenses', windowMonths, pageSize, page],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize }),
   });
+  const expenses: Expense[] = pageData?.rows ?? [];
+  const totalCount = pageData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
   const { data: eventNames = [] } = useQuery({
     queryKey: ['event-registry-names'],
@@ -204,9 +211,10 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     onMutate: async ({ id, updateData }) => {
       // Optimistic update across all expense windows
       await queryClient.cancelQueries({ queryKey: ['expenses'] });
-      queryClient.setQueriesData<Expense[]>({ queryKey: ['expenses'] }, (old) =>
-        (old || []).map(e => e.id === id ? { ...e, ...updateData } : e)
-      );
+      queryClient.setQueriesData<{ rows: Expense[]; total: number }>({ queryKey: ['expenses'] }, (old) => {
+        if (!old) return old;
+        return { ...old, rows: old.rows.map(e => e.id === id ? { ...e, ...updateData } : e) };
+      });
     },
     onError: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
