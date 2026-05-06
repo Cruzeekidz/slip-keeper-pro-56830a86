@@ -28,7 +28,7 @@ import LinkExpenseDialog from "@/components/staff/LinkExpenseDialog";
 import BulkReconcileDialog from "@/components/staff/BulkReconcileDialog";
 import { findMatchingExpenses } from "@/hooks/useInvoiceMatching";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Unlock, History } from "lucide-react";
+import { Unlock, History, XCircle } from "lucide-react";
 
 const statusColors: Record<string, string> = {
   draft: "secondary",
@@ -911,6 +911,20 @@ const StaffPayments = () => {
                             {inv.status === "submitted" && (
                               <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "approved" })}>
                                 <CheckCircle className="h-3 w-3 mr-1" />อนุมัติ
+                              </Button>
+                            )}
+                            {(inv.status === "submitted" || inv.status === "approved") && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-destructive text-destructive hover:bg-destructive/10"
+                                title="ปฏิเสธ/ยกเลิกใบเรียกเก็บนี้"
+                                onClick={() => {
+                                  if (!confirm(`ปฏิเสธใบเรียกเก็บนี้?\n\nสถานะจะเปลี่ยนเป็น 'ปฏิเสธ' (ไม่ลบทิ้ง — ดูประวัติได้)`)) return;
+                                  updateStatusMutation.mutate({ id: inv.id, status: "rejected" });
+                                }}
+                              >
+                                <XCircle className="h-3 w-3 mr-1" />ปฏิเสธ
                               </Button>
                             )}
                             {inv.status === "approved" && (
