@@ -177,8 +177,8 @@ const CashExpense = () => {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Date / Time / Amount */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Date / Time */}
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="expense_date">วันที่ *</Label>
                   <Input
@@ -198,21 +198,10 @@ const CashExpense = () => {
                     onChange={e => setForm({ ...form, expense_time: e.target.value })}
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">จำนวนเงิน (บาท) *</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    inputMode="decimal"
-                    value={form.amount}
-                    onChange={e => setForm({ ...form, amount: e.target.value })}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
               </div>
+
+              {/* Amount + VAT/WHT */}
+              <TaxFieldsSection value={tax} onChange={setTax} />
 
               {/* Direction + Type */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
