@@ -2,8 +2,8 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { downloadReceiptFile } from "@/lib/receipt-file";
 
 interface ReceiptGalleryProps {
   receipts: Array<{
@@ -68,11 +68,8 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     if (!receipt?.receipt_url || imageUrlsRef.current.has(receipt.id) || loadingIdsRef.current.has(receipt.id)) return;
     loadingIdsRef.current.add(receipt.id);
     try {
-      const { data, error } = await supabase.storage
-        .from('receipts')
-        .download(receipt.receipt_url);
-      if (error || !data) throw error;
-      const objectUrl = URL.createObjectURL(data);
+      const blob = await downloadReceiptFile(receipt.receipt_url);
+      const objectUrl = URL.createObjectURL(blob);
       objectUrlsRef.current.push(objectUrl);
       setImageUrls((prev) => {
         const next = new Map(prev);
@@ -131,14 +128,8 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     if (!currentReceipt?.receipt_url) return;
 
     try {
-      const { data, error } = await supabase.storage
-        .from('receipts')
-        .download(currentReceipt.receipt_url);
-
-      if (error) throw error;
-
-      // Create download link
-      const url = URL.createObjectURL(data);
+      const blob = await downloadReceiptFile(currentReceipt.receipt_url);
+      const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       link.download = `receipt_${currentReceipt.expense_date}_${currentReceipt.amount}.jpg`;
