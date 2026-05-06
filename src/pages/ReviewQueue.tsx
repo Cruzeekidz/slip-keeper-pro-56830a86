@@ -6,11 +6,12 @@ import { Combobox } from "@/components/ui/combobox";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2, PlayCircle, PauseCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle, SkipForward, Eye, AlertTriangle, RefreshCw, Loader2, PlayCircle, PauseCircle, CheckCheck, Pencil } from "lucide-react";
 import {
   TRANSACTION_TYPES, CATEGORY_GROUPS, TransactionType, CategoryGroup,
   getSubcategoriesForType, showProjectTag as shouldShowProjectTag,
@@ -61,6 +62,10 @@ export default function ReviewQueue() {
   const [eventName, setEventName] = useState("");
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Bulk approve state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkApproving, setBulkApproving] = useState(false);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -303,6 +308,39 @@ export default function ReviewQueue() {
     else setCurrentIndex(0);
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === items.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(items.map(i => i.id)));
+  };
+
+  const handleBulkApprove = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`ยืนยัน OK ${selectedIds.size} รายการที่เลือก?`)) return;
+    setBulkApproving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase
+      .from('expenses')
+      .update({ needs_review: false })
+      .in('id', ids);
+    setBulkApproving(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ยืนยันสำเร็จ", description: `${ids.length} รายการได้รับการยืนยันแล้ว` });
+    setItems(prev => prev.filter(i => !selectedIds.has(i.id)));
+    setSelectedIds(new Set());
+    setCurrentIndex(0);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -333,6 +371,62 @@ export default function ReviewQueue() {
             </Button>
           )}
         </div>
+
+        {/* Bulk approve list */}
+        {items.length > 0 && (
+          <Card className="p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={selectedIds.size > 0 && selectedIds.size === items.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+                <span className="font-semibold text-sm">
+                  เลือกทั้งหมด ({selectedIds.size}/{items.length})
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleBulkApprove}
+                disabled={selectedIds.size === 0 || bulkApproving}
+              >
+                {bulkApproving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckCheck className="h-4 w-4 mr-2" />}
+                ยืนยัน OK ที่เลือก ({selectedIds.size})
+              </Button>
+            </div>
+            <div className="max-h-72 overflow-y-auto divide-y divide-border border rounded-lg">
+              {items.map((it, idx) => (
+                <div
+                  key={it.id}
+                  className={`flex items-center gap-3 p-2 text-sm hover:bg-muted/50 ${idx === currentIndex ? 'bg-muted/40' : ''}`}
+                >
+                  <Checkbox
+                    checked={selectedIds.has(it.id)}
+                    onCheckedChange={() => toggleSelect(it.id)}
+                  />
+                  <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                    <span className="text-muted-foreground text-xs">{it.expense_date}</span>
+                    <span className="font-medium">฿{Number(it.amount).toLocaleString()}</span>
+                    <span className="truncate">{it.merchant || it.description || '-'}</span>
+                    <span className="text-xs truncate">
+                      {it.transaction_type || '?'}{it.category_group ? `/${it.category_group}` : ''}
+                      {it.subcategory ? ` • ${it.subcategory}` : ''}
+                    </span>
+                    <span className={`text-xs ${(it.confidence_score ?? 0) < 50 ? 'text-destructive' : 'text-yellow-600'}`}>
+                      {it.confidence_score ?? 0}%
+                    </span>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => setCurrentIndex(idx)}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              💡 ติ๊กรายการที่ดูจากตารางแล้วโอเค กดปุ่ม "ยืนยัน OK ที่เลือก" เพื่อยืนยันทีเดียว หรือกดดินสอเพื่อเปิดแก้ไขรายการ
+            </p>
+          </Card>
+        )}
 
         {/* Batch progress */}
         {batchRunning && (
