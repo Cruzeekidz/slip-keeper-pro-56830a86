@@ -430,6 +430,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   };
 
   const bulkSubcatOptions = [
+    ...getSubcategoriesForType(bulkValues.transaction_type || null, (bulkValues.category_group || null) as CategoryGroup | null),
+    ...dynamicSubcategories,
+  ];
 
   const handleBulkConfirmOk = async () => {
     if (selectedIds.size === 0) return;
@@ -448,9 +451,6 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     setSelectedIds(new Set());
     queryClient.invalidateQueries({ queryKey: ['expenses'] });
   };
-    ...getSubcategoriesForType(bulkValues.transaction_type || null, (bulkValues.category_group || null) as CategoryGroup | null),
-    ...dynamicSubcategories,
-  ];
   const bulkTagOptions = [
     ...getDefaultProjectTags((bulkValues.category_group || null) as CategoryGroup | null),
     ...dynamicProjectTags,
