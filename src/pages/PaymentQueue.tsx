@@ -647,6 +647,7 @@ const PaymentQueue = () => {
         )}
 
         {/* Staff expense reimbursement claims */}
+        {(typeFilter === "all" || typeFilter === "claim") && (
         <Card>
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -654,13 +655,13 @@ const PaymentQueue = () => {
                 <Receipt className="h-4 w-4 text-amber-500" />
                 ใบเบิกค่าใช้จ่ายทีมงาน
               </p>
-              <Badge variant="secondary">{pendingClaims.length} รายการ</Badge>
+              <Badge variant="secondary">{filteredClaims.length} รายการ</Badge>
             </div>
-            {pendingClaims.length === 0 ? (
+            {filteredClaims.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีใบเบิกค้างอยู่</p>
             ) : (
               <div className="space-y-2">
-                {pendingClaims.map((c) => (
+                {filteredClaims.map((c: any) => (
                   <div key={c.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -718,8 +719,10 @@ const PaymentQueue = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Vendor invoices / bills */}
+        {(typeFilter === "all" || typeFilter === "vendor") && (
         <Card>
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -727,13 +730,13 @@ const PaymentQueue = () => {
                 <Building2 className="h-4 w-4 text-blue-500" />
                 บิลคู่ค้า / ใบแจ้งหนี้รอจ่าย
               </p>
-              <Badge variant="secondary">{pendingVendorBills.length} รายการ</Badge>
+              <Badge variant="secondary">{filteredVendorBills.length} รายการ</Badge>
             </div>
-            {pendingVendorBills.length === 0 ? (
+            {filteredVendorBills.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
             ) : (
               <div className="space-y-2">
-                {pendingVendorBills.map((b) => {
+                {filteredVendorBills.map((b: any) => {
                   const net = Number(b.net_amount || b.amount || 0);
                   const acct = b.vendor_profiles?.bank_account?.replace(/[-\s]/g, "");
                   return (
@@ -777,6 +780,20 @@ const PaymentQueue = () => {
                             <Copy className="h-4 w-4" />
                           </Button>
                         )}
+                        {acct && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="ส่งข้อมูลโอนให้บัญชี"
+                            disabled={sending === `vb-${b.id}`}
+                            onClick={() => sendInfoToAccounting(
+                              `vb-${b.id}`,
+                              `💰 ขอโอนเงินบิลคู่ค้า\n\n🏢 ${b.vendor_profiles?.company_name ?? "ยังไม่ผูกคู่ค้า"}${b.invoice_number ? `\n📋 ${b.invoice_number}` : ""}${b.description ? `\n📝 ${b.description}` : ""}\n💵 ยอดโอน: ${net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท${b.due_date ? `\n📅 ครบกำหนด: ${b.due_date}` : ""}\n\n🏦 ${b.vendor_profiles?.bank_name ?? ""}\nเลขบัญชี: ${acct}\nชื่อบัญชี: ${b.vendor_profiles?.company_name ?? ""}`
+                            )}
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
                         {b.status === "pending" && (
                           <>
                             <Button
@@ -814,6 +831,7 @@ const PaymentQueue = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Mark as Paid Dialog */}
         <Dialog open={!!payDialog} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
