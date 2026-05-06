@@ -309,6 +309,29 @@ const StaffReimbursementTab = () => {
 
       // ★ Mode A: Link to existing expense (slip already in system, e.g. from LINE)
       if (linkExpenseId) {
+        // Guard: ensure this expense isn't already linked to another claim or vendor invoice
+        const [dupClaim, dupVi] = await Promise.all([
+          supabase
+            .from("staff_expense_claims")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("reimbursed_expense_id", linkExpenseId)
+            .neq("id", claim.id)
+            .limit(1),
+          supabase
+            .from("vendor_invoices")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("matched_expense_id", linkExpenseId)
+            .limit(1),
+        ]);
+        if ((dupClaim.data?.length || 0) > 0) {
+          throw new Error("สลิปนี้ถูกผูกกับใบเบิกอื่นแล้ว");
+        }
+        if ((dupVi.data?.length || 0) > 0 && !claim.vendor_invoice_id) {
+          throw new Error("สลิปนี้ถูกผูกกับบิลคู่ค้าอื่นแล้ว");
+        }
+
         const { data: existingExp, error: fetchErr } = await supabase
           .from("expenses")
           .select("id, receipt_url, expense_date")
