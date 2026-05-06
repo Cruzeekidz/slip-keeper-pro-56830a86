@@ -298,6 +298,62 @@ const PaymentQueue = () => {
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
   };
 
+  const sendInfoToAccounting = async (key: string, message: string) => {
+    setSending(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-payment-info-line", {
+        body: { message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const sent = (data as any)?.sent ?? 0;
+      const total = (data as any)?.total ?? 0;
+      toast({
+        title: sent > 0 ? `ส่งให้ฝ่ายบัญชีแล้ว (${sent}/${total})` : "ส่งไม่สำเร็จ",
+        description: sent === 0 ? "โปรดตรวจสอบ Forward Recipients" : undefined,
+        variant: sent === 0 ? "destructive" : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: "ส่งไม่สำเร็จ", description: e.message, variant: "destructive" });
+    } finally {
+      setSending(null);
+    }
+  };
+
+  const matchesSearch = (text: string) => {
+    if (!search.trim()) return true;
+    return text.toLowerCase().includes(search.trim().toLowerCase());
+  };
+  const matchesDueRange = (dateStr: string | null | undefined) => {
+    if (!dueFrom && !dueTo) return true;
+    if (!dateStr) return false;
+    if (dueFrom && dateStr < dueFrom) return false;
+    if (dueTo && dateStr > dueTo) return false;
+    return true;
+  };
+
+  const filteredInvoices = pendingInvoices.filter((inv) => {
+    if (typeFilter !== "all" && typeFilter !== "staff") return false;
+    if (statusFilter === "pending" && inv.status !== "submitted") return false;
+    if (statusFilter === "approved" && inv.status !== "approved") return false;
+    if (!matchesSearch(`${inv.staff_profiles?.staff_name ?? ""} ${inv.staff_profiles?.nickname ?? ""} ${inv.invoice_number} ${inv.event_name ?? ""}`)) return false;
+    return matchesDueRange(null) || (!dueFrom && !dueTo);
+  });
+  const filteredClaims = pendingClaims.filter((c: any) => {
+    if (typeFilter !== "all" && typeFilter !== "claim") return false;
+    if (statusFilter === "pending" && c.status !== "submitted") return false;
+    if (statusFilter === "approved" && c.status !== "approved") return false;
+    if (!matchesSearch(`${c.staff_profiles?.staff_name ?? ""} ${c.description ?? ""} ${c.event_name ?? ""}`)) return false;
+    return matchesDueRange(c.expense_date);
+  });
+  const filteredVendorBills = pendingVendorBills.filter((b: any) => {
+    if (typeFilter !== "all" && typeFilter !== "vendor") return false;
+    if (statusFilter === "pending" && b.status !== "pending") return false;
+    if (statusFilter === "approved" && b.status !== "approved") return false;
+    if (!matchesSearch(`${b.vendor_profiles?.company_name ?? ""} ${b.invoice_number ?? ""} ${b.description ?? ""}`)) return false;
+    return matchesDueRange(b.due_date || b.invoice_date);
+  });
+
   const totals = pendingInvoices.reduce(
     (acc, inv) => ({
       gross: acc.gross + Number(inv.gross_amount),
