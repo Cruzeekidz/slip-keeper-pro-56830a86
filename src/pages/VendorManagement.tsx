@@ -445,7 +445,7 @@ const VendorManagement = () => {
                   return (
                     <Card key={inv.id}>
                       <CardContent className="py-4">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-bold">{inv.description || "บิลจากคู่ค้า"}</span>
@@ -485,7 +485,7 @@ const VendorManagement = () => {
                               </div>
                             )}
                           </div>
-                          <div className="flex flex-col gap-1 items-end">
+                          <div className="flex flex-row sm:flex-col gap-1 sm:items-end flex-wrap">
                             {inv.file_url && (
                               <Button variant="outline" size="sm" onClick={() => viewFile(inv.file_url!)}>
                                 <Eye className="h-4 w-4 mr-1" /> ดูบิล
@@ -497,8 +497,8 @@ const VendorManagement = () => {
                               </Button>
                             )}
                             {inv.status === "approved" && (
-                              <Button size="sm" variant="outline" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "paid" })}>
-                                <CheckCircle className="h-4 w-4 mr-1" /> จ่ายแล้ว
+                              <Button size="sm" onClick={() => openPayDialog(inv)}>
+                                <Wallet className="h-4 w-4 mr-1" /> จ่ายเงิน
                               </Button>
                             )}
                             <AlertDialog>
