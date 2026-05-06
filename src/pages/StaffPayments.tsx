@@ -259,6 +259,17 @@ const StaffPayments = () => {
       const methodLabel = paymentMethod === "credit" ? "เครดิต" : (paymentMethod === "cash" ? "เงินสด" : "โอนเงิน");
       const paidDateStr = new Date().toISOString().split("T")[0];
 
+      // Derive category_group from project_tag prefix so BCC Next / Kukanang
+      // wage expenses don't get mis-routed into the EVENT (Cruzee) bucket
+      const groupFromTag = (tag: string | null): string => {
+        if (!tag) return "EVENT";
+        if (tag.startsWith("BCCNEXT-")) return "ENTITY_BCC_NEXT";
+        if (tag.startsWith("KUKAN-")) return "ENTITY_KUKANANG";
+        if (tag.startsWith("PROG-")) return "PROGRAM";
+        return "EVENT";
+      };
+      const wageGroup = groupFromTag(projectTag);
+
       // ★ Create wage expense (Gross) — links slip to accounting file
       // Skip for credit (not actually paid yet) and skip if already linked (re-pay scenario)
       if (inv && paymentMethod !== "credit" && !inv.matched_expense_id) {
@@ -271,7 +282,7 @@ const StaffPayments = () => {
           expense_date: paidDateStr,
           transaction_direction: "EXPENSE",
           transaction_type: "BUSINESS",
-          category_group: "EVENT",
+          category_group: wageGroup,
           project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
@@ -307,7 +318,7 @@ const StaffPayments = () => {
           expense_date: new Date().toISOString().split("T")[0],
           transaction_direction: "EXPENSE",
           transaction_type: "BUSINESS",
-          category_group: "EVENT",
+          category_group: wageGroup,
           project_tag: projectTag,
           staff_name: inv.staff_profiles?.staff_name || null,
           event_name: inv.event_name || null,
