@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { LineChatButton } from "@/components/line/LineChatButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -202,7 +203,7 @@ const StaffReimbursementTab = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_expense_claims")
-        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account)")
+        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account, line_user_id)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as StaffClaim[];
@@ -613,6 +614,16 @@ const StaffReimbursementTab = () => {
                       <Button size="icon" variant="ghost" onClick={() => openBillFile(c.receipt_url)} title="ดูใบเสร็จ">
                         <FileText className="h-4 w-4" />
                       </Button>
+                    )}
+                    {(c.staff_profiles as any)?.line_user_id && (
+                      <LineChatButton
+                        lineUserId={(c.staff_profiles as any).line_user_id}
+                        recipientName={c.staff_profiles?.staff_name || "ทีมงาน"}
+                        context={`เรื่องใบเบิก ${c.description || ""}\nยอด: ${Number(c.amount).toLocaleString()} บาท\n\n`}
+                        size="icon"
+                        variant="ghost"
+                        iconOnly
+                      />
                     )}
                     {c.status === "submitted" && (
                       <Button

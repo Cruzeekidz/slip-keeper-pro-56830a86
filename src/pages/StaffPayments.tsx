@@ -577,8 +577,8 @@ const StaffPayments = () => {
 
   const sendLineMutation = useMutation({
     mutationFn: async ({ lineUserId, message }: { lineUserId: string; message: string }) => {
-      const { error } = await supabase.functions.invoke("send-reminder-line", {
-        body: { lineUserId, message },
+      const { error } = await supabase.functions.invoke("send-line-message", {
+        body: { line_user_id: lineUserId, message },
       });
       if (error) throw error;
     },

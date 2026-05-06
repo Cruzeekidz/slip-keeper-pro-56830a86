@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { LineChatButton } from "@/components/line/LineChatButton";
 import {
   useVendorProfiles,
   useVendorInvoices,
@@ -389,6 +390,15 @@ const VendorManagement = () => {
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          {(v as any).line_user_id && (
+                            <LineChatButton
+                              lineUserId={(v as any).line_user_id}
+                              recipientName={v.company_name}
+                              size="icon"
+                              variant="ghost"
+                              iconOnly
+                            />
+                          )}
                           {!(v as any).line_user_id && (
                             <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์เชื่อม LINE">
                               <Link2 className="h-4 w-4 text-primary" />
@@ -491,6 +501,17 @@ const VendorManagement = () => {
                                 <Eye className="h-4 w-4 mr-1" /> ดูบิล
                               </Button>
                             )}
+                            {(() => {
+                              const lineId = (vendor as any)?.line_user_id || (inv as any).submitted_via_line_user_id;
+                              if (!lineId) return null;
+                              return (
+                                <LineChatButton
+                                  lineUserId={lineId}
+                                  recipientName={vendor?.company_name || (inv as any).submitted_via_line_display_name || "ผู้ส่งบิล"}
+                                  context={`เกี่ยวกับบิล ${inv.invoice_number || inv.description || ""}\nยอด: ${inv.amount.toLocaleString()} บาท\n\n`}
+                                />
+                              );
+                            })()}
                             {inv.status === "pending" && (
                               <Button size="sm" onClick={() => updateStatusMutation.mutate({ id: inv.id, status: "approved" })}>
                                 <CheckCircle className="h-4 w-4 mr-1" /> อนุมัติ
