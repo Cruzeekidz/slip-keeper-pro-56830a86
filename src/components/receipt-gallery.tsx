@@ -55,30 +55,35 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
   // Load image URLs with signed URLs for private bucket
   useEffect(() => {
     const loadImageUrls = async () => {
+      // Priority: current image first, then neighbors, then the rest — all in parallel
+      const total = receiptsWithImages.length;
+      const order: number[] = [];
+      const seen = new Set<number>();
+      const push = (i: number) => {
+        if (i >= 0 && i < total && !seen.has(i)) { seen.add(i); order.push(i); }
+      };
+      push(currentIndex);
+      for (let d = 1; d < total; d++) { push(currentIndex - d); push(currentIndex + d); }
+
+      const sign = async (idx: number) => {
+        const r = receiptsWithImages[idx];
+        if (!r?.receipt_url || imageUrls.has(r.id)) return null;
+        try {
+          const { data, error } = await supabase.storage
+            .from('receipts')
+            .createSignedUrl(r.receipt_url, 3600);
+          if (error || !data?.signedUrl) return null;
+          return [r.id, data.signedUrl] as const;
+        } catch { return null; }
+      };
+
+      // Load current immediately, then the rest in parallel
+      const first = await sign(order[0]);
+      if (first) setImageUrls(prev => new Map(prev).set(first[0], first[1]));
+
+      const rest = await Promise.all(order.slice(1).map(sign));
       const newUrls = new Map<string, string>();
-      
-      for (const receipt of receiptsWithImages) {
-        if (receipt.receipt_url && !imageUrls.has(receipt.id)) {
-          try {
-            // Use createSignedUrl for private bucket instead of getPublicUrl
-            const { data, error } = await supabase.storage
-              .from('receipts')
-              .createSignedUrl(receipt.receipt_url, 3600); // Valid for 1 hour
-            
-            if (error) {
-              console.error('Error creating signed URL:', error);
-              continue;
-            }
-            
-            if (data?.signedUrl) {
-              newUrls.set(receipt.id, data.signedUrl);
-            }
-          } catch (error) {
-            console.error('Error loading receipt:', error);
-          }
-        }
-      }
-      
+      rest.forEach(r => { if (r) newUrls.set(r[0], r[1]); });
       if (newUrls.size > 0) {
         setImageUrls(prev => new Map([...prev, ...newUrls]));
       }
@@ -87,7 +92,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     if (open && receiptsWithImages.length > 0) {
       loadImageUrls();
     }
-  }, [open, receiptsWithImages.length]); // เปลี่ยนจาก receiptsWithImages เป็น receiptsWithImages.length
+  }, [open, receiptsWithImages.length, initialIndex]);
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();

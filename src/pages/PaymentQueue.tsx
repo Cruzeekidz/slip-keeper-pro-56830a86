@@ -65,6 +65,7 @@ const PaymentQueue = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
+  const [revertClaim, setRevertClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
   const [rejectInvoice, setRejectInvoice] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "staff" | "claim" | "vendor">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
@@ -161,6 +162,7 @@ const PaymentQueue = () => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue-claims"] });
       queryClient.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
       setRejectClaim(null);
+      setRevertClaim(null);
       toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : action === "revert" ? "ย้อนสถานะเป็นรออนุมัติแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
@@ -722,7 +724,7 @@ const PaymentQueue = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => claimActionMutation.mutate({ id: c.id, action: "revert" })}
+                            onClick={() => setRevertClaim({ id: c.id, staff_name: c.staff_profiles?.staff_name || "", amount: Number(c.amount) })}
                             disabled={claimActionMutation.isPending}
                             title="ย้อนสถานะเป็นรออนุมัติ"
                           >
@@ -937,6 +939,27 @@ const PaymentQueue = () => {
                 onClick={() => rejectClaim && claimActionMutation.mutate({ id: rejectClaim.id, action: "reject" })}
               >
                 ปฏิเสธ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Revert claim confirmation */}
+        <AlertDialog open={!!revertClaim} onOpenChange={(o) => !o && setRevertClaim(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันย้อนสถานะใบเบิก</AlertDialogTitle>
+              <AlertDialogDescription>
+                ย้อนสถานะใบเบิกของ <span className="font-semibold">{revertClaim?.staff_name}</span> ยอด{" "}
+                <span className="font-semibold">{revertClaim?.amount.toLocaleString()} ฿</span> กลับเป็น "รออนุมัติ" ใช่หรือไม่?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => revertClaim && claimActionMutation.mutate({ id: revertClaim.id, action: "revert" })}
+              >
+                ยืนยันย้อนสถานะ
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
