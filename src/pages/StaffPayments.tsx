@@ -795,6 +795,7 @@ const StaffPayments = () => {
               <SelectItem value="approved">อนุมัติแล้ว</SelectItem>
               <SelectItem value="paid">จ่ายแล้ว</SelectItem>
               <SelectItem value="draft">ฉบับร่าง</SelectItem>
+              <SelectItem value="rejected">ปฏิเสธ</SelectItem>
             </SelectContent>
           </Select>
           <span className="text-sm text-muted-foreground ml-auto">{filtered.length} รายการ</span>
