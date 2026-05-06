@@ -10,7 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +66,12 @@ const PaymentQueue = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
   const [rejectInvoice, setRejectInvoice] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
+  const [typeFilter, setTypeFilter] = useState<"all" | "staff" | "claim" | "vendor">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
+  const [search, setSearch] = useState("");
+  const [dueFrom, setDueFrom] = useState("");
+  const [dueTo, setDueTo] = useState("");
+  const [sending, setSending] = useState<string | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -290,6 +298,62 @@ const PaymentQueue = () => {
     toast({ title: "คัดลอกเลขบัญชีแล้ว", description: clean });
   };
 
+  const sendInfoToAccounting = async (key: string, message: string) => {
+    setSending(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-payment-info-line", {
+        body: { message },
+      });
+      if (error) throw error;
+      if ((data as any)?.error) throw new Error((data as any).error);
+      const sent = (data as any)?.sent ?? 0;
+      const total = (data as any)?.total ?? 0;
+      toast({
+        title: sent > 0 ? `ส่งให้ฝ่ายบัญชีแล้ว (${sent}/${total})` : "ส่งไม่สำเร็จ",
+        description: sent === 0 ? "โปรดตรวจสอบ Forward Recipients" : undefined,
+        variant: sent === 0 ? "destructive" : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: "ส่งไม่สำเร็จ", description: e.message, variant: "destructive" });
+    } finally {
+      setSending(null);
+    }
+  };
+
+  const matchesSearch = (text: string) => {
+    if (!search.trim()) return true;
+    return text.toLowerCase().includes(search.trim().toLowerCase());
+  };
+  const matchesDueRange = (dateStr: string | null | undefined) => {
+    if (!dueFrom && !dueTo) return true;
+    if (!dateStr) return false;
+    if (dueFrom && dateStr < dueFrom) return false;
+    if (dueTo && dateStr > dueTo) return false;
+    return true;
+  };
+
+  const filteredInvoices = pendingInvoices.filter((inv) => {
+    if (typeFilter !== "all" && typeFilter !== "staff") return false;
+    if (statusFilter === "pending" && inv.status !== "submitted") return false;
+    if (statusFilter === "approved" && inv.status !== "approved") return false;
+    if (!matchesSearch(`${inv.staff_profiles?.staff_name ?? ""} ${inv.staff_profiles?.nickname ?? ""} ${inv.invoice_number} ${inv.event_name ?? ""}`)) return false;
+    return matchesDueRange(null) || (!dueFrom && !dueTo);
+  });
+  const filteredClaims = pendingClaims.filter((c: any) => {
+    if (typeFilter !== "all" && typeFilter !== "claim") return false;
+    if (statusFilter === "pending" && c.status !== "submitted") return false;
+    if (statusFilter === "approved" && c.status !== "approved") return false;
+    if (!matchesSearch(`${c.staff_profiles?.staff_name ?? ""} ${c.description ?? ""} ${c.event_name ?? ""}`)) return false;
+    return matchesDueRange(c.expense_date);
+  });
+  const filteredVendorBills = pendingVendorBills.filter((b: any) => {
+    if (typeFilter !== "all" && typeFilter !== "vendor") return false;
+    if (statusFilter === "pending" && b.status !== "pending") return false;
+    if (statusFilter === "approved" && b.status !== "approved") return false;
+    if (!matchesSearch(`${b.vendor_profiles?.company_name ?? ""} ${b.invoice_number ?? ""} ${b.description ?? ""}`)) return false;
+    return matchesDueRange(b.due_date || b.invoice_date);
+  });
+
   const totals = pendingInvoices.reduce(
     (acc, inv) => ({
       gross: acc.gross + Number(inv.gross_amount),
@@ -335,7 +399,7 @@ const PaymentQueue = () => {
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-muted-foreground">สรุปรวม</p>
-              <Badge variant="secondary">{pendingInvoices.length} รายการ</Badge>
+              <Badge variant="secondary">{pendingInvoices.length + pendingClaims.length + pendingVendorBills.length} รายการ</Badge>
             </div>
             <div className="grid grid-cols-3 gap-3 text-center">
               <div className="bg-muted rounded-lg p-3">
@@ -354,17 +418,64 @@ const PaymentQueue = () => {
           </CardContent>
         </Card>
 
+        {/* Filter bar */}
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <Tabs value={typeFilter} onValueChange={(v) => setTypeFilter(v as any)}>
+              <TabsList className="grid grid-cols-4 w-full">
+                <TabsTrigger value="all">ทั้งหมด</TabsTrigger>
+                <TabsTrigger value="staff">ทีมงาน</TabsTrigger>
+                <TabsTrigger value="claim">เบิกคืน</TabsTrigger>
+                <TabsTrigger value="vendor">คู่ค้า</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+              <TabsList className="grid grid-cols-3 w-full">
+                <TabsTrigger value="all">ทุกสถานะ</TabsTrigger>
+                <TabsTrigger value="pending">รออนุมัติ</TabsTrigger>
+                <TabsTrigger value="approved">อนุมัติแล้ว · รอจ่าย</TabsTrigger>
+              </TabsList>
+            </Tabs>
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="ค้นหา ชื่อ / เลขบิล / อีเวนท์"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-8"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground">ครบกำหนด ตั้งแต่</label>
+                <Input type="date" value={dueFrom} onChange={(e) => setDueFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">ถึง</label>
+                <Input type="date" value={dueTo} onChange={(e) => setDueTo(e.target.value)} />
+              </div>
+            </div>
+            {(search || dueFrom || dueTo || typeFilter !== "all" || statusFilter !== "all") && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setDueFrom(""); setDueTo(""); setTypeFilter("all"); setStatusFilter("all"); }}>
+                ล้างตัวกรอง
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
         {isLoading ? (
           <p className="text-muted-foreground text-center py-8">กำลังโหลด...</p>
-        ) : pendingInvoices.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-muted-foreground">ไม่มีรายการรอจ่ายเงิน</p>
-            </CardContent>
-          </Card>
+        ) : filteredInvoices.length === 0 && (typeFilter === "staff" || typeFilter === "all") ? (
+          typeFilter === "staff" ? (
+            <Card>
+              <CardContent className="pt-6 text-center">
+                <p className="text-muted-foreground">ไม่มีรายการรอจ่ายเงิน</p>
+              </CardContent>
+            </Card>
+          ) : null
         ) : (
           <div className="space-y-3">
-            {pendingInvoices.map((inv) => {
+            {filteredInvoices.map((inv) => {
               const grossAmount = Number(inv.gross_amount);
               const whtAmount = Number(inv.wht_amount);
               const netAmount = Number(inv.net_amount);
@@ -477,6 +588,21 @@ const PaymentQueue = () => {
                         <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                       </Button>
                     </div>
+                    {inv.staff_profiles?.bank_name && cleanAcct && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full"
+                        disabled={sending === `inv-${inv.id}`}
+                        onClick={() => sendInfoToAccounting(
+                          `inv-${inv.id}`,
+                          `💰 ขอโอนเงินค่าแรงทีมงาน\n\n👤 ${inv.staff_profiles?.staff_name}${inv.staff_profiles?.nickname ? ` (${inv.staff_profiles.nickname})` : ""}\n📋 ${inv.invoice_number}${inv.event_name ? `\n🎪 ${inv.event_name}` : ""}\n💵 ยอดโอน: ${netAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท\n\n🏦 ${inv.staff_profiles?.bank_name}\nเลขบัญชี: ${cleanAcct}\nชื่อบัญชี: ${inv.staff_profiles?.staff_name}`
+                        )}
+                      >
+                        <Send className="h-4 w-4 mr-1" />
+                        {sending === `inv-${inv.id}` ? "กำลังส่ง..." : "ส่งข้อมูลโอนให้บัญชี"}
+                      </Button>
+                    )}
                     <div className="flex gap-2">
                       {inv.status === "submitted" && (
                         <Button
@@ -521,6 +647,7 @@ const PaymentQueue = () => {
         )}
 
         {/* Staff expense reimbursement claims */}
+        {(typeFilter === "all" || typeFilter === "claim") && (
         <Card>
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -528,13 +655,13 @@ const PaymentQueue = () => {
                 <Receipt className="h-4 w-4 text-amber-500" />
                 ใบเบิกค่าใช้จ่ายทีมงาน
               </p>
-              <Badge variant="secondary">{pendingClaims.length} รายการ</Badge>
+              <Badge variant="secondary">{filteredClaims.length} รายการ</Badge>
             </div>
-            {pendingClaims.length === 0 ? (
+            {filteredClaims.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีใบเบิกค้างอยู่</p>
             ) : (
               <div className="space-y-2">
-                {pendingClaims.map((c) => (
+                {filteredClaims.map((c: any) => (
                   <div key={c.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -592,8 +719,10 @@ const PaymentQueue = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Vendor invoices / bills */}
+        {(typeFilter === "all" || typeFilter === "vendor") && (
         <Card>
           <CardContent className="pt-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -601,13 +730,13 @@ const PaymentQueue = () => {
                 <Building2 className="h-4 w-4 text-blue-500" />
                 บิลคู่ค้า / ใบแจ้งหนี้รอจ่าย
               </p>
-              <Badge variant="secondary">{pendingVendorBills.length} รายการ</Badge>
+              <Badge variant="secondary">{filteredVendorBills.length} รายการ</Badge>
             </div>
-            {pendingVendorBills.length === 0 ? (
+            {filteredVendorBills.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
             ) : (
               <div className="space-y-2">
-                {pendingVendorBills.map((b) => {
+                {filteredVendorBills.map((b: any) => {
                   const net = Number(b.net_amount || b.amount || 0);
                   const acct = b.vendor_profiles?.bank_account?.replace(/[-\s]/g, "");
                   return (
@@ -651,6 +780,20 @@ const PaymentQueue = () => {
                             <Copy className="h-4 w-4" />
                           </Button>
                         )}
+                        {acct && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="ส่งข้อมูลโอนให้บัญชี"
+                            disabled={sending === `vb-${b.id}`}
+                            onClick={() => sendInfoToAccounting(
+                              `vb-${b.id}`,
+                              `💰 ขอโอนเงินบิลคู่ค้า\n\n🏢 ${b.vendor_profiles?.company_name ?? "ยังไม่ผูกคู่ค้า"}${b.invoice_number ? `\n📋 ${b.invoice_number}` : ""}${b.description ? `\n📝 ${b.description}` : ""}\n💵 ยอดโอน: ${net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท${b.due_date ? `\n📅 ครบกำหนด: ${b.due_date}` : ""}\n\n🏦 ${b.vendor_profiles?.bank_name ?? ""}\nเลขบัญชี: ${acct}\nชื่อบัญชี: ${b.vendor_profiles?.company_name ?? ""}`
+                            )}
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        )}
                         {b.status === "pending" && (
                           <>
                             <Button
@@ -688,6 +831,7 @@ const PaymentQueue = () => {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Mark as Paid Dialog */}
         <Dialog open={!!payDialog} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
