@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Download, ZoomIn, ZoomOut, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +27,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [zoom, setZoom] = useState(1);
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+  const [errorIds, setErrorIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 
   // Filter receipts that have images
@@ -141,8 +143,14 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md max-h-[80vh] p-0 bg-black/95 overflow-hidden">
-        <div className="relative h-full flex flex-col">
+      <DialogContent className="max-w-[95vw] sm:max-w-3xl lg:max-w-4xl w-full h-[90vh] p-0 bg-black/95 overflow-hidden">
+        <VisuallyHidden.Root>
+          <DialogTitle>ดูสลิป</DialogTitle>
+          <DialogDescription>
+            แสดงรูปภาพสลิป/ใบเสร็จที่อัปโหลดไว้ พร้อมตัวเลื่อนและปุ่มดาวน์โหลด
+          </DialogDescription>
+        </VisuallyHidden.Root>
+        <div className="relative w-full h-full flex flex-col">
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
             <div className="flex items-center justify-between text-white">
@@ -169,30 +177,46 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
           </div>
 
           {/* Main Image Area */}
-          <div className="flex-1 overflow-hidden" ref={emblaRef}>
+          <div className="flex-1 min-h-0 overflow-hidden" ref={emblaRef}>
             <div className="flex h-full touch-pan-y">
-              {receiptsWithImages.map((receipt) => (
-                <div
-                  key={receipt.id}
-                  className="flex-[0_0_100%] min-w-0 flex items-center justify-center p-12"
-                >
-                  <div 
-                    className="relative transition-transform duration-300 ease-out"
-                    style={{ transform: `scale(${zoom})` }}
+              {receiptsWithImages.map((receipt) => {
+                const url = imageUrls.get(receipt.id);
+                const hasError = errorIds.has(receipt.id);
+                return (
+                  <div
+                    key={receipt.id}
+                    className="flex-[0_0_100%] min-w-0 h-full flex items-center justify-center px-4 pt-24 pb-32 sm:pb-28"
                   >
-                    {imageUrls.get(receipt.id) ? (
+                    {hasError ? (
+                      <div className="flex flex-col items-center gap-3 text-white text-center px-6">
+                        <p className="text-base">โหลดภาพไม่สำเร็จ</p>
+                        <p className="text-xs opacity-70 break-all max-w-md">{receipt.receipt_url}</p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={handleDownload}
+                        >
+                          <Download className="h-4 w-4 mr-2" />ดาวน์โหลดไฟล์
+                        </Button>
+                      </div>
+                    ) : url ? (
                       <img
-                        src={imageUrls.get(receipt.id)}
+                        src={url}
                         alt={receipt.description || 'Receipt'}
-                        className="max-w-full max-h-full object-contain animate-fade-in"
+                        className="max-w-full max-h-full object-contain select-none animate-fade-in"
+                        style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
                         draggable={false}
-                        onError={(e) => {
+                        onError={() => {
                           console.error('Image failed to load:', receipt.receipt_url);
-                          e.currentTarget.src = '';
+                          setErrorIds((prev) => {
+                            const next = new Set(prev);
+                            next.add(receipt.id);
+                            return next;
+                          });
                         }}
                       />
                     ) : (
-                      <div className="flex items-center justify-center text-white min-h-[200px]">
+                      <div className="flex items-center justify-center text-white">
                         <div className="text-center">
                           <p className="text-lg mb-2">กำลังโหลดภาพ...</p>
                           <p className="text-sm opacity-70">กรุณารอสักครู่</p>
@@ -200,8 +224,8 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
