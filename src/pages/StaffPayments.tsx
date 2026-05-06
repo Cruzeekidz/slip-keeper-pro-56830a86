@@ -730,6 +730,19 @@ const StaffPayments = () => {
             <Button onClick={() => setBulkReconcileOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground" title="ค้นหาและเชื่อมรายการอัตโนมัติ">
               <Search className="h-4 w-4 mr-1" />เชื่อมอัตโนมัติ
             </Button>
+            <Button
+              onClick={() => {
+                if (confirm("สร้างรายการค่าใช้จ่ายให้ใบที่จ่ายแล้วแต่ยังไม่ลิงก์ทั้งหมด?")) {
+                  backfillMutation.mutate();
+                }
+              }}
+              disabled={backfillMutation.isPending}
+              size="sm"
+              className="bg-white/20 hover:bg-white/30 text-primary-foreground"
+              title="สร้าง expense สำหรับใบที่ matched_expense_id ยังว่าง"
+            >
+              <AlertTriangle className="h-4 w-4 mr-1" />{backfillMutation.isPending ? "กำลังซ่อม..." : "Backfill"}
+            </Button>
             <Button onClick={() => setCreateDialog(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Plus className="h-4 w-4 mr-1" />สร้างรายการ
             </Button>
