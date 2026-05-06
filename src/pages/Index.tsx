@@ -228,8 +228,12 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
-        <EventAnalysis recentOnly />
-        <ExpenseListReal editId={editId} />
+        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดสรุปอีเวนท์…</div>}>
+          <EventAnalysis recentOnly />
+        </Suspense>
+        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดรายการ…</div>}>
+          <ExpenseListReal editId={editId} />
+        </Suspense>
       </main>
     </div>
   );
