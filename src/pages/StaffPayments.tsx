@@ -54,6 +54,8 @@ const StaffPayments = () => {
   const { isAdmin, isSuperAdmin } = useUserRole();
   const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterEvent, setFilterEvent] = useState("all");
   const [reopenDialog, setReopenDialog] = useState<any | null>(null);
   const [historyDialog, setHistoryDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
