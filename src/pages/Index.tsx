@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard, Building2, FileText, Wallet, Banknote } from "lucide-react";
+import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
-import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
-import { EventAnalysis } from "@/components/event-analysis";
 import { useAuth } from "@/hooks/useAuth";
-import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,10 +16,13 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
+// Lazy-load heavy widgets so the menu/header remain responsive
+const EventAnalysis = lazy(() => import("@/components/event-analysis").then(m => ({ default: m.EventAnalysis })));
+const ExpenseListReal = lazy(() => import("@/components/expense-list-real").then(m => ({ default: m.ExpenseListReal })));
+
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
   const { user, loading, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin } = useUserRole();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
