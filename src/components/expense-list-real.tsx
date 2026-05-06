@@ -328,6 +328,15 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
     if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+    if (filterMonth !== "all") {
+      filtered = filtered.filter(e => {
+        if (!e.expense_date) return false;
+        const d = new Date(e.expense_date);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return ym === filterMonth;
+      });
+    }
+    if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
     if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
     if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
 
@@ -336,7 +345,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
