@@ -28,8 +28,16 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
   const loadingIdsRef = useRef<Set<string>>(new Set());
   const { toast } = useToast();
 
-  // Filter receipts that have images
-  const receiptsWithImages = useMemo(() => receipts.filter(r => r.receipt_url), [receipts]);
+  // Filter receipts that have images, deduplicating by id to avoid React key warnings
+  const receiptsWithImages = useMemo(() => {
+    const seen = new Set<string>();
+    return receipts.filter((r) => {
+      if (!r.receipt_url) return false;
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    });
+  }, [receipts]);
 
   const revokeObjectUrls = useCallback(() => {
     objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -56,7 +64,7 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
     setZoom(1);
   }, [initialIndex, open, receiptsWithImages.length, revokeObjectUrls]);
 
-  const loadReceiptBlob = useCallback(async (receipt: typeof receiptsWithImages[number]) => {
+  const loadReceiptBlob = useCallback(async (receipt: typeof receiptsWithImages[number], attempt = 0) => {
     if (!receipt?.receipt_url || imageUrlsRef.current.has(receipt.id) || loadingIdsRef.current.has(receipt.id)) return;
     loadingIdsRef.current.add(receipt.id);
     try {
@@ -73,15 +81,21 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
         return next;
       });
     } catch (error) {
-      console.error('Image download failed:', error);
+      console.error('Image download failed:', receipt.receipt_url, error);
+      loadingIdsRef.current.delete(receipt.id);
+      // Retry up to 2 times with backoff before showing error
+      if (attempt < 2) {
+        setTimeout(() => loadReceiptBlob(receipt, attempt + 1), 500 * (attempt + 1));
+        return;
+      }
       setErrorIds((prev) => {
         const next = new Set(prev);
         next.add(receipt.id);
         return next;
       });
-    } finally {
-      loadingIdsRef.current.delete(receipt.id);
+      return;
     }
+    loadingIdsRef.current.delete(receipt.id);
   }, []);
 
   // Lazy-load: download blobs for current image + 2 neighbors. This uses the same path as the working download button.
@@ -227,20 +241,19 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         </Button>
                       </div>
                     ) : url ? (
-                      <div className="w-full h-full overflow-auto flex items-center justify-center bg-background rounded-sm">
+                      <div className="w-full h-full overflow-auto flex items-start justify-center">
                         <img
                           key={url}
                           src={url}
                           alt={receipt.description || 'Receipt'}
-                          className="block object-contain select-none animate-fade-in"
+                          className="select-none animate-fade-in"
                           style={{
-                            width: 'auto',
+                            maxWidth: zoom === 1 ? '100%' : 'none',
+                            maxHeight: zoom === 1 ? '100%' : 'none',
+                            width: zoom === 1 ? 'auto' : `${zoom * 100}%`,
                             height: 'auto',
-                            maxWidth: '100%',
-                            maxHeight: '100%',
-                            transform: `scale(${zoom})`,
-                            transformOrigin: 'center center',
-                            transition: 'transform 0.2s ease-out',
+                            objectFit: 'contain',
+                            transition: 'all 0.2s ease-out',
                           }}
                           draggable={false}
                           onError={() => {
