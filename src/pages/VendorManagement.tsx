@@ -389,6 +389,15 @@ const VendorManagement = () => {
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          {(v as any).line_user_id && (
+                            <LineChatButton
+                              lineUserId={(v as any).line_user_id}
+                              recipientName={v.company_name}
+                              size="icon"
+                              variant="ghost"
+                              iconOnly
+                            />
+                          )}
                           {!(v as any).line_user_id && (
                             <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์เชื่อม LINE">
                               <Link2 className="h-4 w-4 text-primary" />
