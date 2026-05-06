@@ -613,6 +613,10 @@ const StaffPayments = () => {
           }
           const paidDate = inv.paid_at ? inv.paid_at.split("T")[0] : new Date().toISOString().split("T")[0];
           const staffName = inv.staff_profiles?.staff_name || "";
+          const wageGroup = projectTag?.startsWith("BCCNEXT-") ? "ENTITY_BCC_NEXT"
+            : projectTag?.startsWith("KUKAN-") ? "ENTITY_KUKANANG"
+            : projectTag?.startsWith("PROG-") ? "PROGRAM"
+            : "EVENT";
 
           const { data: wageExp, error: wageErr } = await supabase.from("expenses").insert({
             user_id: user.id,
@@ -623,7 +627,7 @@ const StaffPayments = () => {
             expense_date: paidDate,
             transaction_direction: "EXPENSE",
             transaction_type: "BUSINESS",
-            category_group: "EVENT",
+            category_group: wageGroup,
             project_tag: projectTag,
             staff_name: staffName || null,
             event_name: inv.event_name || null,
@@ -646,7 +650,7 @@ const StaffPayments = () => {
               expense_date: paidDate,
               transaction_direction: "EXPENSE",
               transaction_type: "BUSINESS",
-              category_group: "EVENT",
+              category_group: wageGroup,
               project_tag: projectTag,
               staff_name: staffName || null,
               event_name: inv.event_name || null,
