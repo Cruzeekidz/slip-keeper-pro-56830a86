@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getEntityFolder } from "@/lib/storage-path";
+import { downloadReceiptFile } from "@/lib/receipt-file";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +74,7 @@ const ReceiptArchive = () => {
 
   // Preview
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
@@ -175,10 +177,7 @@ const ReceiptArchive = () => {
           let success = false;
           for (let attempt = 0; attempt < 3 && !success && !cancelled; attempt++) {
             try {
-              const { data, error } = await supabase.storage
-                .from("receipts")
-                .download(f.receipt_url);
-              if (error || !data) throw error || new Error("no data");
+              const data = await downloadReceiptFile(f.receipt_url);
               const objUrl = URL.createObjectURL(data);
               objectUrlsRef.current.push(objUrl);
               map.set(f.receipt_url, objUrl);
@@ -249,9 +248,7 @@ const ReceiptArchive = () => {
 
   const handleDownload = async (receipt: ReceiptRow) => {
     try {
-      const { data, error } = await supabase.storage.from("receipts").download(receipt.receipt_url);
-      if (error) throw error;
-
+      const data = await downloadReceiptFile(receipt.receipt_url);
       const url = URL.createObjectURL(data);
       const ext = receipt.receipt_url.endsWith(".pdf") ? "pdf" : "jpg";
       const link = document.createElement("a");
@@ -288,10 +285,7 @@ const ReceiptArchive = () => {
         let ok = false;
         for (let attempt = 0; attempt < 3 && !ok; attempt++) {
           try {
-            const { data, error } = await supabase.storage
-              .from("receipts")
-              .download(f.receipt_url);
-            if (error || !data) throw error || new Error("no data");
+            const data = await downloadReceiptFile(f.receipt_url);
             const ext = f.receipt_url.toLowerCase().endsWith(".pdf") ? "pdf" : "jpg";
             const safeDesc = (f.description || "slip").replace(/[^\u0E00-\u0E7F\w\-]+/g, "_").slice(0, 40);
             let baseName = `${f.expense_date}_${Math.round(f.amount)}_${safeDesc}.${ext}`;
@@ -384,11 +378,20 @@ const ReceiptArchive = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handlePreview = (receipt: ReceiptRow) => {
-    const url = signedUrls.get(receipt.receipt_url);
-    if (url) {
+  const handlePreview = async (receipt: ReceiptRow) => {
+    try {
+      const cachedUrl = signedUrls.get(receipt.receipt_url);
+      let url = cachedUrl;
+      if (!url) {
+        const blob = await downloadReceiptFile(receipt.receipt_url);
+        url = URL.createObjectURL(blob);
+        objectUrlsRef.current.push(url);
+      }
+      setPreviewIsPdf(receipt.receipt_url.toLowerCase().endsWith(".pdf"));
       setPreviewUrl(url);
       setPreviewOpen(true);
+    } catch {
+      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถเปิดดูสลิปได้", variant: "destructive" });
     }
   };
 
@@ -600,10 +603,10 @@ const ReceiptArchive = () => {
                             if (img.dataset.retried) return;
                             img.dataset.retried = "1";
                             try {
-                              const { data } = await supabase.storage
-                                .from("receipts")
-                                .download(receipt.receipt_url);
-                              if (data) img.src = URL.createObjectURL(data);
+                              const data = await downloadReceiptFile(receipt.receipt_url);
+                              const objUrl = URL.createObjectURL(data);
+                              objectUrlsRef.current.push(objUrl);
+                              img.src = objUrl;
                             } catch {
                               /* ignore */
                             }
@@ -714,13 +717,19 @@ const ReceiptArchive = () => {
             >
               ✕
             </Button>
-            {previewUrl && (
+            {previewUrl && previewIsPdf ? (
+              <iframe
+                src={previewUrl}
+                title="Preview"
+                className="w-[85vw] max-w-4xl h-[80vh] border-0 bg-background"
+              />
+            ) : previewUrl ? (
               <img
                 src={previewUrl}
                 alt="Preview"
                 className="w-full h-auto object-contain"
               />
-            )}
+            ) : null}
           </div>
         </DialogContent>
       </Dialog>
