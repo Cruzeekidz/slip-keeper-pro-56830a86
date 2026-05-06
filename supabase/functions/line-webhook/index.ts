@@ -1178,7 +1178,8 @@ serve(async (req) => {
             extractedData,
             storagePath,
             insertedExpenseId,
-            LINE_CHANNEL_ACCESS_TOKEN
+            LINE_CHANNEL_ACCESS_TOKEN,
+            userId
           );
         }
 
@@ -1364,7 +1365,8 @@ async function autoMatchPayment(
   extractedData: Record<string, unknown>,
   slipUrl: string,
   expenseId: string | null,
-  lineToken: string
+  lineToken: string,
+  senderLineUserId?: string
 ): Promise<string> {
   const slipAmount = Number(extractedData.amount) || 0;
   if (slipAmount <= 0) return '';
@@ -1379,6 +1381,7 @@ async function autoMatchPayment(
   const cleanAccount = (acct: string | null | undefined) => (acct || '').replace(/[-\s]/g, '');
 
   try {
+    void senderLineUserId; // reserved for future use
     // --- Staff Invoice matching ---
     const staffName = (extractedData.staff_name as string || '').trim().toLowerCase();
     const receiver = (extractedData.receiver as string || '').trim().toLowerCase();
@@ -1486,6 +1489,23 @@ async function autoMatchPayment(
           }
         } else if (matches.length > 1) {
           console.log(`Multiple staff invoice matches (${matches.length}), skipping auto-match`);
+        }
+        else if (matches.length === 0) {
+          // Fallback: if exactly ONE pending invoice has matching amount (within tolerance), auto-match
+          // This handles cases where slip name is in English but staff is in Thai
+          const amountOnly = pendingStaff.filter((inv: any) => Math.abs(Number(inv.net_amount) - slipAmount) <= tolerance);
+          if (amountOnly.length === 1) {
+            const matched = amountOnly[0];
+            await supabase.from('staff_invoices').update({
+              status: 'paid',
+              paid_at: new Date().toISOString(),
+              payment_slip_url: slipUrl,
+              matched_expense_id: expenseId,
+            } as any).eq('id', matched.id);
+            const matchedName = (matched as any).staff_profiles?.staff_name || 'ทีมงาน';
+            matchMsg = `\n\n✅ จับคู่อัตโนมัติ (จำนวนเงินตรง): ${matchedName} — ${slipAmount.toLocaleString()} บาท`;
+            console.log(`Auto-matched (amount-only) staff invoice ${matched.id}`);
+          }
         }
       }
     }

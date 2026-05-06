@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Shield, UserCheck, Users, Crown } from "lucide-react";
+import { ArrowLeft, Shield, UserCheck, Users, Crown, Link2, Unlink, Check, ChevronsUpDown } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate } from "react-router-dom";
@@ -15,6 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 
 interface LineUserRole {
   id: string;
@@ -22,6 +25,14 @@ interface LineUserRole {
   display_name: string | null;
   role: string;
   created_at: string;
+}
+
+interface LinkOption {
+  id: string;
+  kind: 'staff' | 'vendor';
+  label: string;
+  sublabel?: string;
+  line_user_id: string | null;
 }
 
 const ROLE_CONFIG: Record<string, { label: string; description: string; icon: typeof Shield }> = {
@@ -37,6 +48,8 @@ const LineUserRoles = () => {
   const { toast } = useToast();
   const [roles, setRoles] = useState<LineUserRole[]>([]);
   const [fetching, setFetching] = useState(true);
+  const [options, setOptions] = useState<LinkOption[]>([]);
+  const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
@@ -50,7 +63,10 @@ const LineUserRoles = () => {
   }, [isSuperAdmin, roleLoading, navigate, toast]);
 
   useEffect(() => {
-    if (user && isSuperAdmin) fetchRoles();
+    if (user && isSuperAdmin) {
+      fetchRoles();
+      fetchOptions();
+    }
   }, [user, isSuperAdmin]);
 
   const fetchRoles = async () => {
@@ -61,6 +77,52 @@ const LineUserRoles = () => {
       .order('created_at', { ascending: true });
     if (!error) setRoles((data as LineUserRole[]) || []);
     setFetching(false);
+  };
+
+  const fetchOptions = async () => {
+    if (!user) return;
+    const [{ data: staff }, { data: vendors }] = await Promise.all([
+      supabase.from('staff_profiles').select('id, staff_name, nickname, line_user_id').eq('user_id', user.id).eq('is_active', true),
+      supabase.from('vendor_profiles').select('id, company_name, line_user_id').eq('user_id', user.id).eq('is_active', true),
+    ]);
+    const opts: LinkOption[] = [
+      ...((staff || []).map((s: any) => ({
+        id: s.id, kind: 'staff' as const,
+        label: s.staff_name + (s.nickname ? ` (${s.nickname})` : ''),
+        sublabel: 'ทีมงาน', line_user_id: s.line_user_id,
+      }))),
+      ...((vendors || []).map((v: any) => ({
+        id: v.id, kind: 'vendor' as const,
+        label: v.company_name, sublabel: 'คู่ค้า', line_user_id: v.line_user_id,
+      }))),
+    ];
+    setOptions(opts);
+  };
+
+  const linkedFor = (lineUserId: string): LinkOption | undefined =>
+    options.find(o => o.line_user_id === lineUserId);
+
+  const handleLink = async (lineUserId: string, opt: LinkOption) => {
+    const table = opt.kind === 'staff' ? 'staff_profiles' : 'vendor_profiles';
+    const { error } = await supabase.from(table).update({ line_user_id: lineUserId }).eq('id', opt.id);
+    if (error) {
+      toast({ title: "ผูกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ผูกสำเร็จ", description: `${opt.label} ↔ LINE` });
+    setOpenPopoverId(null);
+    fetchOptions();
+  };
+
+  const handleUnlink = async (opt: LinkOption) => {
+    const table = opt.kind === 'staff' ? 'staff_profiles' : 'vendor_profiles';
+    const { error } = await supabase.from(table).update({ line_user_id: null }).eq('id', opt.id);
+    if (error) {
+      toast({ title: "ยกเลิกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ยกเลิกการผูกแล้ว" });
+    fetchOptions();
   };
 
   const updateRole = async (id: string, newRole: string) => {
@@ -176,6 +238,62 @@ const LineUserRoles = () => {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {/* Link to staff/vendor registry */}
+                <div className="mt-3 pt-3 border-t flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground shrink-0">🔗 ผูกกับทะเบียน:</span>
+                  {(() => {
+                    const linked = linkedFor(r.line_user_id);
+                    if (linked) {
+                      return (
+                        <>
+                          <Badge variant="secondary" className="gap-1">
+                            {linked.kind === 'staff' ? <UserCheck className="h-3 w-3" /> : <Users className="h-3 w-3" />}
+                            {linked.label}
+                          </Badge>
+                          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => handleUnlink(linked)}>
+                            <Unlink className="h-3 w-3 mr-1" /> ยกเลิก
+                          </Button>
+                        </>
+                      );
+                    }
+                    const popoverOpen = openPopoverId === r.id;
+                    const available = options.filter(o => !o.line_user_id);
+                    return (
+                      <Popover open={popoverOpen} onOpenChange={(o) => setOpenPopoverId(o ? r.id : null)}>
+                        <PopoverTrigger asChild>
+                          <Button size="sm" variant="outline" className="h-7 text-xs">
+                            <Link2 className="h-3 w-3 mr-1" /> เลือกทีมงาน/คู่ค้า
+                            <ChevronsUpDown className="h-3 w-3 ml-1 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-0" align="start">
+                          <Command>
+                            <CommandInput placeholder="ค้นหาชื่อ..." />
+                            <CommandList>
+                              <CommandEmpty>ไม่พบ</CommandEmpty>
+                              <CommandGroup>
+                                {available.map(opt => (
+                                  <CommandItem
+                                    key={`${opt.kind}-${opt.id}`}
+                                    value={`${opt.label} ${opt.sublabel}`}
+                                    onSelect={() => handleLink(r.line_user_id, opt)}
+                                  >
+                                    {opt.kind === 'staff'
+                                      ? <UserCheck className="h-3 w-3 mr-2 text-primary" />
+                                      : <Users className="h-3 w-3 mr-2 text-muted-foreground" />}
+                                    <span className="flex-1 truncate">{opt.label}</span>
+                                    <span className="text-xs text-muted-foreground ml-2">{opt.sublabel}</span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    );
+                  })()}
                 </div>
               </Card>
             );
