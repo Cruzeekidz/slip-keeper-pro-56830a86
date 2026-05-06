@@ -232,8 +232,16 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                           key={url}
                           src={url}
                           alt={receipt.description || 'Receipt'}
-                          className="block max-w-full max-h-full object-contain select-none animate-fade-in"
-                          style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
+                          className="block object-contain select-none animate-fade-in"
+                          style={{
+                            width: 'auto',
+                            height: 'auto',
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            transform: `scale(${zoom})`,
+                            transformOrigin: 'center center',
+                            transition: 'transform 0.2s ease-out',
+                          }}
                           draggable={false}
                           onError={() => {
                             console.error('Image failed to load:', receipt.receipt_url);
