@@ -566,6 +566,8 @@ const StaffReimbursementTab = () => {
                         size="sm"
                         onClick={() => {
                           setReimburseForm({ paid_date: new Date().toISOString().split("T")[0], payment_method: "transfer", notes: "" });
+                          setSlipFile(null);
+                          setLinkExpenseId("");
                           setReimburseDialog(c);
                         }}
                       >
