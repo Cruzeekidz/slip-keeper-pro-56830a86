@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.move-id-card]
 verify_jwt = false
+
+[functions.receipt-file]
+verify_jwt = false
