@@ -122,6 +122,8 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterReview, setFilterReview] = useState("all");
   const [filterSender, setFilterSender] = useState("all");
   const [filterReceiver, setFilterReceiver] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterEvent, setFilterEvent] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
@@ -254,6 +256,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
   const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
+
+  const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const uniqueMonths = useMemo(() => {
+    const set = new Set<string>();
+    expenses.forEach(e => {
+      if (!e.expense_date) return;
+      const d = new Date(e.expense_date);
+      if (isNaN(d.getTime())) return;
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    });
+    return Array.from(set).sort().reverse();
+  }, [expenses]);
+  const uniqueEvents = useMemo(
+    () => Array.from(new Set(expenses.map(e => e.event_name).filter(Boolean) as string[])).sort(),
+    [expenses]
+  );
 
   // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
