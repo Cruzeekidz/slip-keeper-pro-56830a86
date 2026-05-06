@@ -539,13 +539,30 @@ const VendorManagement = () => {
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh]">
           <DialogHeader><DialogTitle>ตัวอย่างเอกสาร</DialogTitle></DialogHeader>
+          {previewPath && (
+            <div className="text-xs bg-muted rounded p-2 font-mono break-all flex items-center gap-2">
+              <Folder className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <span className="flex-1">{previewBucket}/{previewPath}</span>
+              <Button size="sm" variant="ghost" className="h-6 px-2" onClick={copyFilePath}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
           {previewUrl && (
-            previewUrl.includes(".pdf") ? (
-              <iframe src={previewUrl} className="w-full h-[70vh]" />
+            (previewPath || previewUrl).toLowerCase().includes(".pdf") ? (
+              <iframe src={previewUrl} className="w-full h-[60vh]" />
             ) : (
-              <img src={previewUrl} alt="Document" className="w-full object-contain max-h-[70vh]" />
+              <img src={previewUrl} alt="Document" className="w-full object-contain max-h-[60vh]" />
             )
           )}
+          <div className="flex gap-2 justify-end pt-2 border-t">
+            <Button size="sm" variant="outline" onClick={copyShareLink}>
+              <Link2 className="h-4 w-4 mr-1" />คัดลอกลิงก์ (1 ชม.)
+            </Button>
+            <Button size="sm" onClick={downloadFile}>
+              <Download className="h-4 w-4 mr-1" />ดาวน์โหลด
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
