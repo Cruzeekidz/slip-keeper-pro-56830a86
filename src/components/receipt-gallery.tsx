@@ -227,20 +227,19 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         </Button>
                       </div>
                     ) : url ? (
-                      <div className="w-full h-full overflow-auto flex items-center justify-center bg-background rounded-sm">
+                      <div className="w-full h-full overflow-auto flex items-start justify-center">
                         <img
                           key={url}
                           src={url}
                           alt={receipt.description || 'Receipt'}
-                          className="block object-contain select-none animate-fade-in"
+                          className="select-none animate-fade-in"
                           style={{
-                            width: 'auto',
+                            maxWidth: zoom === 1 ? '100%' : 'none',
+                            maxHeight: zoom === 1 ? '100%' : 'none',
+                            width: zoom === 1 ? 'auto' : `${zoom * 100}%`,
                             height: 'auto',
-                            maxWidth: '100%',
-                            maxHeight: '100%',
-                            transform: `scale(${zoom})`,
-                            transformOrigin: 'center center',
-                            transition: 'transform 0.2s ease-out',
+                            objectFit: 'contain',
+                            transition: 'all 0.2s ease-out',
                           }}
                           draggable={false}
                           onError={() => {
