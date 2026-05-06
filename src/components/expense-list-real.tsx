@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText, CheckSquare, Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText, CheckSquare, Loader2, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Combobox } from "@/components/ui/combobox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -53,29 +55,23 @@ interface Expense {
   settled_batch_id: string | null;
 }
 
-// Query functions
-const fetchAllExpenses = async (): Promise<Expense[]> => {
-  let allExpenses: Expense[] = [];
-  let from = 0;
-  const pageSize = 1000;
-  let hasMore = true;
+// Query functions — fetch limited window for performance
+const fetchExpensesWindow = async (params: { months: number; limit: number }): Promise<Expense[]> => {
+  let q = supabase
+    .from('expenses')
+    .select('*')
+    .order('expense_date', { ascending: false })
+    .limit(params.limit);
 
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('*')
-      .range(from, from + pageSize - 1)
-      .order('expense_date', { ascending: false });
-    if (error) throw error;
-    if (data && data.length > 0) {
-      allExpenses = [...allExpenses, ...data];
-      from += pageSize;
-      hasMore = data.length === pageSize;
-    } else {
-      hasMore = false;
-    }
+  if (params.months > 0) {
+    const from = new Date();
+    from.setMonth(from.getMonth() - params.months);
+    from.setHours(0, 0, 0, 0);
+    q = q.gte('expense_date', from.toISOString().split('T')[0]);
   }
-  return allExpenses;
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
 };
 
 const fetchEventNamesList = async (): Promise<string[]> => {
