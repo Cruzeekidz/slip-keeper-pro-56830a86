@@ -492,6 +492,19 @@ const ReceiptArchive = () => {
                           alt={receipt.description || "สลิป"}
                           className="w-full h-full object-cover"
                           loading="lazy"
+                          onError={async (e) => {
+                            const img = e.currentTarget;
+                            if (img.dataset.retried) return;
+                            img.dataset.retried = "1";
+                            try {
+                              const { data } = await supabase.storage
+                                .from("receipts")
+                                .download(receipt.receipt_url);
+                              if (data) img.src = URL.createObjectURL(data);
+                            } catch {
+                              /* ignore */
+                            }
+                          }}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
