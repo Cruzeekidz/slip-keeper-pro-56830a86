@@ -10,7 +10,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -64,6 +66,12 @@ const PaymentQueue = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
   const [rejectInvoice, setRejectInvoice] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
+  const [typeFilter, setTypeFilter] = useState<"all" | "staff" | "claim" | "vendor">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved">("all");
+  const [search, setSearch] = useState("");
+  const [dueFrom, setDueFrom] = useState("");
+  const [dueTo, setDueTo] = useState("");
+  const [sending, setSending] = useState<string | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
