@@ -6,11 +6,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText } from "lucide-react";
+import { Calendar as CalendarIcon, Search, Filter, Receipt, Edit3, Trash2, Download, Eye, LayoutGrid, Table2, ArrowUpDown, X, Send, UserCheck, Store, AlertTriangle, ArrowDownLeft, ArrowUpRight, FileText, CheckSquare, Loader2 } from "lucide-react";
 import { Combobox } from "@/components/ui/combobox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -130,6 +132,29 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+
+  // Multi-select / bulk edit state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkFields, setBulkFields] = useState({
+    transaction_type: false,
+    category_group: false,
+    subcategory: false,
+    project_tag: false,
+    event_name: false,
+    merchant: false,
+    payee_group: false,
+  });
+  const [bulkValues, setBulkValues] = useState({
+    transaction_type: "" as TransactionType | "",
+    category_group: "" as CategoryGroup | "",
+    subcategory: "",
+    project_tag: "",
+    event_name: "",
+    merchant: "",
+    payee_group: "",
+  });
 
   // Data queries
   const { data: expenses = [], isLoading } = useQuery({
@@ -341,6 +366,78 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   const isIncome = (e: Expense) => e.transaction_direction === 'INCOME';
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredExpenses.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filteredExpenses.map(e => e.id)));
+  };
+
+  const handleBulkApply = async () => {
+    if (selectedIds.size === 0) return;
+    const update: Record<string, any> = {};
+    if (bulkFields.transaction_type && bulkValues.transaction_type) {
+      update.transaction_type = bulkValues.transaction_type;
+      const grp = bulkFields.category_group ? bulkValues.category_group : null;
+      update.category = bulkValues.transaction_type === 'BUSINESS' && grp
+        ? `BUSINESS > ${grp}` : bulkValues.transaction_type;
+    }
+    if (bulkFields.category_group) update.category_group = bulkValues.category_group || null;
+    if (bulkFields.subcategory) update.subcategory = bulkValues.subcategory || null;
+    if (bulkFields.project_tag) update.project_tag = bulkValues.project_tag || null;
+    if (bulkFields.event_name) update.event_name = bulkValues.event_name || null;
+    if (bulkFields.merchant) update.merchant = bulkValues.merchant || null;
+    if (bulkFields.payee_group) update.payee_group = bulkValues.payee_group || null;
+
+    if (Object.keys(update).length === 0) {
+      toast({ title: "ไม่มีฟิลด์ที่เลือก", description: "กรุณาติ๊กฟิลด์ที่ต้องการแก้ไข", variant: "destructive" });
+      return;
+    }
+    setBulkSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('expenses').update(update).in('id', ids);
+    setBulkSaving(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "อัปเดตสำเร็จ", description: `แก้ไข ${ids.length} รายการแล้ว` });
+    setBulkOpen(false);
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`ลบ ${selectedIds.size} รายการที่เลือก?`)) return;
+    setBulkSaving(true);
+    const ids = Array.from(selectedIds);
+    const { error } = await supabase.from('expenses').delete().in('id', ids);
+    setBulkSaving(false);
+    if (error) {
+      toast({ title: "ลบไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ลบสำเร็จ", description: `ลบ ${ids.length} รายการแล้ว` });
+    setSelectedIds(new Set());
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+  };
+
+  const bulkSubcatOptions = [
+    ...getSubcategoriesForType(bulkValues.transaction_type || null, (bulkValues.category_group || null) as CategoryGroup | null),
+    ...dynamicSubcategories,
+  ];
+  const bulkTagOptions = [
+    ...getDefaultProjectTags((bulkValues.category_group || null) as CategoryGroup | null),
+    ...dynamicProjectTags,
+  ];
+
   return (
     <Card className="p-6 bg-gradient-card shadow-elevated">
       <div className="flex items-center justify-between mb-4">
@@ -509,9 +606,34 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         <div className="text-center py-8"><p className="text-muted-foreground">ไม่พบรายการ</p></div>
       ) : viewMode === "card" ? (
         <div className="space-y-3">
+          {/* Multi-select toolbar */}
+          <div className="flex items-center gap-2 p-2 rounded-lg border bg-muted/30 flex-wrap">
+            <Checkbox
+              checked={selectedIds.size > 0 && selectedIds.size === filteredExpenses.length}
+              onCheckedChange={toggleSelectAll}
+            />
+            <span className="text-sm font-medium">เลือก {selectedIds.size}/{filteredExpenses.length}</span>
+            <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
+              <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
+            </Button>
+            <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+              </Button>
+            )}
+          </div>
           {filteredExpenses.map((expense, index) => (
             <Card key={expense.id} className={cn("hover:shadow-md transition-shadow", expense.needs_review && "ring-1 ring-warning/50")}>
               <div className="p-3 md:p-4 flex flex-col md:flex-row md:items-start gap-3 md:gap-4 border-b">
+                <div className="md:pt-1 shrink-0">
+                  <Checkbox
+                    checked={selectedIds.has(expense.id)}
+                    onCheckedChange={() => toggleSelect(expense.id)}
+                  />
+                </div>
                 <div className="flex items-center justify-between md:contents">
                   <div className="shrink-0 flex items-center gap-1.5 md:w-24">
                     <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -582,9 +704,30 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
+          {/* Multi-select toolbar (table) */}
+          <div className="flex items-center gap-2 p-2 mb-2 rounded-lg border bg-muted/30 flex-wrap">
+            <span className="text-sm font-medium">เลือก {selectedIds.size}/{filteredExpenses.length}</span>
+            <Button size="sm" variant="default" disabled={selectedIds.size === 0} onClick={() => setBulkOpen(true)}>
+              <Edit3 className="h-3.5 w-3.5 mr-1" /> แก้ไขหลายรายการ
+            </Button>
+            <Button size="sm" variant="destructive" disabled={selectedIds.size === 0 || bulkSaving} onClick={handleBulkDelete}>
+              <Trash2 className="h-3.5 w-3.5 mr-1" /> ลบที่เลือก
+            </Button>
+            {selectedIds.size > 0 && (
+              <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+                <X className="h-3.5 w-3.5 mr-1" /> ยกเลิก
+              </Button>
+            )}
+          </div>
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]">
+                  <Checkbox
+                    checked={selectedIds.size > 0 && selectedIds.size === filteredExpenses.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead className="w-[90px]">วันที่</TableHead>
                 <TableHead>รายละเอียด</TableHead>
                 <TableHead className="w-[140px]">ประเภท</TableHead>
@@ -618,6 +761,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
                 return (
                   <TableRow key={expense.id} className={cn(expense.needs_review && "bg-warning/5")}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.has(expense.id)}
+                        onCheckedChange={() => toggleSelect(expense.id)}
+                      />
+                    </TableCell>
                     <TableCell className="text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</TableCell>
                     <TableCell className="font-medium text-sm">{expense.description || expense.merchant || "-"}</TableCell>
                     
@@ -792,6 +941,100 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           onOpenChange={setGalleryOpen}
         />
       )}
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={bulkOpen} onOpenChange={setBulkOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>แก้ไขหลายรายการพร้อมกัน</DialogTitle>
+            <DialogDescription>
+              จะอัปเดต {selectedIds.size} รายการที่เลือก — ติ๊กเฉพาะฟิลด์ที่ต้องการเปลี่ยน
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.transaction_type} onCheckedChange={v => setBulkFields(f => ({ ...f, transaction_type: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, transaction_type: !f.transaction_type }))}>ประเภทธุรกรรม</Label>
+              </div>
+              {bulkFields.transaction_type && (
+                <Select value={bulkValues.transaction_type} onValueChange={v => setBulkValues(s => ({ ...s, transaction_type: v as TransactionType, category_group: "", project_tag: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกประเภท" /></SelectTrigger>
+                  <SelectContent className="bg-background">
+                    {TRANSACTION_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.category_group} onCheckedChange={v => setBulkFields(f => ({ ...f, category_group: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, category_group: !f.category_group }))}>กลุ่มหมวด</Label>
+              </div>
+              {bulkFields.category_group && (
+                <Select value={bulkValues.category_group} onValueChange={v => setBulkValues(s => ({ ...s, category_group: v as CategoryGroup, project_tag: "" }))}>
+                  <SelectTrigger><SelectValue placeholder="เลือกกลุ่ม" /></SelectTrigger>
+                  <SelectContent className="bg-background">
+                    {CATEGORY_GROUPS.map(g => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.subcategory} onCheckedChange={v => setBulkFields(f => ({ ...f, subcategory: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, subcategory: !f.subcategory }))}>ประเภทย่อย</Label>
+              </div>
+              {bulkFields.subcategory && (
+                <Combobox options={bulkSubcatOptions} value={bulkValues.subcategory} onValueChange={v => setBulkValues(s => ({ ...s, subcategory: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.project_tag} onCheckedChange={v => setBulkFields(f => ({ ...f, project_tag: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, project_tag: !f.project_tag }))}>แท็กโปรเจกต์</Label>
+              </div>
+              {bulkFields.project_tag && (
+                <Combobox options={bulkTagOptions} value={bulkValues.project_tag} onValueChange={v => setBulkValues(s => ({ ...s, project_tag: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.event_name} onCheckedChange={v => setBulkFields(f => ({ ...f, event_name: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, event_name: !f.event_name }))}>ชื่ออีเวนท์</Label>
+              </div>
+              {bulkFields.event_name && (
+                <Combobox options={eventNames} value={bulkValues.event_name} onValueChange={v => setBulkValues(s => ({ ...s, event_name: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.merchant} onCheckedChange={v => setBulkFields(f => ({ ...f, merchant: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, merchant: !f.merchant }))}>ร้านค้า / ผู้รับเงิน</Label>
+              </div>
+              {bulkFields.merchant && (
+                <Input value={bulkValues.merchant} onChange={e => setBulkValues(s => ({ ...s, merchant: e.target.value }))} placeholder="ชื่อร้านค้า" />
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={bulkFields.payee_group} onCheckedChange={v => setBulkFields(f => ({ ...f, payee_group: !!v }))} />
+                <Label className="cursor-pointer" onClick={() => setBulkFields(f => ({ ...f, payee_group: !f.payee_group }))}>กลุ่มผู้รับเงิน</Label>
+              </div>
+              {bulkFields.payee_group && (
+                <Combobox options={dynamicPayeeGroups} value={bulkValues.payee_group} onValueChange={v => setBulkValues(s => ({ ...s, payee_group: v }))} placeholder="เลือกหรือพิมพ์" />
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={bulkSaving}>ยกเลิก</Button>
+            <Button onClick={handleBulkApply} disabled={bulkSaving}>
+              {bulkSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CheckSquare className="h-4 w-4 mr-2" />}
+              บันทึก {selectedIds.size} รายการ
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }
