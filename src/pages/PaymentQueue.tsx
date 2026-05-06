@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -63,6 +63,7 @@ const PaymentQueue = () => {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectClaim, setRejectClaim] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
+  const [rejectInvoice, setRejectInvoice] = useState<{ id: string; staff_name: string; amount: number } | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -104,6 +105,22 @@ const PaymentQueue = () => {
       queryClient.invalidateQueries({ queryKey: ["staff-reimbursement-claims"] });
       setRejectClaim(null);
       toast({ title: action === "approve" ? "อนุมัติใบเบิกแล้ว" : "ปฏิเสธใบเบิกแล้ว" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const invoiceActionMutation = useMutation({
+    mutationFn: async ({ id, action }: { id: string; action: "approve" | "reject" }) => {
+      const newStatus = action === "approve" ? "approved" : "rejected";
+      const { error } = await supabase.from("staff_invoices").update({ status: newStatus }).eq("id", id);
+      if (error) throw error;
+      return action;
+    },
+    onSuccess: (action) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-invoices"] });
+      setRejectInvoice(null);
+      toast({ title: action === "approve" ? "อนุมัติใบเรียกเก็บแล้ว" : "ปฏิเสธใบเรียกเก็บแล้ว" });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
@@ -413,6 +430,42 @@ const PaymentQueue = () => {
                         <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                       </Button>
                     </div>
+                    <div className="flex gap-2">
+                      {inv.status === "submitted" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => invoiceActionMutation.mutate({ id: inv.id, action: "approve" })}
+                          disabled={invoiceActionMutation.isPending}
+                        >
+                          <CheckCircle2 className="h-4 w-4 mr-1" />อนุมัติ
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => navigate(`/staff-payments?edit=${inv.id}`)}
+                        title="แก้ไขใบเรียกเก็บ"
+                      >
+                        <Pencil className="h-4 w-4 mr-1" />แก้ไข
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() =>
+                          setRejectInvoice({
+                            id: inv.id,
+                            staff_name: inv.staff_profiles?.staff_name || "",
+                            amount: netAmount,
+                          })
+                        }
+                      >
+                        <XCircle className="h-4 w-4 mr-1" />ปฏิเสธ
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               );
@@ -568,6 +621,29 @@ const PaymentQueue = () => {
               <AlertDialogAction
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 onClick={() => rejectClaim && claimActionMutation.mutate({ id: rejectClaim.id, action: "reject" })}
+              >
+                ปฏิเสธ
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Reject staff invoice confirmation */}
+        <AlertDialog open={!!rejectInvoice} onOpenChange={(o) => !o && setRejectInvoice(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>ยืนยันปฏิเสธใบเรียกเก็บ</AlertDialogTitle>
+              <AlertDialogDescription>
+                ปฏิเสธใบเรียกเก็บของ <span className="font-semibold">{rejectInvoice?.staff_name}</span> ยอด{" "}
+                <span className="font-semibold">{rejectInvoice?.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span> ใช่หรือไม่?
+                <br />ระบบจะเปลี่ยนสถานะเป็น "ปฏิเสธ" (ดูประวัติได้ภายหลัง)
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={() => rejectInvoice && invoiceActionMutation.mutate({ id: rejectInvoice.id, action: "reject" })}
               >
                 ปฏิเสธ
               </AlertDialogAction>

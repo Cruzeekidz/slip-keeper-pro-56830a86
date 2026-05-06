@@ -178,18 +178,21 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
 
   // Build project tags from event_registry first, then merge with existing
+  // Filter by group prefix so BCC Next / Kukanang tags don't leak into Cruzee EVENT list
+  const matchesGroup = (tag: string): boolean => {
+    const group = formData.category_group;
+    if (group === 'EVENT') return tag.startsWith('EVT-');
+    if (group === 'ENTITY_BCC_NEXT') return tag.startsWith('BCCNEXT-');
+    if (group === 'PROGRAM') return tag.startsWith('PROG-');
+    if (group === 'ENTITY_KUKANANG') return tag.startsWith('KUKAN-');
+    return true;
+  };
   const registryTagsForGroup = registryTags
-    .filter(e => {
-      const group = formData.category_group;
-      if (group === 'EVENT') return e.project_tag.startsWith('EVT-');
-      if (group === 'ENTITY_BCC_NEXT') return e.project_tag.startsWith('BCCNEXT-');
-      if (group === 'PROGRAM') return e.project_tag.startsWith('PROG-');
-      if (group === 'ENTITY_KUKANANG') return e.project_tag.startsWith('KUKAN-');
-      return true;
-    })
+    .filter(e => matchesGroup(e.project_tag))
     .map(e => e.project_tag);
   const defaultTags = getDefaultProjectTags(formData.category_group as CategoryGroup || null);
-  const projectTags = [...new Set([...registryTagsForGroup, ...defaultTags, ...existingTags])];
+  const existingTagsForGroup = existingTags.filter(matchesGroup);
+  const projectTags = [...new Set([...registryTagsForGroup, ...defaultTags, ...existingTagsForGroup])];
 
   const showGroup = formData.transaction_type === 'BUSINESS';
   const showTag = showGroup && shouldShowProjectTag(formData.category_group as CategoryGroup || null);
