@@ -202,7 +202,7 @@ const StaffReimbursementTab = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_expense_claims")
-        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account)")
+        .select("*, staff_profiles(staff_name, nickname, bank_name, bank_account, line_user_id)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as StaffClaim[];
