@@ -614,6 +614,16 @@ const StaffReimbursementTab = () => {
                         <FileText className="h-4 w-4" />
                       </Button>
                     )}
+                    {(c.staff_profiles as any)?.line_user_id && (
+                      <LineChatButton
+                        lineUserId={(c.staff_profiles as any).line_user_id}
+                        recipientName={c.staff_profiles?.staff_name || "ทีมงาน"}
+                        context={`เรื่องใบเบิก ${c.description || ""}\nยอด: ${Number(c.amount).toLocaleString()} บาท\n\n`}
+                        size="icon"
+                        variant="ghost"
+                        iconOnly
+                      />
+                    )}
                     {c.status === "submitted" && (
                       <Button
                         size="sm"
