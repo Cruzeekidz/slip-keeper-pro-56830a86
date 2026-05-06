@@ -11,7 +11,17 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X } from "lucide-react";
+import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X, Building2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const CLAIM_STATUS_LABELS: Record<string, string> = {
   submitted: "ส่งแล้ว",
@@ -94,6 +104,11 @@ const StaffReimbursementTab = () => {
     notes: "",
   });
 
+  // Move-to-vendor (link with vendor) dialog state
+  const [vendorLinkDialog, setVendorLinkDialog] = useState<VendorInvoice | null>(null);
+  const [vendorLinkId, setVendorLinkId] = useState<string>("");
+  const [confirmNotStaff, setConfirmNotStaff] = useState<VendorInvoice | null>(null);
+
   const { data: unlinkedBills = [] } = useQuery({
     queryKey: ["unlinked-vendor-bills"],
     queryFn: async () => {
@@ -122,6 +137,54 @@ const StaffReimbursementTab = () => {
       return data;
     },
     enabled: !!user,
+  });
+
+  const { data: vendorList = [] } = useQuery({
+    queryKey: ["vendor-profiles-active-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("vendor_profiles")
+        .select("id, company_name")
+        .eq("is_active", true)
+        .order("company_name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  const linkToVendorMutation = useMutation({
+    mutationFn: async ({ billId, vendorId }: { billId: string; vendorId: string }) => {
+      const { error } = await supabase
+        .from("vendor_invoices")
+        .update({ vendor_id: vendorId, link_type: "vendor" })
+        .eq("id", billId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["unlinked-vendor-bills"] });
+      qc.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      setVendorLinkDialog(null);
+      setVendorLinkId("");
+      toast({ title: "ผูกบิลกับคู่ค้าสำเร็จ" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const moveToVendorOnlyMutation = useMutation({
+    mutationFn: async (billId: string) => {
+      const { error } = await supabase
+        .from("vendor_invoices")
+        .update({ link_type: "vendor_only" })
+        .eq("id", billId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["unlinked-vendor-bills"] });
+      setConfirmNotStaff(null);
+      toast({ title: "ย้ายไปยังบิลคู่ค้าแล้ว", description: "ไปจัดการที่หน้า 'คู่ค้า'" });
+    },
+    onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
 
   const { data: claims = [] } = useQuery({
@@ -329,20 +392,16 @@ const StaffReimbursementTab = () => {
                   <Button
                     size="sm"
                     variant="outline"
+                    title="ผูกกับคู่ค้าทันที"
+                    onClick={() => { setVendorLinkId(""); setVendorLinkDialog(bill); }}
+                  >
+                    <Building2 className="h-3 w-3 mr-1" />ผูกกับคู่ค้า
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     title="ไม่ใช่บิลทีมงาน — ย้ายไปคู่ค้า"
-                    onClick={async () => {
-                      if (!confirm(`บิล ${bill.invoice_number || ""} ไม่ใช่บิลที่ทีมงานสำรองจ่ายใช่ไหม?\n\nระบบจะซ่อนจากแท็บนี้ และคุณสามารถไปผูกกับคู่ค้าได้ที่หน้า "คู่ค้า"`)) return;
-                      const { error } = await supabase
-                        .from("vendor_invoices")
-                        .update({ link_type: "vendor_only" })
-                        .eq("id", bill.id);
-                      if (error) {
-                        toast({ title: error.message, variant: "destructive" });
-                        return;
-                      }
-                      qc.invalidateQueries({ queryKey: ["unlinked-vendor-bills"] });
-                      toast({ title: "ย้ายไปยังบิลคู่ค้าแล้ว", description: "ไปจัดการที่หน้า 'คู่ค้า'" });
-                    }}
+                    onClick={() => setConfirmNotStaff(bill)}
                   >
                     <X className="h-3 w-3 mr-1" />ไม่ใช่ทีมงาน
                   </Button>
@@ -567,6 +626,65 @@ const StaffReimbursementTab = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link bill to vendor dialog */}
+      <Dialog open={!!vendorLinkDialog} onOpenChange={(o) => { if (!o) { setVendorLinkDialog(null); setVendorLinkId(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>ผูกบิลกับคู่ค้า</DialogTitle>
+          </DialogHeader>
+          {vendorLinkDialog && (
+            <div className="space-y-3">
+              <div className="p-3 rounded-md bg-muted/40 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">บิล:</span><span className="font-mono">{vendorLinkDialog.invoice_number || "—"}</span></div>
+                <div className="flex justify-between"><span className="text-muted-foreground">ยอด:</span><span className="font-semibold">{Number(vendorLinkDialog.amount).toLocaleString()} ฿</span></div>
+                <p className="text-xs text-muted-foreground mt-1">{vendorLinkDialog.description}</p>
+              </div>
+              <div>
+                <Label>เลือกคู่ค้า *</Label>
+                <Select value={vendorLinkId} onValueChange={setVendorLinkId}>
+                  <SelectTrigger><SelectValue placeholder="เลือกคู่ค้า" /></SelectTrigger>
+                  <SelectContent>
+                    {vendorList.map((v: any) => (
+                      <SelectItem key={v.id} value={v.id}>{v.company_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">บิลจะถูกย้ายไปอยู่ภายใต้คู่ค้าที่เลือก และซ่อนจากแท็บนี้</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setVendorLinkDialog(null); setVendorLinkId(""); }}>ยกเลิก</Button>
+            <Button
+              disabled={!vendorLinkId || linkToVendorMutation.isPending}
+              onClick={() => vendorLinkDialog && linkToVendorMutation.mutate({ billId: vendorLinkDialog.id, vendorId: vendorLinkId })}
+            >
+              {linkToVendorMutation.isPending ? "กำลังบันทึก..." : "ยืนยันผูกคู่ค้า"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm move to vendor-only */}
+      <AlertDialog open={!!confirmNotStaff} onOpenChange={(o) => !o && setConfirmNotStaff(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>ยืนยันย้ายบิลออกจากใบเบิกทีมงาน</AlertDialogTitle>
+            <AlertDialogDescription>
+              บิล <span className="font-mono">{confirmNotStaff?.invoice_number || "—"}</span> ยอด{" "}
+              <span className="font-semibold">{confirmNotStaff && Number(confirmNotStaff.amount).toLocaleString()} ฿</span><br />
+              ไม่ใช่บิลที่ทีมงานสำรองจ่ายใช่ไหม? ระบบจะซ่อนจากแท็บนี้ และคุณสามารถไปผูกกับคู่ค้าได้ที่หน้า "คู่ค้า"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>ยกเลิก</AlertDialogCancel>
+            <AlertDialogAction onClick={() => confirmNotStaff && moveToVendorOnlyMutation.mutate(confirmNotStaff.id)}>
+              ยืนยัน
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
