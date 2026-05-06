@@ -1,12 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Plus, Download, LogOut, Upload, AlertTriangle, Database, Settings, Menu, History, BarChart3, MessageSquare, LayoutDashboard, Calendar, Send, Shield, Link2, ServerCog, FolderOpen, ClipboardCheck, BookOpen, DollarSign, Users, CreditCard, Building2, FileText, Wallet, Banknote } from "lucide-react";
+import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
-import { ExpenseListReal } from "@/components/expense-list-real";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
-import { EventAnalysis } from "@/components/event-analysis";
 import { useAuth } from "@/hooks/useAuth";
-import { useUserRole } from "@/hooks/useUserRole";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,10 +16,13 @@ import {
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
 
+// Lazy-load heavy widgets so the menu/header remain responsive
+const EventAnalysis = lazy(() => import("@/components/event-analysis").then(m => ({ default: m.EventAnalysis })));
+const ExpenseListReal = lazy(() => import("@/components/expense-list-real").then(m => ({ default: m.ExpenseListReal })));
+
 const Index = () => {
   const [showUpload, setShowUpload] = useState(false);
   const { user, loading, signOut } = useAuth();
-  const { isAdmin, isSuperAdmin } = useUserRole();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
@@ -175,23 +175,7 @@ const Index = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="bg-popover border-border w-56">
-                  <DropdownMenuLabel className="text-xs font-bold text-blue-400">📅 อีเวนท์ & รายได้</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/event-management')}>
-                    <Calendar className="h-4 w-4 mr-2" />
-                    จัดการอีเวนท์
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/event-pnl')}>
-                    <DollarSign className="h-4 w-4 mr-2" />
-                    P&L อีเวนท์ (Ready-go)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/transaction-report')}>
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    รายงานธุรกรรม
-                  </DropdownMenuItem>
-
-                  <DropdownMenuSeparator />
-
-                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">💰 การเงิน & ภาษี</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-xs font-bold text-blue-400">⭐ ใช้บ่อย</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => navigate('/staff-payments')}>
                     <CreditCard className="h-4 w-4 mr-2" />
                     ใบเรียกเก็บ/จ่ายเงิน
@@ -200,145 +184,23 @@ const Index = () => {
                     <Building2 className="h-4 w-4 mr-2" />
                     จัดการคู่ค้า & บิล
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/wht-report')}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    รายงานภาษีหัก ณ ที่จ่าย
+                  <DropdownMenuItem onClick={() => navigate('/event-pnl')}>
+                    <DollarSign className="h-4 w-4 mr-2" />
+                    P&L อีเวนท์ (Ready-go)
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/cash-advance')}>
-                    <Wallet className="h-4 w-4 mr-2" />
-                    เงินทดรองจ่าย
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/cash-expense')}>
-                    <Banknote className="h-4 w-4 mr-2" />
-                    บันทึกค่าใช้จ่ายเงินสด
-                  </DropdownMenuItem>
-
-                  <DropdownMenuSeparator />
-
-                  <DropdownMenuLabel className="text-xs font-bold text-amber-400">🧾 สลิป & อัพโหลด</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/receipt-archive')}>
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    คลังสลิป
+                  <DropdownMenuItem onClick={() => navigate('/review-queue')}>
+                    <ClipboardCheck className="h-4 w-4 mr-2" />
+                    ตรวจสอบรายการ (Review)
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate('/bulk-upload')}>
                     <Upload className="h-4 w-4 mr-2" />
                     อัพโหลดหลายไฟล์
                   </DropdownMenuItem>
-
                   <DropdownMenuSeparator />
-
-                  <DropdownMenuLabel className="text-xs font-bold text-emerald-400">🔍 ตรวจสอบ & แก้ไข</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/review-queue')}>
-                    <ClipboardCheck className="h-4 w-4 mr-2" />
-                    ตรวจสอบรายการ (Review)
+                  <DropdownMenuItem onClick={() => navigate('/admin')}>
+                    <Wrench className="h-4 w-4 mr-2" />
+                    <span className="font-medium">เครื่องมือทั้งหมด & ตั้งค่า</span>
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/duplicate-checker')}>
-                    <AlertTriangle className="h-4 w-4 mr-2" />
-                    ตรวจสอบรายการซ้ำ
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/deleted-history')}>
-                    <History className="h-4 w-4 mr-2" />
-                    ประวัติการลบ
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button 
-                    className="bg-white/10 text-white border border-white/20 hover:bg-white/20 text-sm"
-                    size="sm"
-                  >
-                    <Settings className="h-4 w-4 mr-1.5" />
-                    ตั้งค่า
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="bg-popover border-border w-56">
-                  <DropdownMenuLabel className="text-xs font-bold text-violet-400">⚙️ ตั้งค่า</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/link-line')}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    ผูกบัญชี LINE
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/master-data')}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    จัดการข้อมูลหลัก
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/payee-groups')}>
-                    <Settings className="h-4 w-4 mr-2" />
-                    จัดการกลุ่มผู้รับเงิน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/data-migration')}>
-                    <Database className="h-4 w-4 mr-2" />
-                    แปลงข้อมูล
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/forward-management')}>
-                    <Send className="h-4 w-4 mr-2" />
-                    Forward สลิป
-                  </DropdownMenuItem>
-
-                  <DropdownMenuSeparator />
-
-                  <DropdownMenuLabel className="text-xs font-bold text-cyan-400">👷 ทะเบียนทีมงาน & คู่ค้า</DropdownMenuLabel>
-                  <DropdownMenuItem onClick={() => navigate('/staff-management')}>
-                    <Users className="h-4 w-4 mr-2" />
-                    จัดการทะเบียนทีมงาน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?view=staff-register&owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนทีมงาน" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์ลงทะเบียนทีมงาน
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?view=vendor-register&owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์ลงทะเบียนคู่ค้า" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์ลงทะเบียนคู่ค้า
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => {
-                    const portalUrl = `${window.location.origin}/portal?owner=${user?.id}`;
-                    navigator.clipboard.writeText(portalUrl);
-                    toast({ title: "คัดลอกลิงก์สำเร็จ", description: "ลิงก์พอร์ทัลหลัก (เมนูรวม)" });
-                  }}>
-                    <Link2 className="h-4 w-4 mr-2" />
-                    คัดลอกลิงก์พอร์ทัลหลัก
-                  </DropdownMenuItem>
-
-                  {isSuperAdmin && (
-                    <>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuLabel className="text-xs font-bold text-rose-400">🔧 ผู้ดูแลระบบ</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => navigate('/system-admin')}>
-                        <ServerCog className="h-4 w-4 mr-2" />
-                        จัดการผู้ดูแลระบบ
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/line-user-roles')}>
-                        <Shield className="h-4 w-4 mr-2" />
-                        LINE User Roles
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/system-docs')}>
-                        <BookOpen className="h-4 w-4 mr-2" />
-                        เอกสารระบบ
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => navigate('/line-webhook')}>
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        LINE Webhook
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={async () => {
-                        toast({ title: "กำลังจัดหมวดหมู่ใหม่...", description: "กรุณารอสักครู่" });
-                        const { data, error } = await supabase.functions.invoke('migrate-categories');
-                        if (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); return; }
-                        toast({ title: "จัดหมวดหมู่สำเร็จ", description: `อัพเดท ${data?.migrated || 0} จาก ${data?.total || 0} รายการ` });
-                        window.location.reload();
-                      }}>
-                        <Database className="h-4 w-4 mr-2" />
-                        จัดหมวดหมู่ใหม่ (Migrate)
-                      </DropdownMenuItem>
-                    </>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button 
@@ -366,8 +228,12 @@ const Index = () => {
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
-        <EventAnalysis recentOnly />
-        <ExpenseListReal editId={editId} />
+        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดสรุปอีเวนท์…</div>}>
+          <EventAnalysis recentOnly />
+        </Suspense>
+        <Suspense fallback={<div className="text-sm text-muted-foreground p-4">กำลังโหลดรายการ…</div>}>
+          <ExpenseListReal editId={editId} />
+        </Suspense>
       </main>
     </div>
   );
