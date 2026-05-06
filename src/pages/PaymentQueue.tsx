@@ -715,9 +715,29 @@ const PaymentQueue = () => {
                         </>
                       )}
                       {c.status === "approved" && (
-                        <Button size="sm" onClick={() => navigate("/staff-payments?tab=reimbursement")}>
-                          <Banknote className="h-3 w-3 mr-1" />จ่ายคืน
-                        </Button>
+                        <>
+                          <Button size="sm" onClick={() => navigate("/staff-payments?tab=reimbursement")}>
+                            <Banknote className="h-3 w-3 mr-1" />จ่ายคืน
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => claimActionMutation.mutate({ id: c.id, action: "revert" })}
+                            disabled={claimActionMutation.isPending}
+                            title="ย้อนสถานะเป็นรออนุมัติ"
+                          >
+                            ย้อน
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setRejectClaim({ id: c.id, staff_name: c.staff_profiles?.staff_name || "", amount: Number(c.amount) })}
+                            title="ยกเลิก/ปฏิเสธใบเบิก"
+                          >
+                            <XCircle className="h-3 w-3 mr-1" />ยกเลิก
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
