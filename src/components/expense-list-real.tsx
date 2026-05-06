@@ -154,10 +154,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     payee_group: "",
   });
 
+  // Data window settings (default = current month, 100 rows)
+  const [windowMonths, setWindowMonths] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(100);
+
   // Data queries
-  const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ['expenses'],
-    queryFn: fetchAllExpenses,
+  const { data: expenses = [], isLoading } = useQuery<Expense[]>({
+    queryKey: ['expenses', windowMonths, pageSize],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize }),
   });
 
   const { data: eventNames = [] } = useQuery({
