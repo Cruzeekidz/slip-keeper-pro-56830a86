@@ -451,6 +451,49 @@ const StaffReimbursementTab = () => {
     enabled: !!user && !!reimburseDialog,
   });
 
+  // ★ Find expenses already linked to other claims/vendor invoices, to prevent duplicate slip linking
+  const { data: usedExpenseMap = {} } = useQuery<Record<string, { type: string; ref: string }>>({
+    queryKey: ["reimburse-used-expense-ids", reimburseDialog?.id, slipCandidates.map((c: any) => c.id).join(",")],
+    queryFn: async () => {
+      if (!user || slipCandidates.length === 0) return {};
+      const ids = slipCandidates.map((c: any) => c.id);
+      const map: Record<string, { type: string; ref: string }> = {};
+      const [claimsRes, viRes] = await Promise.all([
+        supabase
+          .from("staff_expense_claims")
+          .select("id, reimbursed_expense_id, description, staff_profiles(staff_name)")
+          .eq("user_id", user.id)
+          .in("reimbursed_expense_id", ids),
+        supabase
+          .from("vendor_invoices")
+          .select("id, matched_expense_id, invoice_number, vendor_profiles(company_name)")
+          .eq("user_id", user.id)
+          .in("matched_expense_id", ids),
+      ]);
+      (claimsRes.data || []).forEach((c: any) => {
+        if (c.id === reimburseDialog?.id) return; // ignore self
+        if (c.reimbursed_expense_id) {
+          map[c.reimbursed_expense_id] = {
+            type: "claim",
+            ref: `${c.staff_profiles?.staff_name || "ทีมงาน"} — ${(c.description || "").slice(0, 30)}`,
+          };
+        }
+      });
+      (viRes.data || []).forEach((v: any) => {
+        if (v.matched_expense_id && !map[v.matched_expense_id]) {
+          map[v.matched_expense_id] = {
+            type: "vendor",
+            ref: `${v.vendor_profiles?.company_name || "คู่ค้า"} ${v.invoice_number || ""}`.trim(),
+          };
+        }
+      });
+      return map;
+    },
+    enabled: !!user && slipCandidates.length > 0,
+  });
+
+  const linkedConflict = linkExpenseId ? usedExpenseMap[linkExpenseId] : null;
+
   const submittedClaims = claims.filter((c) => c.status === "submitted");
   const approvedClaims = claims.filter((c) => c.status === "approved");
   const reimbursedClaims = claims.filter((c) => c.status === "reimbursed");
