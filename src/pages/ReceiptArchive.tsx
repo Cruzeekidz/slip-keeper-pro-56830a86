@@ -378,11 +378,20 @@ const ReceiptArchive = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handlePreview = (receipt: ReceiptRow) => {
-    const url = signedUrls.get(receipt.receipt_url);
-    if (url) {
+  const handlePreview = async (receipt: ReceiptRow) => {
+    try {
+      const cachedUrl = signedUrls.get(receipt.receipt_url);
+      let url = cachedUrl;
+      if (!url) {
+        const blob = await downloadReceiptFile(receipt.receipt_url);
+        url = URL.createObjectURL(blob);
+        objectUrlsRef.current.push(url);
+      }
+      setPreviewIsPdf(receipt.receipt_url.toLowerCase().endsWith(".pdf"));
       setPreviewUrl(url);
       setPreviewOpen(true);
+    } catch {
+      toast({ title: "เกิดข้อผิดพลาด", description: "ไม่สามารถเปิดดูสลิปได้", variant: "destructive" });
     }
   };
 
@@ -594,10 +603,10 @@ const ReceiptArchive = () => {
                             if (img.dataset.retried) return;
                             img.dataset.retried = "1";
                             try {
-                              const { data } = await supabase.storage
-                                .from("receipts")
-                                .download(receipt.receipt_url);
-                              if (data) img.src = URL.createObjectURL(data);
+                              const data = await downloadReceiptFile(receipt.receipt_url);
+                              const objUrl = URL.createObjectURL(data);
+                              objectUrlsRef.current.push(objUrl);
+                              img.src = objUrl;
                             } catch {
                               /* ignore */
                             }
