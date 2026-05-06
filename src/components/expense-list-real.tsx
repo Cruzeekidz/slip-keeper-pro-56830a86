@@ -604,7 +604,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
               <SelectItem value="500">500 รายการ</SelectItem>
             </SelectContent>
           </Select>
-          <span className="text-xs text-muted-foreground">โหลดแล้ว {expenses.length}</span>
+          <span className="text-xs text-muted-foreground">
+            แสดง {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} จาก {totalCount.toLocaleString()} รายการ
+          </span>
         </div>
         <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
           <Filter className="h-3.5 w-3.5 mr-1.5" />
