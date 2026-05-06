@@ -309,6 +309,29 @@ const StaffReimbursementTab = () => {
 
       // ★ Mode A: Link to existing expense (slip already in system, e.g. from LINE)
       if (linkExpenseId) {
+        // Guard: ensure this expense isn't already linked to another claim or vendor invoice
+        const [dupClaim, dupVi] = await Promise.all([
+          supabase
+            .from("staff_expense_claims")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("reimbursed_expense_id", linkExpenseId)
+            .neq("id", claim.id)
+            .limit(1),
+          supabase
+            .from("vendor_invoices")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("matched_expense_id", linkExpenseId)
+            .limit(1),
+        ]);
+        if ((dupClaim.data?.length || 0) > 0) {
+          throw new Error("สลิปนี้ถูกผูกกับใบเบิกอื่นแล้ว");
+        }
+        if ((dupVi.data?.length || 0) > 0 && !claim.vendor_invoice_id) {
+          throw new Error("สลิปนี้ถูกผูกกับบิลคู่ค้าอื่นแล้ว");
+        }
+
         const { data: existingExp, error: fetchErr } = await supabase
           .from("expenses")
           .select("id, receipt_url, expense_date")
@@ -450,6 +473,49 @@ const StaffReimbursementTab = () => {
     },
     enabled: !!user && !!reimburseDialog,
   });
+
+  // ★ Find expenses already linked to other claims/vendor invoices, to prevent duplicate slip linking
+  const { data: usedExpenseMap = {} } = useQuery<Record<string, { type: string; ref: string }>>({
+    queryKey: ["reimburse-used-expense-ids", reimburseDialog?.id, slipCandidates.map((c: any) => c.id).join(",")],
+    queryFn: async () => {
+      if (!user || slipCandidates.length === 0) return {};
+      const ids = slipCandidates.map((c: any) => c.id);
+      const map: Record<string, { type: string; ref: string }> = {};
+      const [claimsRes, viRes] = await Promise.all([
+        supabase
+          .from("staff_expense_claims")
+          .select("id, reimbursed_expense_id, description, staff_profiles(staff_name)")
+          .eq("user_id", user.id)
+          .in("reimbursed_expense_id", ids),
+        supabase
+          .from("vendor_invoices")
+          .select("id, matched_expense_id, invoice_number, vendor_profiles(company_name)")
+          .eq("user_id", user.id)
+          .in("matched_expense_id", ids),
+      ]);
+      (claimsRes.data || []).forEach((c: any) => {
+        if (c.id === reimburseDialog?.id) return; // ignore self
+        if (c.reimbursed_expense_id) {
+          map[c.reimbursed_expense_id] = {
+            type: "claim",
+            ref: `${c.staff_profiles?.staff_name || "ทีมงาน"} — ${(c.description || "").slice(0, 30)}`,
+          };
+        }
+      });
+      (viRes.data || []).forEach((v: any) => {
+        if (v.matched_expense_id && !map[v.matched_expense_id]) {
+          map[v.matched_expense_id] = {
+            type: "vendor",
+            ref: `${v.vendor_profiles?.company_name || "คู่ค้า"} ${v.invoice_number || ""}`.trim(),
+          };
+        }
+      });
+      return map;
+    },
+    enabled: !!user && slipCandidates.length > 0,
+  });
+
+  const linkedConflict = linkExpenseId ? usedExpenseMap[linkExpenseId] : null;
 
   const submittedClaims = claims.filter((c) => c.status === "submitted");
   const approvedClaims = claims.filter((c) => c.status === "approved");
@@ -765,18 +831,37 @@ const StaffReimbursementTab = () => {
                       <Select value={linkExpenseId} onValueChange={(v) => { setLinkExpenseId(v); setSlipFile(null); }}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="เลือกสลิปที่ส่งมาจาก LINE / ระบบ" /></SelectTrigger>
                         <SelectContent>
-                          {slipCandidates.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.expense_date} · {Number(c.amount).toLocaleString()}฿ · {(c.receiver || c.receiver_account_name || c.description || "—").toString().slice(0, 40)}
-                            </SelectItem>
-                          ))}
+                          {slipCandidates.map((c: any) => {
+                            const used = usedExpenseMap[c.id];
+                            return (
+                              <SelectItem key={c.id} value={c.id}>
+                                {used ? "⚠️ " : ""}
+                                {c.expense_date} · {Number(c.amount).toLocaleString()}฿ · {(c.receiver || c.receiver_account_name || c.description || "—").toString().slice(0, 40)}
+                                {used ? `  (ผูกแล้ว: ${used.ref})` : ""}
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
-                      {linkExpenseId && (
+                      {linkExpenseId && !linkedConflict && (
                         <div className="flex items-center gap-2 text-xs">
                           <CheckCircle2 className="h-3 w-3 text-green-600" />
                           <span>จะผูกกับ expense นี้เป็นหลักฐาน (ไม่สร้างรายการซ้ำ)</span>
                           <Button size="sm" variant="ghost" className="h-6 ml-auto" onClick={() => setLinkExpenseId("")}>ยกเลิก</Button>
+                        </div>
+                      )}
+                      {linkExpenseId && linkedConflict && (
+                        <div className="flex items-start gap-2 text-xs rounded-md border border-destructive/40 bg-destructive/10 p-2 text-destructive">
+                          <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <div className="flex-1">
+                            <p className="font-semibold">สลิปนี้ถูกผูกไปแล้ว!</p>
+                            <p className="opacity-80">
+                              {linkedConflict.type === "claim" ? "ใช้กับใบเบิก: " : "ใช้กับบิลคู่ค้า: "}
+                              {linkedConflict.ref}
+                            </p>
+                            <p className="opacity-80">กรุณาเลือกสลิปอื่น หรืออัปโหลดสลิปใหม่</p>
+                          </div>
+                          <Button size="sm" variant="ghost" className="h-6" onClick={() => setLinkExpenseId("")}>ยกเลิก</Button>
                         </div>
                       )}
                     </div>
@@ -830,7 +915,7 @@ const StaffReimbursementTab = () => {
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => { setReimburseDialog(null); setSlipFile(null); setLinkExpenseId(""); }}>ยกเลิก</Button>
-            <Button onClick={() => reimburseMutation.mutate()} disabled={reimburseMutation.isPending}>
+            <Button onClick={() => reimburseMutation.mutate()} disabled={reimburseMutation.isPending || !!linkedConflict}>
               {reimburseMutation.isPending ? "กำลังบันทึก..." : "ยืนยันจ่ายคืน"}
             </Button>
           </DialogFooter>
