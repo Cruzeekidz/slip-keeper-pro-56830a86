@@ -593,6 +593,102 @@ const PaymentQueue = () => {
           </CardContent>
         </Card>
 
+        {/* Vendor invoices / bills */}
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-blue-500" />
+                บิลคู่ค้า / ใบแจ้งหนี้รอจ่าย
+              </p>
+              <Badge variant="secondary">{pendingVendorBills.length} รายการ</Badge>
+            </div>
+            {pendingVendorBills.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingVendorBills.map((b) => {
+                  const net = Number(b.net_amount || b.amount || 0);
+                  const acct = b.vendor_profiles?.bank_account?.replace(/[-\s]/g, "");
+                  return (
+                    <div key={b.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">{b.vendor_profiles?.company_name || "ยังไม่ผูกคู่ค้า"}</span>
+                          <Badge variant={b.status === "approved" ? "default" : "secondary"} className="text-[10px]">
+                            {b.status === "approved" ? "อนุมัติแล้ว · รอจ่าย" : "รออนุมัติ"}
+                          </Badge>
+                          {b.invoice_number && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{b.invoice_number}</span>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{b.description || "—"}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                          <span className="font-semibold text-foreground">{net.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
+                          {b.invoice_date && <span>· {b.invoice_date}</span>}
+                          {b.due_date && <span>· ครบกำหนด {b.due_date}</span>}
+                          {acct && (
+                            <span className="font-mono">· {b.vendor_profiles?.bank_name} {acct}</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        {b.file_url && (
+                          <Button size="icon" variant="ghost" onClick={() => openVendorBillFile(b.file_url)} title="ดูบิล">
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {acct && (
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            title="คัดลอกเลขบัญชี"
+                            onClick={() => {
+                              navigator.clipboard.writeText(acct);
+                              toast({ title: "คัดลอกเลขบัญชีแล้ว", description: acct });
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {b.status === "pending" && (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "approve" })}
+                              disabled={vendorBillActionMutation.isPending}
+                            >
+                              <CheckCircle2 className="h-3 w-3 mr-1" />อนุมัติ
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "reject" })}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" />ปฏิเสธ
+                            </Button>
+                          </>
+                        )}
+                        {b.status === "approved" && (
+                          <Button
+                            size="sm"
+                            onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "paid" })}
+                            disabled={vendorBillActionMutation.isPending}
+                          >
+                            <Banknote className="h-3 w-3 mr-1" />จ่ายแล้ว
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Mark as Paid Dialog */}
         <Dialog open={!!payDialog} onOpenChange={(open) => { if (!open) setPayDialog(null); }}>
           <DialogContent className="max-w-sm">
