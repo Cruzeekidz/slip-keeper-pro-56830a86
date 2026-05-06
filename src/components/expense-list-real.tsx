@@ -133,6 +133,29 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [viewMode, setViewMode] = useState<"card" | "table">("card");
   const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
 
+  // Multi-select / bulk edit state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkFields, setBulkFields] = useState({
+    transaction_type: false,
+    category_group: false,
+    subcategory: false,
+    project_tag: false,
+    event_name: false,
+    merchant: false,
+    payee_group: false,
+  });
+  const [bulkValues, setBulkValues] = useState({
+    transaction_type: "" as TransactionType | "",
+    category_group: "" as CategoryGroup | "",
+    subcategory: "",
+    project_tag: "",
+    event_name: "",
+    merchant: "",
+    payee_group: "",
+  });
+
   // Data queries
   const { data: expenses = [], isLoading } = useQuery({
     queryKey: ['expenses'],
