@@ -212,6 +212,14 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         <p className="text-xs opacity-70 break-all max-w-md">{receipt.receipt_url}</p>
                         <Button
                           size="sm"
+                          variant="outline"
+                          onClick={handleRetryCurrent}
+                          className="bg-white/10 border-white/30 text-white hover:bg-white/20"
+                        >
+                          โหลดภาพใหม่
+                        </Button>
+                        <Button
+                          size="sm"
                           variant="secondary"
                           onClick={handleDownload}
                         >
@@ -219,21 +227,24 @@ export function ReceiptGallery({ receipts, initialIndex, open, onOpenChange }: R
                         </Button>
                       </div>
                     ) : url ? (
-                      <img
-                        src={url}
-                        alt={receipt.description || 'Receipt'}
-                        className="max-w-full max-h-full object-contain select-none animate-fade-in"
-                        style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
-                        draggable={false}
-                        onError={() => {
-                          console.error('Image failed to load:', receipt.receipt_url);
-                          setErrorIds((prev) => {
-                            const next = new Set(prev);
-                            next.add(receipt.id);
-                            return next;
-                          });
-                        }}
-                      />
+                      <div className="w-full h-full overflow-auto flex items-center justify-center bg-background rounded-sm">
+                        <img
+                          key={url}
+                          src={url}
+                          alt={receipt.description || 'Receipt'}
+                          className="block max-w-full max-h-full object-contain select-none animate-fade-in"
+                          style={{ transform: `scale(${zoom})`, transformOrigin: 'center center', transition: 'transform 0.2s ease-out' }}
+                          draggable={false}
+                          onError={() => {
+                            console.error('Image failed to load:', receipt.receipt_url);
+                            setErrorIds((prev) => {
+                              const next = new Set(prev);
+                              next.add(receipt.id);
+                              return next;
+                            });
+                          }}
+                        />
+                      </div>
                     ) : (
                       <div className="flex items-center justify-center text-white">
                         <div className="text-center">
