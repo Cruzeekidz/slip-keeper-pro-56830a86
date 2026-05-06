@@ -54,6 +54,8 @@ const StaffPayments = () => {
   const { isAdmin, isSuperAdmin } = useUserRole();
   const canReopen = isAdmin || isSuperAdmin;
   const [filterStatus, setFilterStatus] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterEvent, setFilterEvent] = useState("all");
   const [reopenDialog, setReopenDialog] = useState<any | null>(null);
   const [historyDialog, setHistoryDialog] = useState<any | null>(null);
   const [bonusDialog, setBonusDialog] = useState<{ id: string; current: number } | null>(null);
@@ -725,7 +727,20 @@ const StaffPayments = () => {
   const createWht = createForm.wht_mode === "none" ? 0 : Math.round(createGross * 0.03 * 100) / 100;
   const createNet = createGross - createWht;
 
-  const filtered = filterStatus === "all" ? invoices : invoices.filter((i: any) => i.status === filterStatus);
+  const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const invoiceMonthOf = (i: any): string | null => {
+    const raw = i.work_start_date || i.work_end_date || i.paid_at || i.submitted_at || i.created_at;
+    if (!raw) return null;
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  };
+  const uniqueMonths = Array.from(new Set((invoices as any[]).map(invoiceMonthOf).filter(Boolean) as string[])).sort().reverse();
+  const uniqueEvents = Array.from(new Set((invoices as any[]).map((i) => i.event_name).filter(Boolean) as string[])).sort();
+
+  let filtered = filterStatus === "all" ? invoices : (invoices as any[]).filter((i: any) => i.status === filterStatus);
+  if (filterMonth !== "all") filtered = (filtered as any[]).filter((i: any) => invoiceMonthOf(i) === filterMonth);
+  if (filterEvent !== "all") filtered = (filtered as any[]).filter((i: any) => i.event_name === filterEvent);
 
   const totalGross = filtered.reduce((sum: number, i: any) => sum + Number(i.gross_amount), 0);
   const totalWht = filtered.reduce((sum: number, i: any) => sum + Number(i.wht_amount), 0);
@@ -798,7 +813,7 @@ const StaffPayments = () => {
         </div>
 
         {/* Filter */}
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
           <span className="text-sm text-muted-foreground">สถานะ:</span>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-40">
@@ -813,6 +828,28 @@ const StaffPayments = () => {
               <SelectItem value="rejected">ปฏิเสธ</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="เดือน" /></SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="all">ทุกเดือน</SelectItem>
+              {uniqueMonths.map((ym) => {
+                const [y, m] = ym.split("-");
+                return <SelectItem key={ym} value={ym}>{`${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`}</SelectItem>;
+              })}
+            </SelectContent>
+          </Select>
+          <Select value={filterEvent} onValueChange={setFilterEvent}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
+            <SelectContent className="max-h-64">
+              <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+              {uniqueEvents.map((ev) => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {(filterStatus !== "all" || filterMonth !== "all" || filterEvent !== "all") && (
+            <Button variant="ghost" size="sm" onClick={() => { setFilterStatus("all"); setFilterMonth("all"); setFilterEvent("all"); }}>
+              ล้าง
+            </Button>
+          )}
           <span className="text-sm text-muted-foreground ml-auto">{filtered.length} รายการ</span>
         </div>
 

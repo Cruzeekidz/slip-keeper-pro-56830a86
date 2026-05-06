@@ -122,6 +122,8 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterReview, setFilterReview] = useState("all");
   const [filterSender, setFilterSender] = useState("all");
   const [filterReceiver, setFilterReceiver] = useState("all");
+  const [filterMonth, setFilterMonth] = useState("all");
+  const [filterEvent, setFilterEvent] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
@@ -255,6 +257,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
   const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
 
+  const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+  const uniqueMonths = useMemo(() => {
+    const set = new Set<string>();
+    expenses.forEach(e => {
+      if (!e.expense_date) return;
+      const d = new Date(e.expense_date);
+      if (isNaN(d.getTime())) return;
+      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    });
+    return Array.from(set).sort().reverse();
+  }, [expenses]);
+  const uniqueEvents = useMemo(
+    () => Array.from(new Set(expenses.map(e => e.event_name).filter(Boolean) as string[])).sort(),
+    [expenses]
+  );
+
   // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
     const whtItems = expenses.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && !e.settled_batch_id);
@@ -310,6 +328,15 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
     if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+    if (filterMonth !== "all") {
+      filtered = filtered.filter(e => {
+        if (!e.expense_date) return false;
+        const d = new Date(e.expense_date);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        return ym === filterMonth;
+      });
+    }
+    if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
     if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
     if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
 
@@ -318,7 +345,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
@@ -584,6 +611,24 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             {uniqueReceivers.map(r => <SelectItem key={r!} value={r!}>{r}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterMonth} onValueChange={setFilterMonth}>
+          <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ทุกเดือน</SelectItem>
+            {uniqueMonths.map(ym => {
+              const [y, m] = ym.split("-");
+              const label = `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+              return <SelectItem key={ym} value={ym}>{label}</SelectItem>;
+            })}
+          </SelectContent>
+        </Select>
+        <Select value={filterEvent} onValueChange={setFilterEvent}>
+          <SelectTrigger><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+            {uniqueEvents.map(ev => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Sort & Date Filter */}
@@ -612,9 +657,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </div>
           </PopoverContent>
         </Popover>
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || filterMonth !== "all" || filterEvent !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setFilterMonth("all"); setFilterEvent("all"); setDateFrom(undefined); setDateTo(undefined);
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
