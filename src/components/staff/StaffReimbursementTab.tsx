@@ -417,6 +417,40 @@ const StaffReimbursementTab = () => {
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
 
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(""), 1500);
+      toast({ title: "คัดลอกแล้ว" });
+    } catch {}
+  };
+
+  // ★ Candidate slips: recent unmatched expenses with similar amount (e.g. from LINE)
+  const { data: slipCandidates = [] } = useQuery({
+    queryKey: ["reimburse-slip-candidates", reimburseDialog?.id, reimburseDialog?.amount, reimburseDialog?.staff_id],
+    queryFn: async () => {
+      if (!user || !reimburseDialog) return [];
+      const amt = Number(reimburseDialog.amount);
+      const from = new Date();
+      from.setDate(from.getDate() - 30);
+      const { data, error } = await supabase
+        .from("expenses")
+        .select("id, expense_date, amount, receiver, receiver_account_name, description, receipt_url, staff_name, sender")
+        .eq("user_id", user.id)
+        .eq("transaction_direction", "EXPENSE")
+        .gte("amount", amt - 0.01)
+        .lte("amount", amt + 0.01)
+        .gte("expense_date", from.toISOString().split("T")[0])
+        .not("receipt_url", "is", null)
+        .order("expense_date", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user && !!reimburseDialog,
+  });
+
   const submittedClaims = claims.filter((c) => c.status === "submitted");
   const approvedClaims = claims.filter((c) => c.status === "approved");
   const reimbursedClaims = claims.filter((c) => c.status === "reimbursed");
