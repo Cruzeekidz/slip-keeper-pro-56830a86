@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 const docTypeMap: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -45,6 +45,8 @@ const VendorManagement = () => {
   const [docTypeFilter, setDocTypeFilter] = useState("all");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [previewBucket, setPreviewBucket] = useState<string>("documents");
 
   const { data: vendors = [], isLoading: vendorsLoading } = useVendorProfiles();
   const { data: invoices = [], isLoading: invoicesLoading } = useVendorInvoices();
@@ -76,12 +78,48 @@ const VendorManagement = () => {
     });
   };
 
+  // Files may live in either `documents` or `receipts` bucket depending on
+  // upload source (admin attach -> documents, LINE bot / portal -> receipts).
+  // Try documents first, fall back to receipts.
   const viewFile = async (filePath: string) => {
-    const { data } = await supabase.storage.from("documents").createSignedUrl(filePath, 3600);
-    if (data?.signedUrl) {
-      setPreviewUrl(data.signedUrl);
-      setPreviewOpen(true);
+    let bucket = "documents";
+    let signed = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
+    if (!signed.data?.signedUrl) {
+      bucket = "receipts";
+      signed = await supabase.storage.from(bucket).createSignedUrl(filePath, 3600);
     }
+    if (signed.data?.signedUrl) {
+      setPreviewUrl(signed.data.signedUrl);
+      setPreviewPath(filePath);
+      setPreviewBucket(bucket);
+      setPreviewOpen(true);
+    } else {
+      toast({ title: "เปิดไฟล์ไม่ได้", description: `ไม่พบไฟล์: ${filePath}`, variant: "destructive" });
+    }
+  };
+
+  const downloadFile = async () => {
+    if (!previewUrl || !previewPath) return;
+    const a = document.createElement("a");
+    a.href = previewUrl;
+    a.download = previewPath.split("/").pop() || "bill";
+    a.target = "_blank";
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
+  const copyShareLink = () => {
+    if (!previewUrl) return;
+    navigator.clipboard.writeText(previewUrl);
+    toast({ title: "คัดลอกลิงก์แล้ว", description: "ลิงก์มีอายุ 1 ชม. — ส่งให้บัญชีได้ทันที" });
+  };
+
+  const copyFilePath = () => {
+    if (!previewPath) return;
+    navigator.clipboard.writeText(`${previewBucket}/${previewPath}`);
+    toast({ title: "คัดลอก path แล้ว", description: `${previewBucket}/${previewPath}` });
   };
 
   const unlinkedCount = invoices.filter((i) => !i.vendor_id).length;
