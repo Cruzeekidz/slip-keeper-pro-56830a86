@@ -9,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { getEntityFolder } from "@/lib/storage-path";
+import { downloadReceiptFile } from "@/lib/receipt-file";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +74,7 @@ const ReceiptArchive = () => {
 
   // Preview
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewIsPdf, setPreviewIsPdf] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
@@ -175,10 +177,7 @@ const ReceiptArchive = () => {
           let success = false;
           for (let attempt = 0; attempt < 3 && !success && !cancelled; attempt++) {
             try {
-              const { data, error } = await supabase.storage
-                .from("receipts")
-                .download(f.receipt_url);
-              if (error || !data) throw error || new Error("no data");
+              const data = await downloadReceiptFile(f.receipt_url);
               const objUrl = URL.createObjectURL(data);
               objectUrlsRef.current.push(objUrl);
               map.set(f.receipt_url, objUrl);
@@ -249,9 +248,7 @@ const ReceiptArchive = () => {
 
   const handleDownload = async (receipt: ReceiptRow) => {
     try {
-      const { data, error } = await supabase.storage.from("receipts").download(receipt.receipt_url);
-      if (error) throw error;
-
+      const data = await downloadReceiptFile(receipt.receipt_url);
       const url = URL.createObjectURL(data);
       const ext = receipt.receipt_url.endsWith(".pdf") ? "pdf" : "jpg";
       const link = document.createElement("a");
@@ -288,10 +285,7 @@ const ReceiptArchive = () => {
         let ok = false;
         for (let attempt = 0; attempt < 3 && !ok; attempt++) {
           try {
-            const { data, error } = await supabase.storage
-              .from("receipts")
-              .download(f.receipt_url);
-            if (error || !data) throw error || new Error("no data");
+            const data = await downloadReceiptFile(f.receipt_url);
             const ext = f.receipt_url.toLowerCase().endsWith(".pdf") ? "pdf" : "jpg";
             const safeDesc = (f.description || "slip").replace(/[^\u0E00-\u0E7F\w\-]+/g, "_").slice(0, 40);
             let baseName = `${f.expense_date}_${Math.round(f.amount)}_${safeDesc}.${ext}`;
