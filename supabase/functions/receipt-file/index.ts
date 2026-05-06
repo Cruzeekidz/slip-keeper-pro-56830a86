@@ -59,6 +59,7 @@ serve(async (req) => {
       .select("id, expense_date, amount, description, receipt_url")
       .eq("user_id", userData.user.id)
       .eq("receipt_url", path)
+      .limit(1)
       .maybeSingle();
 
     if (receiptError) throw receiptError;
