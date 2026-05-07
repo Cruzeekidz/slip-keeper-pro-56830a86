@@ -240,7 +240,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
               </p>
             </div>
           )}
-          <Button type="submit" disabled={submitting || !lineUserId} className="w-full">
+          <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? "กำลังเชื่อม..." : "เชื่อม LINE"}
           </Button>
           {!lineUserId && (
