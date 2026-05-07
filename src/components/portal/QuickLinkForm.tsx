@@ -56,14 +56,6 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       toast({ title: "ลิงก์ไม่ถูกต้อง", variant: "destructive" });
       return;
     }
-    if (!lineUserId) {
-      toast({
-        title: "กรุณาเปิดหน้านี้ผ่าน LINE",
-        description: "ฟังก์ชันนี้ต้องเข้าถึงผ่านปุ่มใน Rich Menu ของบอท LINE เท่านั้น",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!phone && !taxId) {
       toast({ title: "กรุณากรอกเบอร์โทรหรือเลขผู้เสียภาษี", variant: "destructive" });
       return;
@@ -98,7 +90,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
         const { data } = await supabase.rpc("link_staff_line_id", {
           p_owner: ownerId,
           p_phone: phone,
-          p_line_user_id: lineUserId,
+          p_line_user_id: lineUserId || "",
         });
         const status = (data as any)?.status;
         if (status === "linked" || status === "already_linked") {
@@ -112,6 +104,15 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
           setSubmitting(false);
           return;
         }
+        if (status === "needs_line_login") {
+          toast({
+            title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+            description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+            variant: "destructive",
+          });
+          setSubmitting(false);
+          return;
+        }
         if (status !== "not_found" && status !== "invalid_phone") foundAny = true;
       }
 
@@ -120,7 +121,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
         p_owner: ownerId,
         p_phone: phone,
         p_tax_id: taxId,
-        p_line_user_id: lineUserId,
+        p_line_user_id: lineUserId || "",
       });
       const vStatus = (vendorData as any)?.status;
       if (vStatus === "linked" || vStatus === "already_linked") {
@@ -131,6 +132,15 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       }
       if (vStatus === "multiple") {
         setCandidates({ kind: "vendor", list: (vendorData as any).candidates || [] });
+        setSubmitting(false);
+        return;
+      }
+      if (vStatus === "needs_line_login") {
+        toast({
+          title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+          description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+          variant: "destructive",
+        });
         setSubmitting(false);
         return;
       }
