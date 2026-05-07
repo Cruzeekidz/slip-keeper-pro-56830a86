@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 
-// LIFF ID - ต้องตั้งค่าใน LINE Developers Console
-// ให้เปลี่ยนค่านี้เป็น LIFF ID จริงของคุณ
-const LIFF_ID = import.meta.env.VITE_LIFF_ID || "";
+// LIFF ID is public (not a secret). Keep a fallback so the published portal can
+// still identify LINE users even when the env value is not injected.
+const LIFF_ID = import.meta.env.VITE_LIFF_ID || "2008893199-xaJITz5y";
 
 interface LiffProfile {
   userId: string;
@@ -27,7 +27,13 @@ export const useLiff = () => {
         const liff = (await import("@line/liff")).default;
         await liff.init({ liffId: LIFF_ID });
 
-        setIsInLineApp(liff.isInClient());
+        const inLineClient = liff.isInClient();
+        setIsInLineApp(inLineClient);
+
+        if (!liff.isLoggedIn() && inLineClient) {
+          liff.login({ redirectUri: window.location.href });
+          return;
+        }
 
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
