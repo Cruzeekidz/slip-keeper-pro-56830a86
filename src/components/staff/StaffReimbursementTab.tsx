@@ -770,6 +770,20 @@ const StaffReimbursementTab = () => {
                     </Select>
                   </div>
                   <div>
+                    <Label>กลุ่มค่าใช้จ่าย *</Label>
+                    <Select value={linkForm.category_group} onValueChange={(v) => setLinkForm((p) => ({ ...p, category_group: v as CategoryGroup }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CATEGORY_GROUPS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">เช่น "ทั่วไป" สำหรับค่ากองทุนเงินทดแทน, "อีเวนท์" สำหรับงานอีเวนท์</p>
+                  </div>
+                  <div>
+                    <Label>แท็กโปรเจ็ค (ถ้ามี)</Label>
+                    <Input value={linkForm.project_tag} onChange={(e) => setLinkForm((p) => ({ ...p, project_tag: e.target.value }))} placeholder="เช่น EVT-Rockstar3" />
+                  </div>
+                  <div>
                     <Label>อีเวนท์ที่เกี่ยวข้อง</Label>
                     <Input value={linkForm.event_name} onChange={(e) => setLinkForm((p) => ({ ...p, event_name: e.target.value }))} placeholder="ไม่บังคับ" />
                   </div>
