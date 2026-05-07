@@ -300,7 +300,21 @@ serve(async (req) => {
       const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (match) {
         const ocrYear = parseInt(match[1], 10);
-        if (Math.abs(ocrYear - currentYear) > 1) {
+        const ocrDay = parseInt(match[3], 10);
+        // Detect DD/YY swap: e.g. "23/04/26" misread as 2023-04-26 (year=2023, day=23) when current year is 2026
+        if (ocrYear < currentYear - 1 && ocrDay >= 20 && ocrDay <= 31) {
+          const candidateYear = 2000 + ocrDay;
+          const candidateDay = ocrYear % 100;
+          if (Math.abs(candidateYear - currentYear) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
+            const fixed = `${candidateYear}-${match[2]}-${String(candidateDay).padStart(2, '0')}`;
+            console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
+            extractedData.date = fixed;
+            extractedData.needs_review = true;
+            if (extractedData.confidence_score && extractedData.confidence_score > 60) {
+              extractedData.confidence_score = 60;
+            }
+          }
+        } else if (Math.abs(ocrYear - currentYear) > 1) {
           console.warn(`OCR year mismatch: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
           extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
           extractedData.needs_review = true;
