@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft, BarChart3, FileText, Wallet, Banknote, FolderOpen, AlertTriangle, History,
-  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare,
+  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare, CalendarClock,
 } from "lucide-react";
 
 interface ToolItem {
@@ -51,6 +51,7 @@ const AdminTools = () => {
       items: [
         { label: "ประวัติการลบ", icon: History, onClick: () => navigate("/deleted-history") },
         { label: "ตรวจสอบรายการซ้ำ", icon: AlertTriangle, onClick: () => navigate("/duplicate-checker") },
+        { label: "แก้วันที่อัตโนมัติ (DD/YY สลับ)", icon: CalendarClock, onClick: () => navigate("/fix-swapped-dates") },
       ],
     },
     {
