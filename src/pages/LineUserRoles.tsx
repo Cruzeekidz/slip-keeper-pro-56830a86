@@ -16,7 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
 interface LineUserRole {
@@ -50,6 +51,7 @@ const LineUserRoles = () => {
   const [fetching, setFetching] = useState(true);
   const [options, setOptions] = useState<LinkOption[]>([]);
   const [openPopoverId, setOpenPopoverId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!loading && !user) navigate("/auth");
@@ -260,36 +262,49 @@ const LineUserRoles = () => {
                     }
                     const popoverOpen = openPopoverId === r.id;
                     const available = options.filter(o => !o.line_user_id);
+                    const filtered = search.trim()
+                      ? available.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+                      : available;
                     return (
-                      <Popover open={popoverOpen} onOpenChange={(o) => setOpenPopoverId(o ? r.id : null)}>
+                      <Popover open={popoverOpen} onOpenChange={(o) => { setOpenPopoverId(o ? r.id : null); if (!o) setSearch(""); }}>
                         <PopoverTrigger asChild>
                           <Button size="sm" variant="outline" className="h-7 text-xs">
                             <Link2 className="h-3 w-3 mr-1" /> เลือกทีมงาน/คู่ค้า
                             <ChevronsUpDown className="h-3 w-3 ml-1 opacity-50" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-[300px] p-0" align="start">
-                          <Command>
-                            <CommandInput placeholder="ค้นหาชื่อ..." />
-                            <CommandList>
-                              <CommandEmpty>ไม่พบ</CommandEmpty>
-                              <CommandGroup>
-                                {available.map(opt => (
-                                  <CommandItem
+                        <PopoverContent className="w-[300px] p-2" align="start">
+                          <Input
+                            autoFocus
+                            placeholder="ค้นหาชื่อ..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="h-8 mb-2"
+                          />
+                          <ScrollArea className="max-h-[260px]">
+                            {filtered.length === 0 ? (
+                              <p className="text-xs text-muted-foreground p-3 text-center">
+                                {available.length === 0 ? 'ไม่มีทีมงาน/คู่ค้าที่ยังไม่ผูก' : 'ไม่พบ'}
+                              </p>
+                            ) : (
+                              <div className="space-y-1">
+                                {filtered.map(opt => (
+                                  <button
                                     key={`${opt.kind}-${opt.id}`}
-                                    value={`${opt.label} ${opt.sublabel}`}
-                                    onSelect={() => handleLink(r.line_user_id, opt)}
+                                    type="button"
+                                    onClick={() => handleLink(r.line_user_id, opt)}
+                                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-muted text-left"
                                   >
                                     {opt.kind === 'staff'
-                                      ? <UserCheck className="h-3 w-3 mr-2 text-primary" />
-                                      : <Users className="h-3 w-3 mr-2 text-muted-foreground" />}
+                                      ? <UserCheck className="h-3 w-3 text-primary shrink-0" />
+                                      : <Users className="h-3 w-3 text-muted-foreground shrink-0" />}
                                     <span className="flex-1 truncate">{opt.label}</span>
-                                    <span className="text-xs text-muted-foreground ml-2">{opt.sublabel}</span>
-                                  </CommandItem>
+                                    <span className="text-xs text-muted-foreground ml-2 shrink-0">{opt.sublabel}</span>
+                                  </button>
                                 ))}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
+                              </div>
+                            )}
+                          </ScrollArea>
                         </PopoverContent>
                       </Popover>
                     );
