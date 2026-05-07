@@ -1,58 +1,51 @@
-# ปรับหน้าหลักให้เป็นมืออาชีพและลื่นบนมือถือ
+## เป้าหมาย
+1. ให้รายการ "เบิกคืนพนักงาน" บันทึกเข้า `expenses` พร้อม `category_group` ที่ถูกต้อง (ไม่ hardcode `EVENT`) + ส่ง VAT/WHT อัตโนมัติ
+2. เพิ่มหน้าสรุปแยก "ค่าใช้จ่ายบริษัท (ตรง)" vs "เบิกคืนทีมงาน" ตามหมวด/ร้าน/โปรเจ็ค
 
-## ปัญหาปัจจุบัน
-- หน้า `/` (Index) โหลด **ทุกรายการ** (`fetchAllExpenses` วนทีละ 1000 จนหมด) → มือถือหน่วง
-- โหลด `EventAnalysis` (515 บรรทัด) ฝังอยู่ในหน้าหลัก → หน้าจอเด้งตอนเรนเดอร์เสร็จ
-- ตัวกรอง/Tabs/ปุ่มแถวยาว เปิดค้างอยู่ → กินพื้นที่จอ
+---
 
-## สิ่งที่จะทำ
+## 1. Schema migration
+เพิ่มฟิลด์ใน `staff_expense_claims` เพื่อเก็บ context การลงบัญชี:
+- `category_group text` (เช่น `EVENT`, `GENERAL`, `ENTITY_BCC_NEXT`, `VENUE`...)
+- `project_tag text`
+- `vat_amount numeric default 0`, `vat_rate numeric default 0`
+- `wht_amount numeric default 0`, `wht_rate numeric default 0`
 
-### 1. ย้าย P&L อีเวนท์ออกจากหน้าหลัก
-- ลบ `<EventAnalysis recentOnly />` ออกจาก `src/pages/Index.tsx`
-- เพิ่มปุ่ม **"P&L อีเวนท์"** ในแถบเมนูบน header → ลิงก์ไปหน้าใหม่ `/event-analysis`
-- สร้าง `src/pages/EventAnalysisPage.tsx` ที่ห่อ `<EventAnalysis />` พร้อม header + ปุ่มย้อนกลับ
-- เพิ่ม route ใน `src/App.tsx`
+(`vendor_invoices` มี vat/wht อยู่แล้ว — จะดึงค่าจากบิลถ้าผูก)
 
-### 2. โหลดรายการเคลื่อนไหวแบบจำกัด (Pagination จากเซิร์ฟเวอร์)
-- แก้ `fetchAllExpenses` ใน `expense-list-real.tsx` → รับ `{ limit, offset, monthFilter }`
-- ค่าเริ่มต้น: **โหลด 1 เดือนล่าสุด** (filter `expense_date >= first day of current month`)
-- เพิ่มตัวเลือกที่ส่วนหัวรายการ: `1 เดือน / 3 เดือน / 6 เดือน / ทั้งหมด` + page size `50 / 100 / 200`
-- ปุ่ม **"โหลดเพิ่ม"** (load-more) ที่ท้ายตาราง — append ผลลัพธ์ใน React Query infinite cache (ใช้ `useInfiniteQuery`)
-- เก็บการนับรวม (count) แสดง "แสดง X จาก Y รายการ"
+---
 
-### 3. ซ่อน/ยุบตัวกรองโดยปริยาย (โดยเฉพาะมือถือ)
-- ห่อบล็อกตัวกรอง (search, entity tabs, type, category, project, date range) ด้วย `<Collapsible>` 
-- ค่าเริ่มต้น: **ปิด** บนมือถือ (`useIsMobile`), เปิดบน desktop
-- มีปุ่ม `[🔍 ตัวกรอง (n)]` แสดงจำนวนตัวกรองที่ active — กดเพื่อ toggle
-- คงแถบ Entity tabs ที่ใช้บ่อยให้เห็นเสมอ (compact pill row)
+## 2. ฟอร์มเบิก/ผูกบิล (`StaffReimbursementTab.tsx` + `ExpenseClaimSection.tsx`)
+- ใน dialog "ผูกบิลกับใบเบิก" และฟอร์มสร้าง claim: เพิ่ม dropdown "กลุ่มค่าใช้จ่าย" (ใช้ `CATEGORY_GROUPS`) + ช่อง project tag (เลือกตามกลุ่ม)
+- Default logic: ถ้ามี `event_name` → `EVENT`; ไม่มี → `GENERAL`
+- ถ้าผูกจาก `vendor_invoices` ที่มี vat/wht อยู่แล้ว → prefill ลง claim
 
-### 4. ลดการเด้ง/Layout shift
-- เพิ่ม `min-height` ให้ Suspense fallback ของ `ExpenseListReal` (`min-h-[60vh]`) → เนื้อหาขึ้นมาแล้วไม่ดันหน้า
-- เพิ่ม skeleton สูงคงที่แทนข้อความ "กำลังโหลด..."
-- ใส่ `min-h` ให้ `MonthlyQuickStats` กันการกระโดด
-- ปิด `shouldScaleBackground` ของ Drawer ที่อาจทำให้ scroll สั่น (ตรวจหน้า edit dialog)
+## 3. การจ่ายคืน → สร้าง expense (`reimburseMutation`)
+แก้ insert ให้ใช้ค่าจาก claim:
+```ts
+category_group: claim.category_group ?? (claim.event_name ? "EVENT" : "GENERAL"),
+project_tag: claim.project_tag ?? null,
+vat_amount: claim.vat_amount, vat_rate: claim.vat_rate,
+wht_amount: claim.wht_amount, wht_rate: claim.wht_rate,
+amount_input_mode: "gross",
+```
+(ลบ `category_group: "EVENT"` hardcoded)
 
-### 5. ดีไซน์ระดับมืออาชีพ (ปรับเล็ก-ไม่รื้อ)
-- Header ส่วนปุ่มยาว → ย้ายปุ่ม `สรุปภาพรวม / รอจ่ายเงิน / P&L อีเวนท์ / CSV / ออก` เข้า dropdown "เครื่องมือ" เดียว บนมือถือ
-- เก็บไว้ที่ header เฉพาะ: `[เพิ่มรายการ]` + `[≡ เมนู]` (แบบแอปธนาคาร)
-- เพิ่ม **bottom sticky bar** บนมือถือ (FAB style): ปุ่ม `เพิ่มรายการ` + `กรอง` ลอยมุมขวาล่าง — ใช้งานด้วยนิ้วโป้งสะดวก
-- การ์ดรายการบนมือถือใช้ layout 2 บรรทัด: บรรทัดบน = วันที่ + จำนวนเงิน (เด่น), บรรทัดล่าง = ผู้รับ + ประเภท (badge สี)
+## 4. หน้าสรุปใหม่ `/reimbursement-summary`
+ไฟล์ใหม่ `src/pages/ReimbursementSummary.tsx` + เพิ่ม route ใน `App.tsx` + ลิงก์เข้าจาก Dashboard
 
-## ไฟล์ที่จะแก้
-- `src/pages/Index.tsx` — ลบ EventAnalysis, ย่อแถวปุ่ม, เพิ่ม min-h ใน Suspense
-- `src/pages/EventAnalysisPage.tsx` — สร้างใหม่
-- `src/App.tsx` — เพิ่ม route `/event-analysis`
-- `src/components/expense-list-real.tsx` — เปลี่ยน fetch เป็น infinite query + month filter, ห่อ filters ใน Collapsible, sticky bottom bar มือถือ, skeleton min-h
-- `src/components/monthly-quick-stats.tsx` — ใส่ min-h กันเด้ง
+UI:
+- Filter ช่วงเวลา (preset เหมือน `ProjectSummary`)
+- ตาราง 2 ฝั่งเทียบกัน: 
+  - **ค่าใช้จ่ายบริษัทตรง** = `expenses` ที่ `transaction_type='BUSINESS'` AND `subcategory != 'เบิกคืนทีมงาน'`
+  - **เบิกคืนทีมงาน** = `subcategory = 'เบิกคืนทีมงาน'`
+- กลุ่มตาม `category_group` (แถวหลัก) → drill-down เป็น merchant/receiver และ `project_tag`
+- แสดงคอลัมน์: จำนวนรายการ, ยอด Gross, VAT, WHT, Net
+- Drill-down คลิกแถว → modal list รายการละเอียด (ลิงก์ไปหน้า edit)
 
-## รายละเอียดเทคนิค
-- ใช้ `useInfiniteQuery` ของ TanStack Query — `getNextPageParam` ตามจำนวน rows ที่ได้รับ
-- Query key: `['expenses', { range, pageSize }]` เพื่อ cache แยกตามตัวเลือก
-- Default range = `>= startOfMonth(new Date())` ใช้ `date-fns`
-- Mobile detection: `useIsMobile()` (มีอยู่แล้ว) ใช้ตัดสินใจ default `open` ของ Collapsible
-- ไม่แตะ realtime hook ปัจจุบัน (`useExpensesRealtime`) — invalidate query เดิมยังใช้ได้
+---
 
-## สิ่งที่จะ**ไม่**ทำในแผนนี้
-- ไม่รื้อโครงสีหรือ theme
-- ไม่ย้ายเมนูอื่น (StaffPayments, VendorManagement)
-- ไม่แตะ schema ฐานข้อมูล
+## ส่วนที่ไม่แตะ
+- `TaxFieldsSection.tsx` ใช้งานต่อ (อาจ embed ลงใน Claim form ภายหลัง — เริ่มต้นใช้ input เลขตรง ๆ สำหรับ VAT/WHT จากบิลก่อน เพื่อให้สโคปไม่บานปลาย)
+
+ผลลัพธ์: ค่ากองทุนเงินทดแทน/ค่าเดินทางทั่วไปจะลง `GENERAL` ถูกต้อง, มี VAT/WHT ครบ, และแยกดูได้ชัดในหน้าสรุปใหม่

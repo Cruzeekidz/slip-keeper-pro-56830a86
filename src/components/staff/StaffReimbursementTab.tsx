@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Link2, Receipt, Wallet, FileText, ExternalLink, CheckCircle2, AlertCircle, X, Building2, Copy, Upload, Image as ImageIcon, AlertTriangle } from "lucide-react";
+import { CATEGORY_GROUPS, type CategoryGroup } from "@/lib/category-constants";
 import { buildUploadPath } from "@/lib/storage-path";
 import {
   AlertDialog,
@@ -58,6 +59,9 @@ interface VendorInvoice {
   link_type: string;
   linked_staff_id: string | null;
   created_at: string;
+  vat_amount?: number | null;
+  wht_amount?: number | null;
+  net_amount?: number | null;
 }
 
 interface StaffClaim {
@@ -74,6 +78,12 @@ interface StaffClaim {
   reimbursed_at: string | null;
   reimbursed_expense_id: string | null;
   notes: string | null;
+  category_group?: string | null;
+  project_tag?: string | null;
+  vat_amount?: number | null;
+  vat_rate?: number | null;
+  wht_amount?: number | null;
+  wht_rate?: number | null;
   staff_profiles?: {
     staff_name: string;
     nickname: string | null;
@@ -95,6 +105,8 @@ const StaffReimbursementTab = () => {
     category: string;
     event_name: string;
     notes: string;
+    category_group: CategoryGroup;
+    project_tag: string;
   }>({
     staff_id: "",
     mode: "new",
@@ -102,6 +114,8 @@ const StaffReimbursementTab = () => {
     category: "ค่าเดินทาง/น้ำมัน",
     event_name: "",
     notes: "",
+    category_group: "GENERAL",
+    project_tag: "",
   });
 
   const [reimburseDialog, setReimburseDialog] = useState<StaffClaim | null>(null);
@@ -125,7 +139,7 @@ const StaffReimbursementTab = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, invoice_date, amount, description, file_url, vendor_id, link_type, linked_staff_id, created_at")
+        .select("id, invoice_number, invoice_date, amount, description, file_url, vendor_id, link_type, linked_staff_id, created_at, vat_amount, wht_amount, net_amount")
         .is("vendor_id", null)
         .is("linked_staff_id", null)
         .neq("link_type", "vendor_only")
@@ -237,6 +251,8 @@ const StaffReimbursementTab = () => {
       category: "ค่าเดินทาง/น้ำมัน",
       event_name: "",
       notes: bill.description || "",
+      category_group: "GENERAL",
+      project_tag: "",
     });
   };
 
@@ -263,6 +279,14 @@ const StaffReimbursementTab = () => {
             vendor_invoice_id: linkBillDialog.id,
             status: "approved",
             notes: linkForm.notes || null,
+            category_group: linkForm.category_group,
+            project_tag: linkForm.project_tag || null,
+            vat_amount: Number(linkBillDialog.vat_amount || 0),
+            vat_rate: Number(linkBillDialog.vat_amount || 0) > 0 ? 7 : 0,
+            wht_amount: Number(linkBillDialog.wht_amount || 0),
+            wht_rate: Number(linkBillDialog.wht_amount || 0) > 0 && Number(linkBillDialog.amount) > 0
+              ? Math.round((Number(linkBillDialog.wht_amount) / Number(linkBillDialog.amount)) * 1000) / 10
+              : 0,
           })
           .select("id")
           .single();
@@ -385,7 +409,13 @@ const StaffReimbursementTab = () => {
           amount: Number(claim.amount),
           category: claim.category,
           subcategory: "เบิกคืนทีมงาน",
-          category_group: "EVENT",
+          category_group: claim.category_group ?? (claim.event_name ? "EVENT" : "GENERAL"),
+          project_tag: claim.project_tag ?? null,
+          vat_amount: Number(claim.vat_amount || 0),
+          vat_rate: Number(claim.vat_rate || 0),
+          wht_amount: Number(claim.wht_amount || 0),
+          wht_rate: Number(claim.wht_rate || 0),
+          amount_input_mode: "gross",
           transaction_type: "BUSINESS",
           transaction_direction: "EXPENSE",
           description: `เบิกคืน ${staffName} — ${claim.description}`,
@@ -738,6 +768,20 @@ const StaffReimbursementTab = () => {
                         {REIMBURSE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div>
+                    <Label>กลุ่มค่าใช้จ่าย *</Label>
+                    <Select value={linkForm.category_group} onValueChange={(v) => setLinkForm((p) => ({ ...p, category_group: v as CategoryGroup }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {CATEGORY_GROUPS.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">เช่น "ทั่วไป" สำหรับค่ากองทุนเงินทดแทน, "อีเวนท์" สำหรับงานอีเวนท์</p>
+                  </div>
+                  <div>
+                    <Label>แท็กโปรเจ็ค (ถ้ามี)</Label>
+                    <Input value={linkForm.project_tag} onChange={(e) => setLinkForm((p) => ({ ...p, project_tag: e.target.value }))} placeholder="เช่น EVT-Rockstar3" />
                   </div>
                   <div>
                     <Label>อีเวนท์ที่เกี่ยวข้อง</Label>
