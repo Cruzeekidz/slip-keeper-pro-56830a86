@@ -32,14 +32,20 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
     try {
       const rpcName = kind === "staff" ? "link_staff_line_id" : "link_vendor_line_id";
       const params: any = kind === "staff"
-        ? { p_owner: ownerId, p_phone: phone, p_line_user_id: lineUserId, p_staff_id: candidate.id }
-        : { p_owner: ownerId, p_phone: phone, p_tax_id: taxId, p_line_user_id: lineUserId, p_vendor_id: candidate.id };
+        ? { p_owner: ownerId, p_phone: phone, p_line_user_id: lineUserId || "", p_staff_id: candidate.id }
+        : { p_owner: ownerId, p_phone: phone, p_tax_id: taxId, p_line_user_id: lineUserId || "", p_vendor_id: candidate.id };
       const { data, error } = await supabase.rpc(rpcName as any, params);
       if (error) throw error;
       const status = (data as any)?.status;
       if (status === "linked" || status === "already_linked") {
         setLinked({ kind, name: candidate.staff_name || candidate.company_name || "—" });
         setCandidates(null);
+      } else if (status === "needs_line_login") {
+        toast({
+          title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+          description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+          variant: "destructive",
+        });
       } else {
         toast({ title: "ไม่สามารถเชื่อมได้", description: status, variant: "destructive" });
       }
@@ -54,14 +60,6 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
     setNotFound(false);
     if (!ownerId || !UUID_REGEX.test(ownerId)) {
       toast({ title: "ลิงก์ไม่ถูกต้อง", variant: "destructive" });
-      return;
-    }
-    if (!lineUserId) {
-      toast({
-        title: "กรุณาเปิดหน้านี้ผ่าน LINE",
-        description: "ฟังก์ชันนี้ต้องเข้าถึงผ่านปุ่มใน Rich Menu ของบอท LINE เท่านั้น",
-        variant: "destructive",
-      });
       return;
     }
     if (!phone && !taxId) {
@@ -98,7 +96,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
         const { data } = await supabase.rpc("link_staff_line_id", {
           p_owner: ownerId,
           p_phone: phone,
-          p_line_user_id: lineUserId,
+          p_line_user_id: lineUserId || "",
         });
         const status = (data as any)?.status;
         if (status === "linked" || status === "already_linked") {
@@ -112,6 +110,15 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
           setSubmitting(false);
           return;
         }
+        if (status === "needs_line_login") {
+          toast({
+            title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+            description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+            variant: "destructive",
+          });
+          setSubmitting(false);
+          return;
+        }
         if (status !== "not_found" && status !== "invalid_phone") foundAny = true;
       }
 
@@ -120,7 +127,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
         p_owner: ownerId,
         p_phone: phone,
         p_tax_id: taxId,
-        p_line_user_id: lineUserId,
+        p_line_user_id: lineUserId || "",
       });
       const vStatus = (vendorData as any)?.status;
       if (vStatus === "linked" || vStatus === "already_linked") {
@@ -131,6 +138,15 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       }
       if (vStatus === "multiple") {
         setCandidates({ kind: "vendor", list: (vendorData as any).candidates || [] });
+        setSubmitting(false);
+        return;
+      }
+      if (vStatus === "needs_line_login") {
+        toast({
+          title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+          description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+          variant: "destructive",
+        });
         setSubmitting(false);
         return;
       }
@@ -240,7 +256,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
               </p>
             </div>
           )}
-          <Button type="submit" disabled={submitting || !lineUserId} className="w-full">
+          <Button type="submit" disabled={submitting} className="w-full">
             {submitting ? "กำลังเชื่อม..." : "เชื่อม LINE"}
           </Button>
           {!lineUserId && (
