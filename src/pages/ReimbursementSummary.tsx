@@ -88,7 +88,7 @@ const ReimbursementSummary = () => {
   const directRows = rows.filter((r) => r.subcategory !== "เบิกคืนทีมงาน");
 
   const aggregate = (list: Row[]) => {
-    const map = new Map<string, { count: number; gross: number; vat: number; wht: number; rows: Row[] }>();
+    const map = new Map<string, { count: number; gross: number; vat: number; wht: number; expense: number; rows: Row[] }>();
     for (const r of list) {
       const k =
         groupBy === "category_group"
@@ -96,25 +96,31 @@ const ReimbursementSummary = () => {
           : groupBy === "project_tag"
           ? (r.project_tag || "ไม่ระบุแท็ก")
           : (r.merchant || r.receiver || r.staff_name || "ไม่ระบุ");
-      const cur = map.get(k) || { count: 0, gross: 0, vat: 0, wht: 0, rows: [] };
+      const cur = map.get(k) || { count: 0, gross: 0, vat: 0, wht: 0, expense: 0, rows: [] };
+      const gross = Number(r.amount || 0);
+      const vat = Number(r.vat_amount || 0);
+      const wht = Number(r.wht_amount || 0);
+      // ค่าใช้จ่ายจริง (P&L) = Gross − VAT (ถ้ามี VAT แสดงว่าเคลม Input ได้)
+      const expense = gross - vat;
       cur.count += 1;
-      cur.gross += Number(r.amount || 0);
-      cur.vat += Number(r.vat_amount || 0);
-      cur.wht += Number(r.wht_amount || 0);
+      cur.gross += gross;
+      cur.vat += vat;
+      cur.wht += wht;
+      cur.expense += expense;
       cur.rows.push(r);
       map.set(k, cur);
     }
     return Array.from(map.entries())
-      .map(([key, v]) => ({ key, ...v, net: v.gross - v.wht }))
-      .sort((a, b) => b.gross - a.gross);
+      .map(([key, v]) => ({ key, ...v, cash: v.gross - v.wht }))
+      .sort((a, b) => b.expense - a.expense);
   };
 
   const directAgg = aggregate(directRows);
   const reimburseAgg = aggregate(reimburseRows);
 
   const totals = (list: ReturnType<typeof aggregate>) =>
-    list.reduce((s, r) => ({ count: s.count + r.count, gross: s.gross + r.gross, vat: s.vat + r.vat, wht: s.wht + r.wht, net: s.net + r.net }),
-      { count: 0, gross: 0, vat: 0, wht: 0, net: 0 });
+    list.reduce((s, r) => ({ count: s.count + r.count, gross: s.gross + r.gross, vat: s.vat + r.vat, wht: s.wht + r.wht, expense: s.expense + r.expense, cash: s.cash + r.cash }),
+      { count: 0, gross: 0, vat: 0, wht: 0, expense: 0, cash: 0 });
 
   if (loading || !user) {
     return <div className="min-h-screen flex items-center justify-center"><p className="text-muted-foreground">กำลังโหลด...</p></div>;
@@ -128,10 +134,11 @@ const ReimbursementSummary = () => {
           <TableRow>
             <TableHead>{groupBy === "category_group" ? "กลุ่ม" : groupBy === "project_tag" ? "แท็กโปรเจ็ค" : "ร้าน/ผู้รับ"}</TableHead>
             <TableHead className="text-right">รายการ</TableHead>
-            <TableHead className="text-right">Gross</TableHead>
-            <TableHead className="text-right">VAT</TableHead>
-            <TableHead className="text-right">WHT</TableHead>
-            <TableHead className="text-right">Net</TableHead>
+            <TableHead className="text-right" title="ค่าใช้จ่ายจริงใน P&L (Gross − VAT)">ค่าใช้จ่าย</TableHead>
+            <TableHead className="text-right text-muted-foreground" title="Input VAT เคลมคืนได้">VAT เคลม</TableHead>
+            <TableHead className="text-right text-muted-foreground" title="ยอดในบิล (Base + VAT)">Gross</TableHead>
+            <TableHead className="text-right text-amber-600" title="หัก ณ ที่จ่าย (Liability — นำส่งสรรพากร)">WHT</TableHead>
+            <TableHead className="text-right" title="เงินสดที่จ่ายจริง = Gross − WHT">เงินสดจ่าย</TableHead>
             <TableHead className="w-8"></TableHead>
           </TableRow>
         </TableHeader>
@@ -140,10 +147,11 @@ const ReimbursementSummary = () => {
             <TableRow key={r.key} className="cursor-pointer hover:bg-muted/50" onClick={() => setDrill({ key: r.key, rows: r.rows })}>
               <TableCell className="font-medium">{r.key}</TableCell>
               <TableCell className="text-right">{r.count}</TableCell>
-              <TableCell className={cn("text-right font-semibold", color)}>฿{r.gross.toLocaleString()}</TableCell>
-              <TableCell className="text-right text-muted-foreground">฿{r.vat.toLocaleString()}</TableCell>
-              <TableCell className="text-right text-amber-600">฿{r.wht.toLocaleString()}</TableCell>
-              <TableCell className="text-right font-semibold">฿{r.net.toLocaleString()}</TableCell>
+              <TableCell className={cn("text-right font-bold", color)}>฿{r.expense.toLocaleString()}</TableCell>
+              <TableCell className="text-right text-muted-foreground">{r.vat > 0 ? `฿${r.vat.toLocaleString()}` : "—"}</TableCell>
+              <TableCell className="text-right text-muted-foreground">฿{r.gross.toLocaleString()}</TableCell>
+              <TableCell className="text-right text-amber-600">{r.wht > 0 ? `฿${r.wht.toLocaleString()}` : "—"}</TableCell>
+              <TableCell className="text-right">฿{r.cash.toLocaleString()}</TableCell>
               <TableCell><ChevronRight className="h-4 w-4 text-muted-foreground" /></TableCell>
             </TableRow>
           ))}
@@ -154,10 +162,11 @@ const ReimbursementSummary = () => {
             <TableRow className="border-t-2 font-bold">
               <TableCell>รวม</TableCell>
               <TableCell className="text-right">{t.count}</TableCell>
-              <TableCell className={cn("text-right", color)}>฿{t.gross.toLocaleString()}</TableCell>
-              <TableCell className="text-right">฿{t.vat.toLocaleString()}</TableCell>
+              <TableCell className={cn("text-right", color)}>฿{t.expense.toLocaleString()}</TableCell>
+              <TableCell className="text-right text-muted-foreground">฿{t.vat.toLocaleString()}</TableCell>
+              <TableCell className="text-right text-muted-foreground">฿{t.gross.toLocaleString()}</TableCell>
               <TableCell className="text-right text-amber-600">฿{t.wht.toLocaleString()}</TableCell>
-              <TableCell className="text-right">฿{t.net.toLocaleString()}</TableCell>
+              <TableCell className="text-right">฿{t.cash.toLocaleString()}</TableCell>
               <TableCell />
             </TableRow>
           )}
