@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Users } from "lucide-react";
 import { StatsReal } from "@/components/stats-real";
 import { StorageStats } from "@/components/storage-stats";
 import { BulkDeleteReceipts } from "@/components/bulk-delete-receipts";
@@ -52,6 +52,12 @@ const Dashboard = () => {
 
       <main className="max-w-7xl mx-auto p-6 space-y-8">
         <StatsReal />
+        <div>
+          <Button variant="outline" onClick={() => navigate("/reimbursement-summary")}>
+            <Users className="h-4 w-4 mr-2" />
+            สรุปบริษัทตรง vs เบิกคืนทีมงาน
+          </Button>
+        </div>
         <StorageStats />
         <BulkDeleteReceipts />
         <CategoryChart />
