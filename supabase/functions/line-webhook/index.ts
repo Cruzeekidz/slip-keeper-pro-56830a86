@@ -1087,23 +1087,44 @@ serve(async (req) => {
           memo_text: memo || null,
         };
 
-        // Check LINE → Supabase user mapping
+        // Resolve owner: mapping → vendor_profiles → staff_profiles → default super_admin
+        let resolvedOwnerId: string | null = null;
         const { data: mapping, error: mappingError } = await supabase
           .from('line_user_mappings')
           .select('supabase_user_id')
           .eq('line_user_id', userId)
           .maybeSingle();
+        if (mappingError) console.error("Mapping lookup error:", mappingError);
+        if (mapping?.supabase_user_id) resolvedOwnerId = mapping.supabase_user_id;
 
-        if (mappingError) {
-          console.error("Mapping lookup error:", mappingError);
+        if (!resolvedOwnerId) {
+          const { data: vendor } = await supabase
+            .from('vendor_profiles').select('user_id').eq('line_user_id', userId).maybeSingle();
+          if (vendor?.user_id) resolvedOwnerId = vendor.user_id;
+        }
+        if (!resolvedOwnerId) {
+          const { data: staff } = await supabase
+            .from('staff_profiles').select('user_id').eq('line_user_id', userId).maybeSingle();
+          if (staff?.user_id) resolvedOwnerId = staff.user_id;
+        }
+        if (!resolvedOwnerId) {
+          // Fallback: assign to default super_admin so slips are never orphaned
+          const { data: superAdmin } = await supabase
+            .from('user_roles').select('user_id').eq('role', 'super_admin').limit(1).maybeSingle();
+          if (superAdmin?.user_id) {
+            resolvedOwnerId = superAdmin.user_id;
+            console.log(`Unregistered LINE user ${userId} — assigning slip to super_admin ${resolvedOwnerId}`);
+          }
         }
 
-        if (mapping?.supabase_user_id) {
-          expenseData.user_id = mapping.supabase_user_id;
+        if (resolvedOwnerId) {
+          expenseData.user_id = resolvedOwnerId;
         }
+        // Reuse downstream as if mapping found
+        const effectiveOwner = resolvedOwnerId;
 
         // Check for duplicate before inserting
-        if (mapping?.supabase_user_id) {
+        if (effectiveOwner) {
           const txnId = expenseData.transaction_id as string | null;
           const expAmount = expenseData.amount as number;
 
@@ -1114,7 +1135,7 @@ serve(async (req) => {
             const { data: existingTxn } = await supabase
               .from('expenses')
               .select('id')
-              .eq('user_id', mapping.supabase_user_id)
+              .eq('user_id', effectiveOwner)
               .eq('transaction_id', txnId)
               .maybeSingle();
 
@@ -1129,7 +1150,7 @@ serve(async (req) => {
             let dupQuery = supabase
               .from('expenses')
               .select('id, transaction_id')
-              .eq('user_id', mapping.supabase_user_id)
+              .eq('user_id', effectiveOwner)
               .eq('amount', expAmount)
               .eq('expense_date', expDate);
 
@@ -1171,10 +1192,10 @@ serve(async (req) => {
 
         // 7a. Auto-Match Payment: check if this slip matches a pending staff/vendor invoice
         let autoMatchMsg = '';
-        if (mapping?.supabase_user_id && extractedData?.amount) {
+        if (effectiveOwner && extractedData?.amount) {
           autoMatchMsg = await autoMatchPayment(
             supabase,
-            mapping.supabase_user_id,
+            effectiveOwner,
             extractedData,
             storagePath,
             insertedExpenseId,
