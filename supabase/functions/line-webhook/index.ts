@@ -1002,6 +1002,26 @@ serve(async (req) => {
 
         // 5. Move file to organized path: line/{userId}/{category}/{YYYY}/{MM}/
         const category = extractedData?.transaction_type || "PERSONAL";
+        // Year sanity check: detect DD/YY swap (e.g. "23/04/26" misread as 2023-04-26 when current year is 2026)
+        if (extractedData?.date && typeof extractedData.date === 'string') {
+          const m = (extractedData.date as string).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (m) {
+            const cy = new Date().getFullYear();
+            const oy = parseInt(m[1], 10);
+            const od = parseInt(m[3], 10);
+            // If extracted year is far in the past, but day looks like a recent year suffix → swap
+            if (oy < cy - 1 && od >= 20 && od <= 31) {
+              const candidateYear = 2000 + od;
+              const candidateDay = oy % 100;
+              if (Math.abs(candidateYear - cy) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
+                const fixed = `${candidateYear}-${m[2]}-${String(candidateDay).padStart(2, '0')}`;
+                console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
+                extractedData.date = fixed;
+                (extractedData as any).needs_review = true;
+              }
+            }
+          }
+        }
         const expDate = extractedData?.date || new Date().toISOString().split('T')[0];
         const [year, month] = expDate.split('-');
         const organizedPath = `line/${userId}/${category}/${year}/${month}/${timestamp}_${messageId}.${fileExt}`;
