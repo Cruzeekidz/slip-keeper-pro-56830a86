@@ -1057,6 +1057,7 @@ export type Database = {
           amount: number
           approver_signature_url: string | null
           category: string
+          category_group: string | null
           claimant_signature_url: string | null
           created_at: string
           description: string
@@ -1067,6 +1068,7 @@ export type Database = {
           id: string
           invoice_id: string | null
           notes: string | null
+          project_tag: string | null
           receipt_url: string | null
           reimbursed_at: string | null
           reimbursed_expense_id: string | null
@@ -1074,12 +1076,17 @@ export type Database = {
           status: string
           substitute_receipt_url: string | null
           user_id: string
+          vat_amount: number
+          vat_rate: number
           vendor_invoice_id: string | null
+          wht_amount: number
+          wht_rate: number
         }
         Insert: {
           amount?: number
           approver_signature_url?: string | null
           category?: string
+          category_group?: string | null
           claimant_signature_url?: string | null
           created_at?: string
           description: string
@@ -1090,6 +1097,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           notes?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           reimbursed_at?: string | null
           reimbursed_expense_id?: string | null
@@ -1097,12 +1105,17 @@ export type Database = {
           status?: string
           substitute_receipt_url?: string | null
           user_id: string
+          vat_amount?: number
+          vat_rate?: number
           vendor_invoice_id?: string | null
+          wht_amount?: number
+          wht_rate?: number
         }
         Update: {
           amount?: number
           approver_signature_url?: string | null
           category?: string
+          category_group?: string | null
           claimant_signature_url?: string | null
           created_at?: string
           description?: string
@@ -1113,6 +1126,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           notes?: string | null
+          project_tag?: string | null
           receipt_url?: string | null
           reimbursed_at?: string | null
           reimbursed_expense_id?: string | null
@@ -1120,7 +1134,11 @@ export type Database = {
           status?: string
           substitute_receipt_url?: string | null
           user_id?: string
+          vat_amount?: number
+          vat_rate?: number
           vendor_invoice_id?: string | null
+          wht_amount?: number
+          wht_rate?: number
         }
         Relationships: [
           {
