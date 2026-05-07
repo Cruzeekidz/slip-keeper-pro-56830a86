@@ -32,14 +32,20 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
     try {
       const rpcName = kind === "staff" ? "link_staff_line_id" : "link_vendor_line_id";
       const params: any = kind === "staff"
-        ? { p_owner: ownerId, p_phone: phone, p_line_user_id: lineUserId, p_staff_id: candidate.id }
-        : { p_owner: ownerId, p_phone: phone, p_tax_id: taxId, p_line_user_id: lineUserId, p_vendor_id: candidate.id };
+        ? { p_owner: ownerId, p_phone: phone, p_line_user_id: lineUserId || "", p_staff_id: candidate.id }
+        : { p_owner: ownerId, p_phone: phone, p_tax_id: taxId, p_line_user_id: lineUserId || "", p_vendor_id: candidate.id };
       const { data, error } = await supabase.rpc(rpcName as any, params);
       if (error) throw error;
       const status = (data as any)?.status;
       if (status === "linked" || status === "already_linked") {
         setLinked({ kind, name: candidate.staff_name || candidate.company_name || "—" });
         setCandidates(null);
+      } else if (status === "needs_line_login") {
+        toast({
+          title: "พบโปรไฟล์แล้ว แต่ยังไม่ได้รับ LINE ID",
+          description: "กรุณาเปิดหน้านี้จาก Rich Menu ในแอป LINE อีกครั้ง หรือกดอนุญาตเมื่อ LINE ขอสิทธิ์โปรไฟล์",
+          variant: "destructive",
+        });
       } else {
         toast({ title: "ไม่สามารถเชื่อมได้", description: status, variant: "destructive" });
       }
