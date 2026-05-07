@@ -47,6 +47,7 @@ const CashExpense        = lazy(() => import("./pages/CashExpense"));
 const AdminTools         = lazy(() => import("./pages/AdminTools"));
 const EventAnalysisPage  = lazy(() => import("./pages/EventAnalysisPage"));
 const ReimbursementSummary = lazy(() => import("./pages/ReimbursementSummary"));
+const FixSwappedDates    = lazy(() => import("./pages/FixSwappedDates"));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -108,6 +109,7 @@ const App = () => (
               <Route path="/document-hub" element={<DocumentHub />} />
               <Route path="/cash-advance" element={<CashAdvance />} />
               <Route path="/reanalyze-failed" element={<ReanalyzeFailed />} />
+              <Route path="/fix-swapped-dates" element={<FixSwappedDates />} />
               <Route path="/cash-expense" element={<CashExpense />} />
               <Route path="/admin" element={<AdminTools />} />
               <Route path="/event-analysis" element={<EventAnalysisPage />} />
