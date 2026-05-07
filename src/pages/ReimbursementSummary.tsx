@@ -242,6 +242,18 @@ const ReimbursementSummary = () => {
         {isLoading ? (
           <Card className="p-8 text-center text-muted-foreground">กำลังโหลด...</Card>
         ) : (
+          <>
+          <Card className="p-3 text-xs text-muted-foreground bg-muted/30">
+            <div className="font-semibold text-foreground mb-1">วิธีอ่านตัวเลข</div>
+            <div className="grid sm:grid-cols-2 gap-x-4 gap-y-0.5">
+              <div>• <b className="text-foreground">ค่าใช้จ่าย</b> = Gross − VAT (ถ้ามี VAT) — ตัวเลขที่ลง P&L</div>
+              <div>• <b>VAT เคลม</b> = Input VAT ที่ขอคืนได้ (ไม่ใช่ค่าใช้จ่าย)</div>
+              <div>• <b>Gross</b> = ยอดในใบกำกับ/บิล (Base + VAT)</div>
+              <div>• <b className="text-amber-600">WHT</b> = หัก ณ ที่จ่าย (Liability — นำส่งสรรพากร, ไม่ใช่ค่าใช้จ่าย)</div>
+              <div>• <b>เงินสดจ่าย</b> = Gross − WHT (ตรงกับสลิปโอน)</div>
+              <div>• บิลไม่มี VAT: ค่าใช้จ่าย = Gross</div>
+            </div>
+          </Card>
           <Tabs defaultValue="compare">
             <TabsList>
               <TabsTrigger value="compare">เปรียบเทียบ</TabsTrigger>
@@ -265,6 +277,7 @@ const ReimbursementSummary = () => {
               <Card className="p-4">{renderTable(reimburseAgg, "text-amber-600")}</Card>
             </TabsContent>
           </Tabs>
+          </>
         )}
       </main>
 
