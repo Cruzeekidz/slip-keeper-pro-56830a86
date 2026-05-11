@@ -120,6 +120,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterReceiver, setFilterReceiver] = useState("all");
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterEvent, setFilterEvent] = useState("all");
+  const [filterTag, setFilterTag] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
@@ -284,6 +285,10 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     () => Array.from(new Set(expenses.map(e => e.event_name).filter(Boolean) as string[])).sort(),
     [expenses]
   );
+  const uniqueTags = useMemo(
+    () => Array.from(new Set(expenses.map(e => e.project_tag).filter(Boolean) as string[])).sort(),
+    [expenses]
+  );
 
   // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
@@ -349,6 +354,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       });
     }
     if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
+    if (filterTag !== "all") filtered = filtered.filter(e => e.project_tag === filterTag);
     if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
     if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
 
@@ -357,7 +363,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
@@ -676,6 +682,13 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             {uniqueEvents.map(ev => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Select value={filterTag} onValueChange={setFilterTag}>
+          <SelectTrigger><SelectValue placeholder="แท็กโปรเจกต์" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ทุกแท็ก</SelectItem>
+            {uniqueTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Sort & Date Filter */}
@@ -704,9 +717,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </div>
           </PopoverContent>
         </Popover>
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || filterMonth !== "all" || filterEvent !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setFilterMonth("all"); setFilterEvent("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
