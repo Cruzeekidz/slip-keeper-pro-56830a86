@@ -17,6 +17,7 @@ import {
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
 import { buildReceiptPath } from "@/lib/storage-path";
+import { autoRegisterEventTag } from "@/lib/event-registry";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -201,6 +202,19 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       });
 
       if (error) { toast({ title: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
+
+      // Auto-register tag in event_registry for next time
+      if (projectTag) {
+        const userId = (await supabase.auth.getUser()).data.user?.id;
+        if (userId) {
+          await autoRegisterEventTag({
+            userId,
+            projectTag,
+            eventName: null,
+            eventDate: categoryGroup === 'EVENT' ? date : null,
+          });
+        }
+      }
 
       // Save payee group
       if (payeeGroup && (extractedData?.merchant || extractedData?.receiver)) {
