@@ -385,29 +385,50 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
             </div>
           )}
 
-          {/* Project Tag - Combobox */}
+          {/* Event Name + Project Tag - Linked pickers (registry-aware) */}
           {showTag && (
-            <div>
-              <Label>แท็กโปรเจค</Label>
-              <Combobox
-                options={projectTags}
-                value={formData.project_tag}
-                onValueChange={(v) => setFormData({ ...formData, project_tag: v })}
-                placeholder="เลือกหรือพิมพ์แท็ก"
-              />
-            </div>
-          )}
-
-          {/* Event Name - Combobox */}
-          {showEventName && (
-            <div>
-              <Label>ชื่ออีเวนท์</Label>
-              <Combobox
-                options={existingEventNames}
-                value={formData.event_name}
-                onValueChange={(v) => setFormData({ ...formData, event_name: v })}
-                placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {showEventName && (
+                <div>
+                  <Label>ชื่ออีเวนท์</Label>
+                  <Combobox
+                    options={[
+                      ...new Set([
+                        ...registryTags.map(r => r.event_name).filter(Boolean),
+                        ...existingEventNames,
+                      ]),
+                    ]}
+                    value={formData.event_name}
+                    onValueChange={(v) => {
+                      // Auto-fill tag if name matches a registry entry
+                      const match = registryTags.find(r => r.event_name === v);
+                      setFormData(prev => ({
+                        ...prev,
+                        event_name: v,
+                        project_tag: match?.project_tag || prev.project_tag,
+                      }));
+                    }}
+                    placeholder="เลือกหรือพิมพ์ชื่ออีเวนท์"
+                  />
+                </div>
+              )}
+              <div>
+                <Label>แท็กโปรเจค</Label>
+                <Combobox
+                  options={projectTags}
+                  value={formData.project_tag}
+                  onValueChange={(v) => {
+                    // Auto-fill event_name if tag matches a registry entry
+                    const match = registryTags.find(r => r.project_tag === v);
+                    setFormData(prev => ({
+                      ...prev,
+                      project_tag: v,
+                      event_name: !prev.event_name && match?.event_name ? match.event_name : prev.event_name,
+                    }));
+                  }}
+                  placeholder="เลือกหรือพิมพ์แท็ก"
+                />
+              </div>
             </div>
           )}
 
