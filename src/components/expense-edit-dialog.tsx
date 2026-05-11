@@ -15,6 +15,7 @@ import {
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
 } from "@/lib/category-constants";
 import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
+import { autoRegisterEventTag } from "@/lib/event-registry";
 
 interface Expense {
   id: string;
@@ -270,12 +271,22 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
       if (error) throw error;
 
+      // Auto-register new event/tag in event_registry so it appears in dropdowns next time
+      const userId = (await supabase.auth.getUser()).data.user?.id;
+      if (userId && (formData.project_tag || formData.event_name)) {
+        await autoRegisterEventTag({
+          userId,
+          projectTag: formData.project_tag,
+          eventName: formData.event_name,
+          eventDate: formData.category_group === 'EVENT' ? formData.expense_date : null,
+        });
+      }
+
       // Save payee group if new
       if (formData.payee_group && (formData.merchant || formData.receiver)) {
         const payee = formData.merchant || formData.receiver;
         const existing = payeeGroups.find(p => p.pattern === payee);
         if (!existing || existing.name !== formData.payee_group) {
-          const userId = (await supabase.auth.getUser()).data.user?.id;
           if (userId) {
             await supabase.from('payee_groups').upsert({
               user_id: userId,
