@@ -855,6 +855,36 @@ export type Database = {
           },
         ]
       }
+      line_conversation_state: {
+        Row: {
+          created_at: string
+          draft_data: Json
+          expires_at: string
+          line_user_id: string
+          owner: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          draft_data?: Json
+          expires_at?: string
+          line_user_id: string
+          owner: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          draft_data?: Json
+          expires_at?: string
+          line_user_id?: string
+          owner?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       line_pending_billings: {
         Row: {
           amount: number | null
@@ -1325,7 +1355,9 @@ export type Database = {
           daily_rate: number
           email: string | null
           id: string
+          id_card_number: string | null
           id_card_url: string | null
+          id_card_verified_at: string | null
           is_active: boolean
           line_user_id: string | null
           nickname: string | null
@@ -1343,7 +1375,9 @@ export type Database = {
           daily_rate?: number
           email?: string | null
           id?: string
+          id_card_number?: string | null
           id_card_url?: string | null
+          id_card_verified_at?: string | null
           is_active?: boolean
           line_user_id?: string | null
           nickname?: string | null
@@ -1361,7 +1395,9 @@ export type Database = {
           daily_rate?: number
           email?: string | null
           id?: string
+          id_card_number?: string | null
           id_card_url?: string | null
+          id_card_verified_at?: string | null
           is_active?: boolean
           line_user_id?: string | null
           nickname?: string | null
@@ -1513,6 +1549,9 @@ export type Database = {
           created_at: string
           email: string | null
           id: string
+          id_card_number: string | null
+          id_card_url: string | null
+          id_card_verified_at: string | null
           is_active: boolean
           line_user_id: string | null
           phone: string | null
@@ -1530,6 +1569,9 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          id_card_number?: string | null
+          id_card_url?: string | null
+          id_card_verified_at?: string | null
           is_active?: boolean
           line_user_id?: string | null
           phone?: string | null
@@ -1547,6 +1589,9 @@ export type Database = {
           created_at?: string
           email?: string | null
           id?: string
+          id_card_number?: string | null
+          id_card_url?: string | null
+          id_card_verified_at?: string | null
           is_active?: boolean
           line_user_id?: string | null
           phone?: string | null
