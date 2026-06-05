@@ -27,11 +27,17 @@ serve(async (req) => {
       staff_name,
       invoice_number,
       event_name,
+      work_start_date,
+      work_end_date,
+      days_worked,
+      daily_rate,
       gross_amount,
       wht_amount,
       net_amount,
       expense_total,
       grand_total,
+      notes,
+      expense_items,
       submitted_via,
     } = await req.json();
 
