@@ -500,6 +500,18 @@ serve(async (req) => {
         const text = event.message.text?.trim();
         if (!text) continue;
 
+        // --- Active conversation state (Quick Reply responses or step-by-step expense entry) ---
+        const convState = await getConvState(supabase, userId);
+        if (convState && /^(ยกเลิก|cancel)$/i.test(text)) {
+          await clearConvState(supabase, userId);
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, '✅ ยกเลิกการบันทึกแล้ว');
+          continue;
+        }
+        if (convState && !/^(help|วิธีใช้|menu|เมนู|คู่มือ)$/i.test(text)) {
+          const handled = await handleExpenseConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
+          if (handled) continue;
+        }
+
         // --- Help / User guide command (everyone) ---
         if (/^(help|วิธีใช้|\?|？|menu|เมนู|คู่มือ|ดูคู่มือ|ดูคู่มือการใช้งาน|guide|manual)$/i.test(text)) {
           await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getUserGuideFlex(userRole === 'admin'));
