@@ -398,6 +398,61 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     for (const event of events) {
+      // ===== Handle follow event (user added bot as friend) =====
+      if (event.type === "follow") {
+        const followUserId = event.source?.userId;
+        if (!followUserId) continue;
+        let followDisplayName: string | null = null;
+        try {
+          const pr = await fetch(`https://api.line.me/v2/bot/profile/${followUserId}`, {
+            headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+          });
+          if (pr.ok) {
+            const p = await pr.json();
+            followDisplayName = p.displayName || null;
+          }
+        } catch (_e) { /* ignore */ }
+
+        await supabase.from('line_user_roles').upsert({
+          line_user_id: followUserId,
+          display_name: followDisplayName,
+          role: 'member',
+        }, { onConflict: 'line_user_id' });
+
+        // Try auto-link by display name (staff_name → nickname → company_name)
+        if (followDisplayName) {
+          const tryLink = async (table: string, col: string) => {
+            const { data } = await supabase
+              .from(table)
+              .select('id, user_id')
+              .is('line_user_id', null)
+              .ilike(col, followDisplayName!)
+              .limit(2);
+            if (data && data.length === 1) {
+              await supabase.from(table).update({ line_user_id: followUserId } as any).eq('id', data[0].id);
+              return true;
+            }
+            return false;
+          };
+          (await tryLink('staff_profiles', 'staff_name'))
+            || (await tryLink('staff_profiles', 'nickname'))
+            || (await tryLink('vendor_profiles', 'company_name'));
+        }
+
+        if (event.replyToken) {
+          await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getWelcomeFlex(followDisplayName));
+        } else {
+          try {
+            await fetch("https://api.line.me/v2/bot/message/push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+              body: JSON.stringify({ to: followUserId, messages: [getWelcomeFlex(followDisplayName)] }),
+            });
+          } catch (_e) { /* ignore */ }
+        }
+        continue;
+      }
+
       if (event.type !== "message") continue;
 
       const userId = event.source?.userId;
@@ -444,6 +499,18 @@ serve(async (req) => {
       if (event.message.type === "text") {
         const text = event.message.text?.trim();
         if (!text) continue;
+
+        // --- Active conversation state (Quick Reply responses or step-by-step expense entry) ---
+        const convState = await getConvState(supabase, userId);
+        if (convState && /^(ยกเลิก|cancel)$/i.test(text)) {
+          await clearConvState(supabase, userId);
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, '✅ ยกเลิกการบันทึกแล้ว');
+          continue;
+        }
+        if (convState && !/^(help|วิธีใช้|menu|เมนู|คู่มือ)$/i.test(text)) {
+          const handled = await handleExpenseConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
+          if (handled) continue;
+        }
 
         // --- Help / User guide command (everyone) ---
         if (/^(help|วิธีใช้|\?|？|menu|เมนู|คู่มือ|ดูคู่มือ|ดูคู่มือการใช้งาน|guide|manual)$/i.test(text)) {
@@ -538,6 +605,21 @@ serve(async (req) => {
           await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
             `📥 รับ${kindLabel}แล้ว${amtText}${descText}\n\n📸 กรุณาแนบรูป${kindLabel}ตามมาภายใน 10 นาที\n(ไม่ต้องระบุชื่ออีเวนท์ — แอดมินจะใส่ตอนอนุมัติ)`);
           continue;
+        }
+
+        // --- Conversational expense entry (linked staff/vendor types expense text) ---
+        if (userRole !== 'admin') {
+          const profile = await resolveLineUserProfile(supabase, userId);
+          if (profile && (profile.kind === 'staff' || profile.kind === 'vendor') && looksLikeExpenseText(text)) {
+            const LOVABLE_API_KEY_X = Deno.env.get("LOVABLE_API_KEY");
+            if (LOVABLE_API_KEY_X) {
+              const parsed = await parseStaffExpenseAI(text, LOVABLE_API_KEY_X);
+              if (parsed && parsed.amount && parsed.amount > 0) {
+                await startExpenseConversation(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, profile, parsed, text);
+                continue;
+              }
+            }
+          }
         }
 
         // --- ADMIN ONLY from here ---
@@ -713,6 +795,43 @@ serve(async (req) => {
       const replyToken = event.replyToken;
 
       try {
+        // ===== ID card capture: linked staff/vendor sends image and profile has no id_card_url =====
+        if (isImage) {
+          const idProfile = await resolveLineUserProfile(supabase, userId);
+          if (idProfile && (idProfile.kind === 'staff' || idProfile.kind === 'vendor') && !idProfile.profile?.id_card_url) {
+            const { data: pendBill } = await supabase.from('line_pending_billings')
+              .select('id').eq('line_user_id', userId).gt('expires_at', new Date().toISOString()).maybeSingle();
+            if (!pendBill) {
+              const LK = Deno.env.get("LOVABLE_API_KEY");
+              const cr = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`,
+                { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } });
+              if (cr.ok && LK) {
+                const bytes = new Uint8Array(await cr.arrayBuffer());
+                const idPath = `id-cards/${idProfile.owner}/${idProfile.profileId}/${Date.now()}.jpg`;
+                const { error: upErr } = await supabase.storage.from('documents')
+                  .upload(idPath, bytes, { contentType: 'image/jpeg', upsert: false });
+                if (!upErr) {
+                  const { data: signed } = await supabase.storage.from('documents').createSignedUrl(idPath, 300);
+                  const ocr = signed?.signedUrl ? await ocrIdCard(signed.signedUrl, LK) : null;
+                  if (ocr?.id_number && /^\d{13}$/.test(ocr.id_number)) {
+                    const tbl = idProfile.kind === 'staff' ? 'staff_profiles' : 'vendor_profiles';
+                    await supabase.from(tbl).update({
+                      id_card_url: idPath,
+                      id_card_number: ocr.id_number,
+                      id_card_verified_at: new Date().toISOString(),
+                    } as any).eq('id', idProfile.profileId);
+                    await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+                      `✅ บันทึกสำเนาบัตรประชาชนแล้ว\n👤 ${ocr.full_name || '-'}\n🆔 ${formatThaiId(ocr.id_number)}${ocr.expiry ? `\n📅 หมดอายุ ${ocr.expiry}` : ''}\n\nขอบคุณค่ะ! 🙏`);
+                    continue;
+                  }
+                  // Not an ID card — clean up and fall through to existing slip flow
+                  await supabase.storage.from('documents').remove([idPath]);
+                }
+              }
+            }
+          }
+        }
+
         // ===== A. Check pending billing (highest priority — billing/receipt flow) =====
         const { data: pendingBilling } = await supabase
           .from('line_pending_billings')
@@ -1589,5 +1708,359 @@ async function autoMatchPayment(
   }
 
   return matchMsg;
+}
+
+// ============================================================
+// Helpers: profile resolution, conversation state, welcome flex,
+// ID card OCR, conversational expense entry
+// ============================================================
+
+interface LineProfile {
+  kind: 'admin' | 'staff' | 'vendor';
+  owner: string;
+  displayName: string | null;
+  profileId: string | null;
+  profile?: any;
+}
+
+async function resolveLineUserProfile(supabase: any, lineUserId: string): Promise<LineProfile | null> {
+  const { data: mapping } = await supabase.from('line_user_mappings')
+    .select('supabase_user_id, display_name').eq('line_user_id', lineUserId).maybeSingle();
+  if (mapping?.supabase_user_id) {
+    return { kind: 'admin', owner: mapping.supabase_user_id, displayName: mapping.display_name, profileId: null };
+  }
+  const { data: staff } = await supabase.from('staff_profiles')
+    .select('id, user_id, staff_name, nickname, id_card_url').eq('line_user_id', lineUserId).maybeSingle();
+  if (staff) {
+    return { kind: 'staff', owner: staff.user_id, displayName: staff.staff_name || staff.nickname, profileId: staff.id, profile: staff };
+  }
+  const { data: vendor } = await supabase.from('vendor_profiles')
+    .select('id, user_id, company_name, contact_name, id_card_url').eq('line_user_id', lineUserId).maybeSingle();
+  if (vendor) {
+    return { kind: 'vendor', owner: vendor.user_id, displayName: vendor.company_name || vendor.contact_name, profileId: vendor.id, profile: vendor };
+  }
+  return null;
+}
+
+async function getConvState(supabase: any, lineUserId: string) {
+  const { data } = await supabase.from('line_conversation_state').select('*')
+    .eq('line_user_id', lineUserId).gt('expires_at', new Date().toISOString()).maybeSingle();
+  return data;
+}
+
+async function setConvState(supabase: any, lineUserId: string, owner: string, state: string, draft: Record<string, any>) {
+  await supabase.from('line_conversation_state').upsert({
+    line_user_id: lineUserId, owner, state, draft_data: draft,
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'line_user_id' });
+}
+
+async function clearConvState(supabase: any, lineUserId: string) {
+  await supabase.from('line_conversation_state').delete().eq('line_user_id', lineUserId);
+}
+
+function getWelcomeFlex(displayName: string | null): Record<string, unknown> {
+  const LIFF_BASE = "https://liff.line.me/2008893199-xaJITz5y";
+  const greet = displayName ? `สวัสดี ${displayName} ค่ะ! 🎉` : 'สวัสดีค่ะ! 🎉';
+  return {
+    type: "flex",
+    altText: `${greet} ยินดีต้อนรับสู่ Cruzee Finance`,
+    contents: {
+      type: "bubble",
+      header: { type: "box", layout: "vertical", paddingAll: "lg", backgroundColor: "#1E40AF", contents: [
+        { type: "text", text: greet, weight: "bold", size: "lg", color: "#FFFFFF", wrap: true },
+        { type: "text", text: "Cruzee Finance LINE Bot", size: "sm", color: "#BFDBFE", margin: "xs" },
+      ]},
+      body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "lg", contents: [
+        { type: "text", text: "เริ่มต้นใช้งานง่ายๆ:", weight: "bold", size: "sm" },
+        { type: "text", text: "1️⃣ กดปุ่ม \"ผูกบัญชี\" — ระบบจะค้นหาบัญชีของคุณอัตโนมัติ", size: "sm", wrap: true, color: "#333333" },
+        { type: "text", text: "2️⃣ ส่งสำเนาบัตรประชาชนเข้าแชต — ระบบจะอ่านและจัดเก็บอัตโนมัติ", size: "sm", wrap: true, color: "#333333" },
+        { type: "text", text: "3️⃣ พิมพ์แจ้งค่าใช้จ่ายได้ทันที เช่น \"ค่าแท็กซี่ 250 บาท\"", size: "sm", wrap: true, color: "#333333" },
+      ]},
+      footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "lg", contents: [
+        { type: "button", style: "primary", color: "#1E40AF", height: "sm",
+          action: { type: "uri", label: "🔗 ผูกบัญชี / ลงทะเบียน", uri: `${LIFF_BASE}?view=quick-link` } },
+        { type: "button", style: "secondary", height: "sm",
+          action: { type: "message", label: "📖 ดูคู่มือ", text: "help" } },
+      ]},
+    },
+  };
+}
+
+async function replyWithQuickReply(token: string, replyToken: string, text: string, items: Array<{label: string; data: string}>) {
+  const quickItems = items.slice(0, 13).map(it => ({
+    type: "action",
+    action: { type: "message", label: it.label.slice(0, 20), text: it.data },
+  }));
+  try {
+    await fetch("https://api.line.me/v2/bot/message/reply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        replyToken,
+        messages: [{ type: "text", text, quickReply: { items: quickItems } }],
+      }),
+    });
+  } catch (e) { console.error("QR reply error:", e); }
+}
+
+async function ocrIdCard(imageUrl: string, apiKey: string) {
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "user", content: [
+          { type: "text", text: "นี่คือบัตรประชาชนไทยหรือไม่? ถ้าใช่ดึง: เลขประจำตัวประชาชน 13 หลัก (id_number ไม่ใส่ขีด), ชื่อ-สกุลภาษาไทย (full_name), วันหมดอายุ (expiry, YYYY-MM-DD). ถ้าไม่ใช่ให้ใส่ null ทั้งหมด" },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ]}],
+        tools: [{ type: "function", function: {
+          name: "extract_id_card", description: "Extract Thai national ID card",
+          parameters: {
+            type: "object",
+            properties: {
+              id_number: { type: ["string", "null"] },
+              full_name: { type: ["string", "null"] },
+              expiry: { type: ["string", "null"] },
+            },
+            required: ["id_number", "full_name", "expiry"],
+            additionalProperties: false,
+          },
+        }}],
+        tool_choice: { type: "function", function: { name: "extract_id_card" } },
+      }),
+    });
+    if (!res.ok) { console.error("OCR ID failed:", res.status); return null; }
+    const data = await res.json();
+    const tc = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!tc) return null;
+    return JSON.parse(tc.function.arguments) as { id_number: string | null; full_name: string | null; expiry: string | null };
+  } catch (e) { console.error("OCR ID error:", e); return null; }
+}
+
+function formatThaiId(id: string): string {
+  if (!/^\d{13}$/.test(id)) return id;
+  return `${id[0]}-${id.slice(1,5)}-${id.slice(5,10)}-${id.slice(10,12)}-${id[12]}`;
+}
+
+const STAFF_EXPENSE_PROMPT = `วิเคราะห์ข้อความแจ้งค่าใช้จ่ายจากทีมงาน/คู่ค้า แล้วสกัด:
+- amount: จำนวนเงิน (บาท) ถ้าไม่พบใส่ null
+- description: รายละเอียดสั้น (จ่ายอะไร/ซื้ออะไร)
+- subcategory_hint: ประเภทค่าใช้จ่าย (Transport/Food/Printing/Venue/Equipment/Prizes/Marketing/Other)
+- event_hint: ชื่ออีเวนท์/สถานที่ที่กล่าวถึง หรือ null
+- has_receipt: true ถ้าระบุว่ามีบิล/ใบเสร็จ`;
+
+const STAFF_EXPENSE_TOOL = {
+  type: "function", function: {
+    name: "extract_staff_expense",
+    description: "Extract staff/vendor expense data from Thai text",
+    parameters: {
+      type: "object",
+      properties: {
+        amount: { type: ["number", "null"] },
+        description: { type: ["string", "null"] },
+        subcategory_hint: { type: ["string", "null"] },
+        event_hint: { type: ["string", "null"] },
+        has_receipt: { type: "boolean" },
+      },
+      required: ["amount", "description", "subcategory_hint", "event_hint", "has_receipt"],
+      additionalProperties: false,
+    },
+  },
+};
+
+async function parseStaffExpenseAI(text: string, apiKey: string) {
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [{ role: "system", content: STAFF_EXPENSE_PROMPT }, { role: "user", content: text }],
+        tools: [STAFF_EXPENSE_TOOL],
+        tool_choice: { type: "function", function: { name: "extract_staff_expense" } },
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const tc = data.choices?.[0]?.message?.tool_calls?.[0];
+    if (!tc) return null;
+    return JSON.parse(tc.function.arguments);
+  } catch (e) { console.error("Staff expense parse error:", e); return null; }
+}
+
+function looksLikeExpenseText(text: string): boolean {
+  const hasNum = /\d{2,}/.test(text);
+  const hasHint = /ค่า|จ่าย|ซื้อ|บิล|บาท|baht|tip|ทิป|เบิก/i.test(text);
+  return hasNum && hasHint && text.length < 250;
+}
+
+async function buildEventQuickReply(supabase: any, owner: string) {
+  const { data } = await supabase.from('event_registry')
+    .select('event_name, project_tag')
+    .eq('user_id', owner).eq('is_active', true)
+    .order('updated_at', { ascending: false }).limit(8);
+  const items: Array<{label: string; data: string}> = (data || []).map((e: any) => ({
+    label: `🎪 ${e.event_name}`, data: `[EVENT]${e.project_tag}|${e.event_name}`,
+  }));
+  items.push({ label: '— ไม่ใช่งานอีเวนท์', data: '[EVENT]NONE' });
+  items.push({ label: 'พิมพ์ชื่อเอง', data: '[EVENT]CUSTOM' });
+  return items;
+}
+
+function getCategoryQuickReply(): Array<{label: string; data: string}> {
+  return [
+    { label: 'Transport เดินทาง', data: '[CAT]Transport' },
+    { label: 'Food อาหาร/น้ำ', data: '[CAT]Food' },
+    { label: 'Printing พิมพ์/ป้าย', data: '[CAT]Printing' },
+    { label: 'Venue สถานที่', data: '[CAT]Venue' },
+    { label: 'Equipment อุปกรณ์', data: '[CAT]Equipment' },
+    { label: 'Prizes รางวัล', data: '[CAT]Prizes' },
+    { label: 'Marketing', data: '[CAT]Marketing' },
+    { label: 'Other อื่นๆ', data: '[CAT]Other' },
+  ];
+}
+
+async function startExpenseConversation(
+  supabase: any, lineToken: string, replyToken: string,
+  lineUserId: string, profile: LineProfile, parsed: any, rawText: string
+) {
+  const draft: Record<string, any> = {
+    amount: parsed.amount,
+    description: parsed.description || rawText,
+    subcategory: parsed.subcategory_hint || null,
+    event_name: parsed.event_hint || null,
+    project_tag: null,
+    raw_text: rawText,
+  };
+  const events = await buildEventQuickReply(supabase, profile.owner);
+  await setConvState(supabase, lineUserId, profile.owner, 'awaiting_event', draft);
+  await replyWithQuickReply(lineToken, replyToken,
+    `📝 ${draft.description}\n💰 ${Number(draft.amount).toLocaleString()} บาท\n\n🎪 ค่าใช้จ่ายของอีเวนท์ไหน? (พิมพ์ "ยกเลิก" เพื่อเลิก)`,
+    events);
+}
+
+async function handleExpenseConvReply(
+  supabase: any, lineToken: string, replyToken: string,
+  lineUserId: string, state: any, text: string
+): Promise<boolean> {
+  const draft = state.draft_data || {};
+
+  if (state.state === 'awaiting_event') {
+    if (text.startsWith('[EVENT]')) {
+      const val = text.slice(7);
+      if (val === 'CUSTOM') {
+        await setConvState(supabase, lineUserId, state.owner, 'awaiting_event_name', draft);
+        await replyToUser(lineToken, replyToken, '📝 พิมพ์ชื่ออีเวนท์/งาน');
+        return true;
+      }
+      if (val === 'NONE') {
+        draft.event_name = null;
+        draft.project_tag = null;
+      } else {
+        const [tag, name] = val.split('|');
+        draft.project_tag = tag;
+        draft.event_name = name || tag;
+      }
+    } else {
+      draft.event_name = text;
+      draft.project_tag = `EVT-${text.replace(/\s+/g, '')}`;
+    }
+    if (draft.subcategory) {
+      await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
+    } else {
+      await setConvState(supabase, lineUserId, state.owner, 'awaiting_category', draft);
+      await replyWithQuickReply(lineToken, replyToken, '📂 หมวดค่าใช้จ่าย?', getCategoryQuickReply());
+    }
+    return true;
+  }
+
+  if (state.state === 'awaiting_event_name') {
+    draft.event_name = text;
+    draft.project_tag = `EVT-${text.replace(/\s+/g, '')}`;
+    if (draft.subcategory) {
+      await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
+    } else {
+      await setConvState(supabase, lineUserId, state.owner, 'awaiting_category', draft);
+      await replyWithQuickReply(lineToken, replyToken, '📂 หมวดค่าใช้จ่าย?', getCategoryQuickReply());
+    }
+    return true;
+  }
+
+  if (state.state === 'awaiting_category') {
+    let cat = text;
+    if (text.startsWith('[CAT]')) cat = text.slice(5);
+    draft.subcategory = cat;
+    await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
+    return true;
+  }
+
+  return false;
+}
+
+async function finalizeExpense(
+  supabase: any, lineToken: string, replyToken: string,
+  lineUserId: string, owner: string, draft: any
+) {
+  const { data: staff } = await supabase.from('staff_profiles')
+    .select('id, staff_name').eq('line_user_id', lineUserId).eq('user_id', owner).maybeSingle();
+
+  if (staff) {
+    const { error: claimErr } = await supabase.from('staff_expense_claims').insert({
+      user_id: owner,
+      staff_id: staff.id,
+      expense_date: new Date().toISOString().split('T')[0],
+      amount: draft.amount,
+      description: draft.description,
+      category: draft.subcategory || 'อื่นๆ',
+      event_name: draft.event_name,
+      project_tag: draft.project_tag,
+      status: 'submitted',
+      notes: `[LINE] ${draft.raw_text}`,
+    } as any);
+
+    if (claimErr) {
+      await replyToUser(lineToken, replyToken, `❌ บันทึกไม่สำเร็จ: ${claimErr.message}`);
+      await clearConvState(supabase, lineUserId);
+      return;
+    }
+
+    await clearConvState(supabase, lineUserId);
+    const eventLine = draft.event_name ? `\n🎪 ${draft.event_name}` : '';
+    await replyToUser(lineToken, replyToken,
+      `✅ บันทึกค่าใช้จ่ายแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n📂 ${draft.subcategory || 'อื่นๆ'}${eventLine}\n\n⏳ รอแอดมินตรวจสอบ\n📸 ถ้ามีบิล/ใบเสร็จ ส่งรูปตามมาได้เลย`);
+    return;
+  }
+
+  const { data: vendor } = await supabase.from('vendor_profiles')
+    .select('id, company_name').eq('line_user_id', lineUserId).eq('user_id', owner).maybeSingle();
+
+  if (vendor) {
+    const { error: invErr } = await supabase.from('vendor_invoices').insert({
+      user_id: owner, vendor_id: vendor.id,
+      document_type: 'receipt',
+      amount: draft.amount, net_amount: draft.amount,
+      description: draft.description,
+      invoice_date: new Date().toISOString().split('T')[0],
+      status: 'pending',
+      notes: `[LINE] ${draft.raw_text}${draft.event_name ? ` | ${draft.event_name}` : ''}${draft.subcategory ? ` | ${draft.subcategory}` : ''}`,
+      submitted_via_line_user_id: lineUserId,
+      submitted_via_line_display_name: vendor.company_name,
+      link_type: 'vendor',
+    } as any);
+    if (invErr) {
+      await replyToUser(lineToken, replyToken, `❌ บันทึกไม่สำเร็จ: ${invErr.message}`);
+    } else {
+      await replyToUser(lineToken, replyToken,
+        `✅ บันทึกแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n⏳ รอแอดมินตรวจสอบ`);
+    }
+    await clearConvState(supabase, lineUserId);
+    return;
+  }
+
+  await replyToUser(lineToken, replyToken, '❌ ไม่พบบัญชีของคุณในระบบ กรุณาผูกบัญชีก่อน');
+  await clearConvState(supabase, lineUserId);
 }
 
