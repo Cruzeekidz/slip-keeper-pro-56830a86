@@ -27,11 +27,17 @@ serve(async (req) => {
       staff_name,
       invoice_number,
       event_name,
+      work_start_date,
+      work_end_date,
+      days_worked,
+      daily_rate,
       gross_amount,
       wht_amount,
       net_amount,
       expense_total,
       grand_total,
+      notes,
+      expense_items,
       submitted_via,
     } = await req.json();
 
@@ -71,24 +77,49 @@ serve(async (req) => {
     const dateStr = `${d.getDate()} ${thaiMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
     const timeStr = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
     const fmt = (n: any) => Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const fmtInt = (n: any) => Number(n ?? 0).toLocaleString('en-US');
 
     const lines: string[] = [
       '🔔 มีใบเรียกเก็บเงินใหม่จากทีมงาน',
       '',
-      `👤 ทีมงาน: ${staff_name ?? '-'}`,
+      `👤 ใคร: ${staff_name ?? '-'}`,
     ];
-    if (invoice_number) lines.push(`📋 บิล: ${invoice_number}`);
+
     if (event_name) lines.push(`🎪 งาน: ${event_name}`);
-    lines.push(`📅 ส่งเมื่อ: ${dateStr} ${timeStr} น.`);
+    if (work_start_date && work_end_date) {
+      lines.push(`📅 ช่วงทำงาน: ${work_start_date} ถึง ${work_end_date}`);
+    }
+    if (days_worked != null && daily_rate != null) {
+      lines.push(`⏱️ ${fmtInt(days_worked)} วัน × ${fmtInt(daily_rate)} บาท/วัน`);
+    }
+    if (notes) lines.push(`📝 หมายเหตุ: ${notes}`);
+
+    lines.push('');
+    lines.push('💰 ยอดเท่าไหร่:');
     lines.push('─────────────');
-    if (gross_amount != null) lines.push(`💰 ยอดเต็ม: ${fmt(gross_amount)} บาท`);
-    if (wht_amount != null && Number(wht_amount) > 0) lines.push(`➖ หัก ณ ที่จ่าย: ${fmt(wht_amount)} บาท`);
-    if (net_amount != null) lines.push(`💵 ค่าแรงสุทธิ: ${fmt(net_amount)} บาท`);
-    if (expense_total != null && Number(expense_total) > 0) lines.push(`🧾 ค่าใช้จ่ายอื่น: ${fmt(expense_total)} บาท`);
+    if (gross_amount != null) lines.push(`  ค่าแรงเต็ม: ${fmt(gross_amount)} บาท`);
+    if (wht_amount != null && Number(wht_amount) > 0) lines.push(`  หัก ณ ที่จ่าย 3%: -${fmt(wht_amount)} บาท`);
+    if (net_amount != null) lines.push(`  ค่าแรงสุทธิ: ${fmt(net_amount)} บาท`);
+
+    // Expense claim items
+    if (expense_items && Array.isArray(expense_items) && expense_items.length > 0) {
+      lines.push('');
+      lines.push('🧾 ค่าใช้จ่ายอื่น:');
+      expense_items.forEach((it: any, idx: number) => {
+        lines.push(`  ${idx + 1}. ${it.description || it.category || 'รายการ'}: ${fmt(it.amount)} บาท`);
+      });
+      if (expense_total != null) lines.push(`  รวมค่าใช้จ่ายอื่น: ${fmt(expense_total)} บาท`);
+    } else if (expense_total != null && Number(expense_total) > 0) {
+      lines.push(`  ค่าใช้จ่ายอื่น: ${fmt(expense_total)} บาท`);
+    }
+
     if (grand_total != null) {
       lines.push('─────────────');
       lines.push(`✅ รวมทั้งสิ้น: ${fmt(grand_total)} บาท`);
     }
+
+    lines.push('');
+    lines.push(`📨 ส่งผ่าน: ${submitted_via === 'portal' ? 'ฟอร์มสาธารณะ' : 'ฟอร์มภายใน'} | ${dateStr} ${timeStr} น.`);
     lines.push('');
     lines.push('เปิดระบบเพื่อตรวจสอบและอนุมัติได้เลยค่ะ 🙏');
 
