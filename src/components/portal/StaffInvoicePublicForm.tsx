@@ -262,6 +262,19 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
       } else {
         toast.success("ส่งใบเรียกเก็บเงินสำเร็จ");
         setStep("submitted");
+        supabase.functions.invoke("notify-admin-invoice-submitted", {
+          body: {
+            owner_user_id: selectedStaff.user_id,
+            staff_name: selectedStaff.staff_name,
+            invoice_number: invoiceNumber,
+            event_name: form.event_name.trim(),
+            gross_amount: grossAmount,
+            wht_amount: whtAmount,
+            net_amount: netAmount,
+            grand_total: netAmount,
+            submitted_via: "portal",
+          },
+        }).catch((e) => console.error("notify admin failed:", e));
       }
     } catch (err: any) {
       const friendly = translateDbError(err?.message || "");
