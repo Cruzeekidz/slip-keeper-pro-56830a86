@@ -398,6 +398,61 @@ serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     for (const event of events) {
+      // ===== Handle follow event (user added bot as friend) =====
+      if (event.type === "follow") {
+        const followUserId = event.source?.userId;
+        if (!followUserId) continue;
+        let followDisplayName: string | null = null;
+        try {
+          const pr = await fetch(`https://api.line.me/v2/bot/profile/${followUserId}`, {
+            headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+          });
+          if (pr.ok) {
+            const p = await pr.json();
+            followDisplayName = p.displayName || null;
+          }
+        } catch (_e) { /* ignore */ }
+
+        await supabase.from('line_user_roles').upsert({
+          line_user_id: followUserId,
+          display_name: followDisplayName,
+          role: 'member',
+        }, { onConflict: 'line_user_id' });
+
+        // Try auto-link by display name (staff_name → nickname → company_name)
+        if (followDisplayName) {
+          const tryLink = async (table: string, col: string) => {
+            const { data } = await supabase
+              .from(table)
+              .select('id, user_id')
+              .is('line_user_id', null)
+              .ilike(col, followDisplayName!)
+              .limit(2);
+            if (data && data.length === 1) {
+              await supabase.from(table).update({ line_user_id: followUserId } as any).eq('id', data[0].id);
+              return true;
+            }
+            return false;
+          };
+          (await tryLink('staff_profiles', 'staff_name'))
+            || (await tryLink('staff_profiles', 'nickname'))
+            || (await tryLink('vendor_profiles', 'company_name'));
+        }
+
+        if (event.replyToken) {
+          await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getWelcomeFlex(followDisplayName));
+        } else {
+          try {
+            await fetch("https://api.line.me/v2/bot/message/push", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` },
+              body: JSON.stringify({ to: followUserId, messages: [getWelcomeFlex(followDisplayName)] }),
+            });
+          } catch (_e) { /* ignore */ }
+        }
+        continue;
+      }
+
       if (event.type !== "message") continue;
 
       const userId = event.source?.userId;
