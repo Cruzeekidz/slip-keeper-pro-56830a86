@@ -795,6 +795,43 @@ serve(async (req) => {
       const replyToken = event.replyToken;
 
       try {
+        // ===== ID card capture: linked staff/vendor sends image and profile has no id_card_url =====
+        if (isImage) {
+          const idProfile = await resolveLineUserProfile(supabase, userId);
+          if (idProfile && (idProfile.kind === 'staff' || idProfile.kind === 'vendor') && !idProfile.profile?.id_card_url) {
+            const { data: pendBill } = await supabase.from('line_pending_billings')
+              .select('id').eq('line_user_id', userId).gt('expires_at', new Date().toISOString()).maybeSingle();
+            if (!pendBill) {
+              const LK = Deno.env.get("LOVABLE_API_KEY");
+              const cr = await fetch(`https://api-data.line.me/v2/bot/message/${messageId}/content`,
+                { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } });
+              if (cr.ok && LK) {
+                const bytes = new Uint8Array(await cr.arrayBuffer());
+                const idPath = `id-cards/${idProfile.owner}/${idProfile.profileId}/${Date.now()}.jpg`;
+                const { error: upErr } = await supabase.storage.from('documents')
+                  .upload(idPath, bytes, { contentType: 'image/jpeg', upsert: false });
+                if (!upErr) {
+                  const { data: signed } = await supabase.storage.from('documents').createSignedUrl(idPath, 300);
+                  const ocr = signed?.signedUrl ? await ocrIdCard(signed.signedUrl, LK) : null;
+                  if (ocr?.id_number && /^\d{13}$/.test(ocr.id_number)) {
+                    const tbl = idProfile.kind === 'staff' ? 'staff_profiles' : 'vendor_profiles';
+                    await supabase.from(tbl).update({
+                      id_card_url: idPath,
+                      id_card_number: ocr.id_number,
+                      id_card_verified_at: new Date().toISOString(),
+                    } as any).eq('id', idProfile.profileId);
+                    await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+                      `✅ บันทึกสำเนาบัตรประชาชนแล้ว\n👤 ${ocr.full_name || '-'}\n🆔 ${formatThaiId(ocr.id_number)}${ocr.expiry ? `\n📅 หมดอายุ ${ocr.expiry}` : ''}\n\nขอบคุณค่ะ! 🙏`);
+                    continue;
+                  }
+                  // Not an ID card — clean up and fall through to existing slip flow
+                  await supabase.storage.from('documents').remove([idPath]);
+                }
+              }
+            }
+          }
+        }
+
         // ===== A. Check pending billing (highest priority — billing/receipt flow) =====
         const { data: pendingBilling } = await supabase
           .from('line_pending_billings')
