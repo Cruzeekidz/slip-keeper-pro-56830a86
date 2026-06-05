@@ -607,6 +607,21 @@ serve(async (req) => {
           continue;
         }
 
+        // --- Conversational expense entry (linked staff/vendor types expense text) ---
+        if (userRole !== 'admin') {
+          const profile = await resolveLineUserProfile(supabase, userId);
+          if (profile && (profile.kind === 'staff' || profile.kind === 'vendor') && looksLikeExpenseText(text)) {
+            const LOVABLE_API_KEY_X = Deno.env.get("LOVABLE_API_KEY");
+            if (LOVABLE_API_KEY_X) {
+              const parsed = await parseStaffExpenseAI(text, LOVABLE_API_KEY_X);
+              if (parsed && parsed.amount && parsed.amount > 0) {
+                await startExpenseConversation(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, profile, parsed, text);
+                continue;
+              }
+            }
+          }
+        }
+
         // --- ADMIN ONLY from here ---
         if (userRole !== 'admin') {
           // Non-admin: store as memo for image, or guide them
