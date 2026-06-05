@@ -156,6 +156,22 @@ const StaffInvoiceForm = () => {
       if (claimError) console.error("Expense claims error:", claimError);
     }
 
+    // Notify super admin via LINE (non-blocking)
+    supabase.functions.invoke("notify-admin-invoice-submitted", {
+      body: {
+        owner_user_id: staffUserId,
+        staff_name: staffName,
+        invoice_number: invoiceNumber,
+        event_name: form.event_name,
+        gross_amount: grossAmount,
+        wht_amount: whtAmount,
+        net_amount: netAmount,
+        expense_total: expenseTotal,
+        grand_total: grandTotal,
+        submitted_via: "web",
+      },
+    }).catch((e) => console.error("notify admin failed:", e));
+
     setSubmitted(true);
     setSubmitting(false);
   };
