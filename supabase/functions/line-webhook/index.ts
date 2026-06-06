@@ -1849,6 +1849,9 @@ async function handleRegistrationConvReply(
     if (staffRes?.status === 'linked' || staffRes?.status === 'already_linked') {
       await clearConvState(supabase, lineUserId);
       const name = staffRes.profile?.staff_name || staffRes.profile?.nickname || 'ทีมงาน';
+      if (staffRes.status === 'linked') {
+        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+      }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n👤 ${name} (ทีมงาน)\n\nคุณสามารถพิมพ์แจ้งค่าใช้จ่าย หรือส่งสำเนาบัตรประชาชน/ใบเสร็จได้เลยครับ`);
       return true;
@@ -1871,6 +1874,9 @@ async function handleRegistrationConvReply(
     if (vendorRes?.status === 'linked' || vendorRes?.status === 'already_linked') {
       await clearConvState(supabase, lineUserId);
       const name = vendorRes.profile?.company_name || 'คู่ค้า';
+      if (vendorRes.status === 'linked') {
+        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+      }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n🏢 ${name} (คู่ค้า)\n\nคุณสามารถส่งใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
       return true;
@@ -1906,6 +1912,9 @@ async function handleRegistrationConvReply(
     });
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.staff_name || 'ทีมงาน';
+    if (res?.data?.status === 'linked') {
+      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+    }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 👤 ${name}`);
     return true;
   }
@@ -1920,6 +1929,9 @@ async function handleRegistrationConvReply(
     });
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.company_name || 'คู่ค้า';
+    if (res?.data?.status === 'linked') {
+      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+    }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 🏢 ${name}`);
     return true;
   }
@@ -1959,6 +1971,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
+      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'staff', actor_name: data?.staff_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n👤 ${data?.staff_name} (ทีมงาน)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชนเข้ามาในแชต ระบบจะอ่านและจัดเก็บให้อัตโนมัติ`);
       return true;
@@ -1973,6 +1986,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
+      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'vendor', actor_name: data?.company_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n🏢 ${data?.company_name} (คู่ค้า)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชน + ใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
       return true;
