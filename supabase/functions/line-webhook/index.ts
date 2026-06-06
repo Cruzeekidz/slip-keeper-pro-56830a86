@@ -2278,6 +2278,13 @@ async function finalizeExpense(
     const eventLine = draft.event_name ? `\n🎪 ${draft.event_name}` : '';
     await replyToUser(lineToken, replyToken,
       `✅ บันทึกค่าใช้จ่ายแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n📂 ${draft.subcategory || 'อื่นๆ'}${eventLine}\n\n⏳ รอแอดมินตรวจสอบ\n📸 ถ้ามีบิล/ใบเสร็จ ส่งรูปตามมาได้เลย`);
+    notifyAdminEvent(owner, {
+      event_type: 'staff_claim_new',
+      actor_kind: 'staff',
+      actor_name: staff.staff_name || 'ทีมงาน',
+      amount: Number(draft.amount) || 0,
+      description: draft.description,
+    });
     return;
   }
 
@@ -2302,6 +2309,13 @@ async function finalizeExpense(
     } else {
       await replyToUser(lineToken, replyToken,
         `✅ บันทึกแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n⏳ รอแอดมินตรวจสอบ`);
+      notifyAdminEvent(owner, {
+        event_type: 'vendor_bill_new',
+        actor_kind: 'vendor',
+        actor_name: vendor.company_name || 'คู่ค้า',
+        amount: Number(draft.amount) || 0,
+        description: draft.description,
+      });
     }
     await clearConvState(supabase, lineUserId);
     return;
