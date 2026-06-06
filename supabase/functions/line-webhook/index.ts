@@ -12,7 +12,7 @@ const corsHeaders = {
 async function notifyAdminEvent(owner: string, payload: Record<string, unknown>): Promise<void> {
   try {
     const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/notify-admin-event`;
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -20,6 +20,9 @@ async function notifyAdminEvent(owner: string, payload: Record<string, unknown>)
       },
       body: JSON.stringify({ owner_user_id: owner, ...payload }),
     });
+    if (!res.ok) {
+      console.error('notifyAdminEvent failed:', res.status, await res.text());
+    }
   } catch (e) {
     console.error('notifyAdminEvent failed:', e);
   }
@@ -996,7 +999,7 @@ serve(async (req) => {
           await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
 
           // Notify admin via LINE
-          notifyAdminEvent(ownerUserId, {
+          await notifyAdminEvent(ownerUserId, {
             event_type: 'vendor_bill_new',
             actor_kind: 'vendor',
             actor_name: submitterDisplayName || 'คู่ค้า',
@@ -1859,7 +1862,7 @@ async function handleRegistrationConvReply(
       await clearConvState(supabase, lineUserId);
       const name = staffRes.profile?.staff_name || staffRes.profile?.nickname || 'ทีมงาน';
       if (staffRes.status === 'linked') {
-        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+        await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
       }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n👤 ${name} (ทีมงาน)\n\nคุณสามารถพิมพ์แจ้งค่าใช้จ่าย หรือส่งสำเนาบัตรประชาชน/ใบเสร็จได้เลยครับ`);
@@ -1884,7 +1887,7 @@ async function handleRegistrationConvReply(
       await clearConvState(supabase, lineUserId);
       const name = vendorRes.profile?.company_name || 'คู่ค้า';
       if (vendorRes.status === 'linked') {
-        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+        await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
       }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n🏢 ${name} (คู่ค้า)\n\nคุณสามารถส่งใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
@@ -1922,7 +1925,7 @@ async function handleRegistrationConvReply(
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.staff_name || 'ทีมงาน';
     if (res?.data?.status === 'linked') {
-      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+      await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
     }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 👤 ${name}`);
     return true;
@@ -1939,7 +1942,7 @@ async function handleRegistrationConvReply(
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.company_name || 'คู่ค้า';
     if (res?.data?.status === 'linked') {
-      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+      await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
     }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 🏢 ${name}`);
     return true;
@@ -1980,7 +1983,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
-      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'staff', actor_name: data?.staff_name || name });
+      await notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'staff', actor_name: data?.staff_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n👤 ${data?.staff_name} (ทีมงาน)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชนเข้ามาในแชต ระบบจะอ่านและจัดเก็บให้อัตโนมัติ`);
       return true;
@@ -1995,7 +1998,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
-      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'vendor', actor_name: data?.company_name || name });
+      await notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'vendor', actor_name: data?.company_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n🏢 ${data?.company_name} (คู่ค้า)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชน + ใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
       return true;
@@ -2278,7 +2281,7 @@ async function finalizeExpense(
     const eventLine = draft.event_name ? `\n🎪 ${draft.event_name}` : '';
     await replyToUser(lineToken, replyToken,
       `✅ บันทึกค่าใช้จ่ายแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n📂 ${draft.subcategory || 'อื่นๆ'}${eventLine}\n\n⏳ รอแอดมินตรวจสอบ\n📸 ถ้ามีบิล/ใบเสร็จ ส่งรูปตามมาได้เลย`);
-    notifyAdminEvent(owner, {
+    await notifyAdminEvent(owner, {
       event_type: 'staff_claim_new',
       actor_kind: 'staff',
       actor_name: staff.staff_name || 'ทีมงาน',
@@ -2309,7 +2312,7 @@ async function finalizeExpense(
     } else {
       await replyToUser(lineToken, replyToken,
         `✅ บันทึกแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n⏳ รอแอดมินตรวจสอบ`);
-      notifyAdminEvent(owner, {
+      await notifyAdminEvent(owner, {
         event_type: 'vendor_bill_new',
         actor_kind: 'vendor',
         actor_name: vendor.company_name || 'คู่ค้า',

@@ -157,30 +157,17 @@ const StaffInvoiceForm = () => {
     }
 
     // Notify super admin via LINE (non-blocking)
-    supabase.functions.invoke("notify-admin-invoice-submitted", {
+    supabase.functions.invoke("notify-admin-event", {
       body: {
         owner_user_id: staffUserId,
-        staff_name: staffName,
+        event_type: "staff_claim_new",
+        actor_kind: "staff",
+        actor_name: staffName,
+        amount: grandTotal,
         invoice_number: invoiceNumber,
-        event_name: form.event_name,
-        work_start_date: form.work_start_date,
-        work_end_date: form.work_end_date,
-        days_worked: form.days_worked,
-        daily_rate: form.daily_rate,
-        gross_amount: grossAmount,
-        wht_amount: whtAmount,
-        net_amount: netAmount,
-        expense_total: expenseTotal,
-        grand_total: grandTotal,
-        notes: form.notes || null,
-        expense_items: expenseClaims.map((c) => ({
-          category: c.category,
-          description: c.description,
-          amount: c.amount,
-        })),
-        submitted_via: "web",
+        description: form.event_name || form.notes || "ใบเรียกเก็บเงินทีมงาน",
       },
-    }).catch((e) => console.error("notify admin failed:", e));
+    }).catch((e) => console.error("notify-admin-event failed:", e));
 
     setSubmitted(true);
     setSubmitting(false);
