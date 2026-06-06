@@ -508,6 +508,10 @@ serve(async (req) => {
           continue;
         }
         if (convState && !/^(help|วิธีใช้|menu|เมนู|คู่มือ)$/i.test(text)) {
+          if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_register_')) {
+            const handled = await handleRegistrationConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
+            if (handled) continue;
+          }
           const handled = await handleExpenseConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
           if (handled) continue;
         }
@@ -516,6 +520,43 @@ serve(async (req) => {
         if (/^(help|วิธีใช้|\?|？|menu|เมนู|คู่มือ|ดูคู่มือ|ดูคู่มือการใช้งาน|guide|manual)$/i.test(text)) {
           await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getUserGuideFlex(userRole === 'admin'));
           continue;
+        }
+
+        // --- Registration intent (unlinked users) ---
+        if (/^(ลงทะเบียน|สมัคร|register|signup|sign\s*up)$/i.test(text)) {
+          const existing = await resolveLineUserProfile(supabase, userId);
+          if (existing) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `✅ บัญชีของคุณผูกกับระบบแล้ว (${existing.displayName || existing.kind})\nหากต้องการเปลี่ยนข้อมูล กรุณาติดต่อแอดมิน`);
+            continue;
+          }
+          const owner = await getDefaultOwner(supabase);
+          if (!owner) {
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, '❌ ระบบยังไม่พร้อมรับสมัคร กรุณาติดต่อแอดมิน');
+            continue;
+          }
+          await setConvState(supabase, userId, owner, 'awaiting_register_phone', {});
+          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+            '📱 กรุณาพิมพ์เบอร์โทรของคุณ (เช่น 0812345678)\n\nระบบจะค้นหาบัญชีให้อัตโนมัติ ถ้ายังไม่เคยมี จะให้สมัครใหม่ในแชตนี้เลย\n\nพิมพ์ "ยกเลิก" เพื่อยกเลิก');
+          continue;
+        }
+
+        // --- Bare phone number from unlinked user → trigger registration phone flow ---
+        {
+          const digits = text.replace(/[^0-9]/g, '');
+          if (digits.length >= 9 && digits.length <= 10 && /^[0-9\s\-+()]+$/.test(text)) {
+            const existing = await resolveLineUserProfile(supabase, userId);
+            if (!existing) {
+              const owner = await getDefaultOwner(supabase);
+              if (owner) {
+                await setConvState(supabase, userId, owner, 'awaiting_register_phone', {});
+                const handled = await handleRegistrationConvReply(
+                  supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId,
+                  { state: 'awaiting_register_phone', owner, draft_data: {} } as any, text);
+                if (handled) continue;
+              }
+            }
+          }
         }
 
         // --- Linking code: ผูก:XXXXXX (everyone) ---
