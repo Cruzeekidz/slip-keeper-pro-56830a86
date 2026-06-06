@@ -1801,6 +1801,170 @@ async function clearConvState(supabase: any, lineUserId: string) {
   await supabase.from('line_conversation_state').delete().eq('line_user_id', lineUserId);
 }
 
+async function getDefaultOwner(supabase: any): Promise<string | null> {
+  const { data: sa } = await supabase.from('user_roles')
+    .select('user_id').eq('role', 'super_admin').limit(1).maybeSingle();
+  if (sa?.user_id) return sa.user_id;
+  const { data: admin } = await supabase.from('user_roles')
+    .select('user_id').eq('role', 'admin').limit(1).maybeSingle();
+  return admin?.user_id || null;
+}
+
+async function handleRegistrationConvReply(
+  supabase: any, token: string, replyToken: string, lineUserId: string,
+  state: any, text: string,
+): Promise<boolean> {
+  const owner = state.owner;
+  const draft = (state.draft_data || {}) as Record<string, any>;
+
+  // STEP 1: phone collection → try matching staff + vendor
+  if (state.state === 'awaiting_register_phone') {
+    const digits = text.replace(/[^0-9]/g, '');
+    if (digits.length < 9 || digits.length > 10) {
+      await replyToUser(token, replyToken, '❌ เบอร์โทรไม่ถูกต้อง กรุณาพิมพ์ใหม่ (เช่น 0812345678)');
+      return true;
+    }
+
+    // Try staff first
+    const { data: staffRes } = await supabase.rpc('link_staff_line_id', {
+      p_owner: owner, p_phone: digits, p_line_user_id: lineUserId,
+    });
+    if (staffRes?.status === 'linked' || staffRes?.status === 'already_linked') {
+      await clearConvState(supabase, lineUserId);
+      const name = staffRes.profile?.staff_name || staffRes.profile?.nickname || 'ทีมงาน';
+      await replyToUser(token, replyToken,
+        `✅ ผูกบัญชีสำเร็จ!\n👤 ${name} (ทีมงาน)\n\nคุณสามารถพิมพ์แจ้งค่าใช้จ่าย หรือส่งสำเนาบัตรประชาชน/ใบเสร็จได้เลยครับ`);
+      return true;
+    }
+    if (staffRes?.status === 'multiple') {
+      const items = (staffRes.candidates || []).slice(0, 4).map((c: any) => ({
+        label: c.staff_name || c.nickname || 'staff',
+        data: `เลือกทีมงาน:${c.id}`,
+      }));
+      draft.phone = digits;
+      await setConvState(supabase, lineUserId, owner, 'awaiting_register_pick_staff', draft);
+      await replyWithQuickReply(token, replyToken, 'พบหลายบัญชีที่ใช้เบอร์นี้ — กรุณาเลือก:', items);
+      return true;
+    }
+
+    // Try vendor (by phone)
+    const { data: vendorRes } = await supabase.rpc('link_vendor_line_id', {
+      p_owner: owner, p_phone: digits, p_tax_id: '', p_line_user_id: lineUserId,
+    });
+    if (vendorRes?.status === 'linked' || vendorRes?.status === 'already_linked') {
+      await clearConvState(supabase, lineUserId);
+      const name = vendorRes.profile?.company_name || 'คู่ค้า';
+      await replyToUser(token, replyToken,
+        `✅ ผูกบัญชีสำเร็จ!\n🏢 ${name} (คู่ค้า)\n\nคุณสามารถส่งใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
+      return true;
+    }
+    if (vendorRes?.status === 'multiple') {
+      const items = (vendorRes.candidates || []).slice(0, 4).map((c: any) => ({
+        label: c.company_name || 'vendor', data: `เลือกคู่ค้า:${c.id}`,
+      }));
+      draft.phone = digits;
+      await setConvState(supabase, lineUserId, owner, 'awaiting_register_pick_vendor', draft);
+      await replyWithQuickReply(token, replyToken, 'พบหลายบัญชีคู่ค้า — กรุณาเลือก:', items);
+      return true;
+    }
+
+    // Not found → start new registration
+    draft.phone = digits;
+    await setConvState(supabase, lineUserId, owner, 'awaiting_register_role', draft);
+    await replyWithQuickReply(token, replyToken,
+      `ไม่พบบัญชีของเบอร์ ${digits} ในระบบ\n\nคุณเป็น...`,
+      [{ label: '👤 ทีมงาน', data: 'บทบาท:staff' }, { label: '🏢 คู่ค้า/ผู้ขาย', data: 'บทบาท:vendor' }]);
+    return true;
+  }
+
+  // STEP 1b: pick from multiple candidates
+  if (state.state === 'awaiting_register_pick_staff') {
+    const m = text.match(/^เลือกทีมงาน:([0-9a-f-]{36})$/i);
+    if (!m) {
+      await replyToUser(token, replyToken, '❌ กรุณากดเลือกจากปุ่ม');
+      return true;
+    }
+    const res = await supabase.rpc('link_staff_line_id', {
+      p_owner: owner, p_phone: draft.phone, p_line_user_id: lineUserId, p_staff_id: m[1],
+    });
+    await clearConvState(supabase, lineUserId);
+    const name = res?.data?.profile?.staff_name || 'ทีมงาน';
+    await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 👤 ${name}`);
+    return true;
+  }
+  if (state.state === 'awaiting_register_pick_vendor') {
+    const m = text.match(/^เลือกคู่ค้า:([0-9a-f-]{36})$/i);
+    if (!m) {
+      await replyToUser(token, replyToken, '❌ กรุณากดเลือกจากปุ่ม');
+      return true;
+    }
+    const res = await supabase.rpc('link_vendor_line_id', {
+      p_owner: owner, p_phone: draft.phone, p_tax_id: '', p_line_user_id: lineUserId, p_vendor_id: m[1],
+    });
+    await clearConvState(supabase, lineUserId);
+    const name = res?.data?.profile?.company_name || 'คู่ค้า';
+    await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 🏢 ${name}`);
+    return true;
+  }
+
+  // STEP 2: choose role
+  if (state.state === 'awaiting_register_role') {
+    const m = text.match(/^บทบาท:(staff|vendor)$/);
+    if (!m) {
+      await replyWithQuickReply(token, replyToken, 'กรุณาเลือกบทบาท:',
+        [{ label: '👤 ทีมงาน', data: 'บทบาท:staff' }, { label: '🏢 คู่ค้า/ผู้ขาย', data: 'บทบาท:vendor' }]);
+      return true;
+    }
+    draft.role = m[1];
+    await setConvState(supabase, lineUserId, owner, 'awaiting_register_name', draft);
+    const prompt = m[1] === 'staff'
+      ? '✏️ กรุณาพิมพ์ ชื่อ-นามสกุล ของคุณ\n(เช่น "สมชาย ใจดี")'
+      : '✏️ กรุณาพิมพ์ ชื่อบริษัท/ร้าน ของคุณ\n(เช่น "ร้านอาหารสมศรี")';
+    await replyToUser(token, replyToken, prompt);
+    return true;
+  }
+
+  // STEP 3: collect name → create profile
+  if (state.state === 'awaiting_register_name') {
+    const name = text.trim().slice(0, 200);
+    if (name.length < 2) {
+      await replyToUser(token, replyToken, '❌ ชื่อสั้นเกินไป กรุณาพิมพ์ใหม่');
+      return true;
+    }
+    if (draft.role === 'staff') {
+      const { data, error } = await supabase.from('staff_profiles').insert({
+        user_id: owner, staff_name: name, phone: draft.phone,
+        line_user_id: lineUserId, is_active: true,
+      }).select('id, staff_name').maybeSingle();
+      if (error) {
+        console.error('register staff error:', error);
+        await replyToUser(token, replyToken, '❌ บันทึกไม่สำเร็จ กรุณาลองใหม่ หรือติดต่อแอดมิน');
+        return true;
+      }
+      await clearConvState(supabase, lineUserId);
+      await replyToUser(token, replyToken,
+        `✅ ลงทะเบียนสำเร็จ!\n👤 ${data?.staff_name} (ทีมงาน)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชนเข้ามาในแชต ระบบจะอ่านและจัดเก็บให้อัตโนมัติ`);
+      return true;
+    } else {
+      const { data, error } = await supabase.from('vendor_profiles').insert({
+        user_id: owner, company_name: name, phone: draft.phone,
+        line_user_id: lineUserId,
+      }).select('id, company_name').maybeSingle();
+      if (error) {
+        console.error('register vendor error:', error);
+        await replyToUser(token, replyToken, '❌ บันทึกไม่สำเร็จ กรุณาลองใหม่ หรือติดต่อแอดมิน');
+        return true;
+      }
+      await clearConvState(supabase, lineUserId);
+      await replyToUser(token, replyToken,
+        `✅ ลงทะเบียนสำเร็จ!\n🏢 ${data?.company_name} (คู่ค้า)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชน + ใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function getWelcomeFlex(displayName: string | null): Record<string, unknown> {
   const LIFF_BASE = "https://liff.line.me/2008893199-xaJITz5y";
   const greet = displayName ? `สวัสดี ${displayName} ค่ะ! 🎉` : 'สวัสดีค่ะ! 🎉';
