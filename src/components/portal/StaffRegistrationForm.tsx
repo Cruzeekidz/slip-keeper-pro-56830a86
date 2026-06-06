@@ -38,6 +38,14 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
     daily_rate: 0,
   });
 
+  const notifyAdmin = async (body: Record<string, unknown>) => {
+    try {
+      await supabase.functions.invoke("notify-admin-event", { body });
+    } catch (e) {
+      console.error("notify-admin-event failed:", e);
+    }
+  };
+
   const handleIdCardChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -87,6 +95,14 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
         const status = (linkResult as any)?.status;
         if (status === "linked" || status === "already_linked") {
           const profile = (linkResult as any)?.profile;
+          if (status === "linked") {
+            await notifyAdmin({
+              owner_user_id: ownerId,
+              event_type: "link_success",
+              actor_kind: "staff",
+              actor_name: profile?.staff_name || form.staff_name || "ทีมงาน",
+            });
+          }
           toast({
             title: status === "already_linked" ? "เชื่อม LINE อยู่แล้ว" : "✓ เชื่อม LINE สำเร็จ",
             description: `ระบบพบว่าคุณคือ ${profile?.staff_name}${profile?.nickname ? ` (${profile.nickname})` : ""} — ไม่ต้องลงทะเบียนซ้ำ`,
@@ -129,6 +145,12 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
       });
 
       if (error) throw error;
+      await notifyAdmin({
+        owner_user_id: ownerId,
+        event_type: "new_registration",
+        actor_kind: "staff",
+        actor_name: form.staff_name,
+      });
       setSubmitted(true);
     } catch (err: any) {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
