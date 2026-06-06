@@ -1822,6 +1822,8 @@ function getWelcomeFlex(displayName: string | null): Record<string, unknown> {
       footer: { type: "box", layout: "vertical", spacing: "sm", paddingAll: "lg", contents: [
         { type: "button", style: "primary", color: "#1E40AF", height: "sm",
           action: { type: "uri", label: "🔗 ผูกบัญชี / ลงทะเบียน", uri: `${LIFF_BASE}?view=quick-link` } },
+        { type: "button", style: "primary", color: "#059669", height: "sm",
+          action: { type: "message", label: "📱 ลงทะเบียนด้วยเบอร์โทร", text: "ลงทะเบียน" } },
         { type: "button", style: "secondary", height: "sm",
           action: { type: "message", label: "📖 ดูคู่มือ", text: "help" } },
       ]},
