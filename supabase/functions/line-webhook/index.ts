@@ -1862,7 +1862,7 @@ async function handleRegistrationConvReply(
       await clearConvState(supabase, lineUserId);
       const name = staffRes.profile?.staff_name || staffRes.profile?.nickname || 'ทีมงาน';
       if (staffRes.status === 'linked') {
-        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+        await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
       }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n👤 ${name} (ทีมงาน)\n\nคุณสามารถพิมพ์แจ้งค่าใช้จ่าย หรือส่งสำเนาบัตรประชาชน/ใบเสร็จได้เลยครับ`);
@@ -1887,7 +1887,7 @@ async function handleRegistrationConvReply(
       await clearConvState(supabase, lineUserId);
       const name = vendorRes.profile?.company_name || 'คู่ค้า';
       if (vendorRes.status === 'linked') {
-        notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+        await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
       }
       await replyToUser(token, replyToken,
         `✅ ผูกบัญชีสำเร็จ!\n🏢 ${name} (คู่ค้า)\n\nคุณสามารถส่งใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
@@ -1925,7 +1925,7 @@ async function handleRegistrationConvReply(
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.staff_name || 'ทีมงาน';
     if (res?.data?.status === 'linked') {
-      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
+      await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'staff', actor_name: name });
     }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 👤 ${name}`);
     return true;
@@ -1942,7 +1942,7 @@ async function handleRegistrationConvReply(
     await clearConvState(supabase, lineUserId);
     const name = res?.data?.profile?.company_name || 'คู่ค้า';
     if (res?.data?.status === 'linked') {
-      notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
+      await notifyAdminEvent(owner, { event_type: 'link_success', actor_kind: 'vendor', actor_name: name });
     }
     await replyToUser(token, replyToken, `✅ ผูกบัญชีสำเร็จ! 🏢 ${name}`);
     return true;
