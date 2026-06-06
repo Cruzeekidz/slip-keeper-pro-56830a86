@@ -12,7 +12,7 @@ const corsHeaders = {
 async function notifyAdminEvent(owner: string, payload: Record<string, unknown>): Promise<void> {
   try {
     const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/notify-admin-event`;
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -20,6 +20,9 @@ async function notifyAdminEvent(owner: string, payload: Record<string, unknown>)
       },
       body: JSON.stringify({ owner_user_id: owner, ...payload }),
     });
+    if (!res.ok) {
+      console.error('notifyAdminEvent failed:', res.status, await res.text());
+    }
   } catch (e) {
     console.error('notifyAdminEvent failed:', e);
   }
@@ -996,7 +999,7 @@ serve(async (req) => {
           await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
 
           // Notify admin via LINE
-          notifyAdminEvent(ownerUserId, {
+          await notifyAdminEvent(ownerUserId, {
             event_type: 'vendor_bill_new',
             actor_kind: 'vendor',
             actor_name: submitterDisplayName || 'คู่ค้า',
