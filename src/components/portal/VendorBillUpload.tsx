@@ -81,6 +81,20 @@ const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
       });
 
       if (error) throw error;
+
+      // Notify admin via LINE (fire-and-forget)
+      supabase.functions.invoke("notify-admin-event", {
+        body: {
+          owner_user_id: ownerId,
+          event_type: "vendor_bill_new",
+          actor_kind: "vendor",
+          actor_name: form.company_name || "คู่ค้า",
+          amount: form.amount || 0,
+          invoice_number: form.invoice_number || undefined,
+          description: form.description || undefined,
+        },
+      }).catch((e) => console.error("notify-admin-event failed:", e));
+
       setSubmitted(true);
     } catch (err: any) {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });
