@@ -995,6 +995,15 @@ serve(async (req) => {
           // Clean up pending
           await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
 
+          // Notify admin via LINE
+          notifyAdminEvent(ownerUserId, {
+            event_type: 'vendor_bill_new',
+            actor_kind: 'vendor',
+            actor_name: submitterDisplayName || 'คู่ค้า',
+            amount: pendingBilling.amount || 0,
+            description: pendingBilling.description || undefined,
+          });
+
           const kindLabel = pendingBilling.kind === 'billing' ? 'ใบวางบิล' : 'ใบเสร็จ';
           const amtText = pendingBilling.amount
             ? `\n💰 ${pendingBilling.amount.toLocaleString()} บาท`
