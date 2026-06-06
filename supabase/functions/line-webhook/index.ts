@@ -8,6 +8,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-line-signature, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// Fire-and-forget admin notification (link / new registration / bills / claims)
+async function notifyAdminEvent(owner: string, payload: Record<string, unknown>): Promise<void> {
+  try {
+    const url = `${Deno.env.get('SUPABASE_URL')}/functions/v1/notify-admin-event`;
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+      },
+      body: JSON.stringify({ owner_user_id: owner, ...payload }),
+    });
+  } catch (e) {
+    console.error('notifyAdminEvent failed:', e);
+  }
+}
+
 // ============================================================
 // Cash expense AI parser (text-only, admin)
 // ============================================================
