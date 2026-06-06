@@ -262,24 +262,17 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
       } else {
         toast.success("ส่งใบเรียกเก็บเงินสำเร็จ");
         setStep("submitted");
-        supabase.functions.invoke("notify-admin-invoice-submitted", {
+        supabase.functions.invoke("notify-admin-event", {
           body: {
             owner_user_id: selectedStaff.user_id,
-            staff_name: selectedStaff.staff_name,
+            event_type: "staff_claim_new",
+            actor_kind: "staff",
+            actor_name: selectedStaff.staff_name,
+            amount: netAmount,
             invoice_number: invoiceNumber,
-            event_name: form.event_name.trim(),
-            work_start_date: form.work_start_date,
-            work_end_date: form.work_end_date,
-            days_worked: form.days_worked,
-            daily_rate: form.daily_rate,
-            gross_amount: grossAmount,
-            wht_amount: whtAmount,
-            net_amount: netAmount,
-            grand_total: netAmount,
-            notes: form.notes || null,
-            submitted_via: "portal",
+            description: form.event_name.trim() || form.notes || "ใบเรียกเก็บเงินทีมงาน",
           },
-        }).catch((e) => console.error("notify admin failed:", e));
+        }).catch((e) => console.error("notify-admin-event failed:", e));
       }
     } catch (err: any) {
       const friendly = translateDbError(err?.message || "");
