@@ -1,99 +1,55 @@
-# แผน: ยกระดับ LINE Bot ให้ใช้งานง่ายขึ้น
+## เป้าหมาย
+ส่ง LINE Push Message สั้นๆ ไปยัง LINE User ID ของแอดมิน เมื่อมีเหตุการณ์สำคัญในระบบ เพื่อไม่ต้องเปิด LINE OA: Cruzee Finance ค้างไว้
 
-แบ่งเป็น 3 ฟีเจอร์หลัก ทุกฟีเจอร์ทำงานในไฟล์ `supabase/functions/line-webhook/index.ts` เป็นหลัก
+## เหตุการณ์ที่จะแจ้ง (ครอบคลุมทั้งหมด)
+1. **Staff/Vendor ใหม่ผูก LINE สำเร็จ** — เมื่อ `link_staff_line_id` / `link_vendor_line_id` คืนสถานะ `linked`
+2. **Vendor ส่งบิลใหม่** — เมื่อ insert ลง `vendor_invoices` จาก LINE portal/LIFF
+3. **Staff แจ้งค่าใช้จ่าย/เบิกเงิน** — เมื่อ insert ลง `staff_expense_claims` หรือ `staff_invoices` ที่ status = `submitted`
 
----
-
-## 1. Auto-link เมื่อแอดเฟรนด์ (Follow event + ทุกข้อความ)
-
-**Flow:**
-- เมื่อมี `event.type === "follow"` หรือผู้ใช้ส่งข้อความแรก (ยังไม่มีใน `line_user_mappings`):
-  1. ลองเรียก `link_staff_line_id` และ `link_vendor_line_id` ด้วย LINE profile name (เทียบ staff_name/nickname/company_name แบบ ILIKE) เผื่อ match อัตโนมัติ
-  2. ส่ง Flex Message ต้อนรับ พร้อม 2 ปุ่ม:
-     - **"ผูกบัญชีของฉัน"** → ส่ง URL `/link-line` (รหัส 6 หลักวิธีเดิม)
-     - **"ฉันเป็นทีมงาน/คู่ค้าใหม่"** → เริ่ม conversation เก็บ ชื่อ-เบอร์-เลขบัตร แล้วสร้าง `staff_profiles` หรือ `vendor_profiles` ใหม่อัตโนมัติ
-- บันทึกใน `line_user_roles` เป็น `member` (มีอยู่แล้ว) และเพิ่มสถานะ `pending_link` ถ้ายังไม่ได้ผูก
-
-**ผลลัพธ์:** ทุกคนที่แอดเข้ามาจะถูกชวนผูกบัญชีทันที โดยไม่ต้องให้ admin ทำมือ
-
----
-
-## 2. เก็บบัตรประชาชนอัตโนมัติ + OCR
-
-**Trigger:** เมื่อผู้ใช้ที่ผูกบัญชีแล้วส่งรูป และ profile ของเขายังไม่มี `id_card_url`:
-- บอทจะส่งข้อความถามก่อน: *"นี่คือรูปบัตรประชาชนของคุณใช่ไหม?"* พร้อม Quick Reply: `ใช่` / `ไม่ใช่ เป็นใบเสร็จ`
-- ถ้ายืนยัน "ใช่":
-  1. อัปโหลดเข้า `documents` bucket path: `id-cards/{owner}/{profile_id}/{timestamp}.jpg` (ตามรูปแบบใน document-storage-architecture)
-  2. เรียก Lovable AI (`google/gemini-2.5-flash`) ทำ OCR ดึง: เลขบัตร 13 หลัก, ชื่อ-สกุล, วันหมดอายุ
-  3. อัปเดต `staff_profiles` / `vendor_profiles`: `id_card_url`, `id_card_number`, `id_card_verified_at`
-  4. แจ้งกลับ: *"บันทึกบัตรประชาชนแล้ว ✅ เลข: x-xxxx-xxxxx-xx-x"*
-
-**Schema:** ตรวจสอบว่า `staff_profiles` / `vendor_profiles` มีคอลัมน์ `id_card_url`, `id_card_number` อยู่แล้วหรือไม่ ถ้ายังไม่มีจะสร้าง migration เพิ่ม
-
-**ตัวกันพลาด:** ถ้า OCR เจอเลข 13 หลักแต่ user ตอบ "ไม่ใช่" → fallback เข้า flow ใบเสร็จเดิม
-
----
-
-## 3. แจ้งค่าใช้จ่ายแบบ Conversational (AI + Quick Reply)
-
-**Trigger:** ผู้ใช้ที่ผูก staff_profile แล้ว พิมพ์ข้อความที่เข้าข่ายค่าใช้จ่าย (เช่น "ค่าแท็กซี่ 250", "ซื้อน้ำให้ทีม 180") หรือส่งรูปบิล
-
-**Flow ใหม่ (state machine ใน table ใหม่ `line_conversation_state`):**
-
-```text
-[ผู้ใช้พิมพ์/ส่งบิล]
-   ↓
-[AI parse: amount, description, hints]
-   ↓
-ถาม field ที่ขาดทีละข้อ พร้อม Quick Reply:
-  1. "เป็นค่าใช้จ่ายของ event ไหน?" 
-     → Quick Reply: 5 events ล่าสุดจาก event_registry + "อื่นๆ (พิมพ์)"
-  2. "หมวดค่าใช้จ่าย?"
-     → Quick Reply: หมวดที่ใช้บ่อย 5 อัน + "อื่นๆ"
-  3. "ตำแหน่ง/สถานที่?" (ถ้า event เป็นแบบมี location)
-     → Quick Reply: location จาก event ที่เลือก
-  4. (ถ้าส่งบิล) "วันที่บนบิลคือ? ยอด? เลข Tax?" → AI พยายามเติมก่อน ถามเฉพาะที่ขาด
-   ↓
-[สรุป Flex Message: ยืนยัน/แก้ไข]
-   ↓
-INSERT เข้า staff_expense_claims (เป็น draft) → admin review ต่อใน app
+## รูปแบบข้อความ (สั้น กระชับ)
 ```
+🆕 [Vendor] บริษัท ABC ผูก LINE แล้ว
+```
+```
+🧾 [Vendor Bill] บริษัท ABC ส่งบิล ฿12,500 — Inv #INV-001
+แตะดู: <deep link>
+```
+```
+💰 [Staff Claim] สมชาย (ชื่อเล่น) เบิก ฿3,200
+แตะดู: <deep link>
+```
+แต่ละข้อความเป็น text เดียว มี deep link ไปยังหน้าจัดการที่เกี่ยวข้องในแอด (Review Queue / Vendor Bills / Staff Payments)
 
-**Schema ใหม่:** ตาราง `line_conversation_state`
-- `line_user_id` (PK)
-- `state` (`awaiting_event` | `awaiting_category` | `awaiting_location` | `awaiting_confirm`)
-- `draft_data` (jsonb)
-- `expires_at` (10 นาที auto-clear)
+## สถาปัตยกรรม
+1. **Setting แอดมิน LINE User ID**
+   - เพิ่ม column `admin_notify_line_user_id` ใน `user_roles` (สำหรับ role = admin/super_admin) หรือสร้าง table `admin_notification_settings(user_id, line_user_id, enabled_events jsonb)` เพื่อรองรับหลายแอดมินและ toggle ราย event
+   - หน้า Settings ใหม่: `/admin-notifications` — กรอก LINE User ID + toggle event ที่ต้องการ + ปุ่ม "Test Push"
+2. **Edge function ใหม่: `notify-admin-line`**
+   - Input: `{ owner: uuid, event_type: string, payload: {...} }`
+   - ดึง LINE User ID ของ admin จาก settings → ถ้า enabled สำหรับ event นี้ → Push ผ่าน LINE Messaging API
+   - ใช้ `LINE_CHANNEL_ACCESS_TOKEN` ที่มีอยู่แล้ว
+3. **จุดที่เรียก notify-admin-line**
+   - `line-webhook` (หลัง link สำเร็จ) → `event_type: 'link_success'`
+   - `line-webhook` / LIFF portal endpoint ที่ insert `vendor_invoices` → `event_type: 'vendor_bill_new'`
+   - Endpoint ที่ insert `staff_expense_claims` / `staff_invoices` → `event_type: 'staff_claim_new'`
+   - เรียกแบบ fire-and-forget (await ไม่ block flow หลัก, log error ถ้า fail)
 
-**สิทธิ์การใช้งาน:**
-- ทั้ง staff (`staff_profiles.line_user_id`) และ vendor (`vendor_profiles.line_user_id`)
-- staff → INSERT เข้า `staff_expense_claims`
-- vendor → INSERT เข้า `vendor_invoices`
-- คนที่ยังไม่ได้ผูก → บอทขอให้ผูกก่อน
+## เทคนิคที่ใช้
+- ตาราง `admin_notification_settings`:
+  - `user_id` (admin UUID, PK)
+  - `line_user_id` text
+  - `notify_link_success` boolean default true
+  - `notify_vendor_bill` boolean default true
+  - `notify_staff_claim` boolean default true
+  - RLS: เจ้าของแก้/อ่านได้เอง, service_role ใช้ใน edge function
+- ใช้ LINE Push API: `POST https://api.line.me/v2/bot/message/push`
 
----
+## เฟส
+- **A:** ตาราง settings + หน้า `/admin-notifications` + edge function `notify-admin-line` + ปุ่มทดสอบ
+- **B:** เชื่อม trigger ทั้ง 3 จุด (link / vendor bill / staff claim)
+- **C:** เพิ่ม deep link ในข้อความ + ทดสอบจริง
 
-## รายละเอียดเชิงเทคนิค
-
-**ไฟล์ที่แก้:**
-- `supabase/functions/line-webhook/index.ts` — เพิ่ม follow handler, ID card OCR flow, conversational state machine, Quick Reply builders
-- `supabase/functions/_shared/line-flex.ts` (ใหม่) — แยก Flex Message templates ออกจาก webhook (Welcome, Confirm Expense, Confirm ID Card)
-- `supabase/functions/_shared/conversation-state.ts` (ใหม่) — helper อ่าน/เขียน `line_conversation_state`
-
-**Migration:**
-1. ตาราง `line_conversation_state` (พร้อม GRANT + RLS service_role only)
-2. เพิ่มคอลัมน์ `id_card_url`, `id_card_number`, `id_card_verified_at` ใน `staff_profiles` และ `vendor_profiles` (ถ้ายังไม่มี — จะเช็คก่อน)
-
-**AI:** ใช้ `google/gemini-2.5-flash` ผ่าน Lovable AI Gateway (LOVABLE_API_KEY มีอยู่แล้ว) สำหรับ:
-- OCR บัตรประชาชน
-- Parse ข้อความค่าใช้จ่ายให้เป็น structured (เพิ่มจาก `parseCashExpenseWithAI` เดิม)
-
-**LINE features ที่จะใช้:**
-- Quick Reply (พร้อม `text` action)
-- Flex Message (Confirm card)
-- `follow` event handler
-
-**Memory updates หลังเสร็จ:**
-- `mem://integrations/line-bot-architecture` — เพิ่ม conversational flow + ID card OCR
-- `mem://features/line-auto-link` — เพิ่ม follow-time auto-match
-- เพิ่ม `mem://features/line-conversational-expense` ใหม่
+## ข้อสังเกต
+- ถ้ายังไม่ได้กรอก LINE User ID ของแอดมิน → edge function ข้าม push เงียบๆ ไม่ error
+- ในอนาคตขยายเพิ่ม event อื่นได้ง่าย (เช่น OCR fail, สลิปซ้ำ) โดยเพิ่ม column toggle
+- LINE User ID ของแอดมินหาได้จาก LINE Developer Console (Your user ID) หรือให้บอท reply ตอนพิมพ์ `/myid`
