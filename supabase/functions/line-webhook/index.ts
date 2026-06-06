@@ -1983,7 +1983,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
-      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'staff', actor_name: data?.staff_name || name });
+      await notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'staff', actor_name: data?.staff_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n👤 ${data?.staff_name} (ทีมงาน)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชนเข้ามาในแชต ระบบจะอ่านและจัดเก็บให้อัตโนมัติ`);
       return true;
@@ -1998,7 +1998,7 @@ async function handleRegistrationConvReply(
         return true;
       }
       await clearConvState(supabase, lineUserId);
-      notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'vendor', actor_name: data?.company_name || name });
+      await notifyAdminEvent(owner, { event_type: 'new_registration', actor_kind: 'vendor', actor_name: data?.company_name || name });
       await replyToUser(token, replyToken,
         `✅ ลงทะเบียนสำเร็จ!\n🏢 ${data?.company_name} (คู่ค้า)\n📱 ${draft.phone}\n\n📸 ขั้นต่อไป: ส่งสำเนาบัตรประชาชน + ใบวางบิล/ใบเสร็จเข้ามาในแชตได้เลยครับ`);
       return true;
@@ -2281,7 +2281,7 @@ async function finalizeExpense(
     const eventLine = draft.event_name ? `\n🎪 ${draft.event_name}` : '';
     await replyToUser(lineToken, replyToken,
       `✅ บันทึกค่าใช้จ่ายแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n📂 ${draft.subcategory || 'อื่นๆ'}${eventLine}\n\n⏳ รอแอดมินตรวจสอบ\n📸 ถ้ามีบิล/ใบเสร็จ ส่งรูปตามมาได้เลย`);
-    notifyAdminEvent(owner, {
+    await notifyAdminEvent(owner, {
       event_type: 'staff_claim_new',
       actor_kind: 'staff',
       actor_name: staff.staff_name || 'ทีมงาน',
@@ -2312,7 +2312,7 @@ async function finalizeExpense(
     } else {
       await replyToUser(lineToken, replyToken,
         `✅ บันทึกแล้ว!\n💰 ${Number(draft.amount).toLocaleString()} บาท\n📝 ${draft.description}\n⏳ รอแอดมินตรวจสอบ`);
-      notifyAdminEvent(owner, {
+      await notifyAdminEvent(owner, {
         event_type: 'vendor_bill_new',
         actor_kind: 'vendor',
         actor_name: vendor.company_name || 'คู่ค้า',
