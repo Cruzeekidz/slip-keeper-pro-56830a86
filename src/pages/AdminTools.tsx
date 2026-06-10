@@ -43,6 +43,7 @@ const AdminTools = () => {
         { label: "ใบเบิกเงินทดรองจ่าย", icon: Wallet, onClick: () => navigate("/cash-advance") },
         { label: "บันทึกค่าใช้จ่ายเงินสด", icon: Banknote, onClick: () => navigate("/cash-expense") },
         { label: "คลังสลิป", icon: FolderOpen, onClick: () => navigate("/receipt-archive") },
+        { label: "คลังเอกสารแนบ (บิล/ใบเบิก/สลิปจ่าย)", icon: FolderOpen, onClick: () => navigate("/attachments-archive") },
       ],
     },
     {
