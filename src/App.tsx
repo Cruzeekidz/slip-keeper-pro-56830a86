@@ -28,6 +28,7 @@ const LinkLine           = lazy(() => import("./pages/LinkLine"));
 const ResetPassword      = lazy(() => import("./pages/ResetPassword"));
 const SystemAdmin        = lazy(() => import("./pages/SystemAdmin"));
 const ReceiptArchive     = lazy(() => import("./pages/ReceiptArchive"));
+const AttachmentsArchive = lazy(() => import("./pages/AttachmentsArchive"));
 const SystemDocs         = lazy(() => import("./pages/SystemDocs"));
 const ReviewQueue        = lazy(() => import("./pages/ReviewQueue"));
 const EventPnL           = lazy(() => import("./pages/EventPnL"));
@@ -94,6 +95,7 @@ const App = () => (
               <Route path="/link-line" element={<LinkLine />} />
               <Route path="/system-admin" element={<SystemAdmin />} />
               <Route path="/receipt-archive" element={<ReceiptArchive />} />
+              <Route path="/attachments-archive" element={<AttachmentsArchive />} />
               <Route path="/system-docs" element={<SystemDocs />} />
               <Route path="/review-queue" element={<ReviewQueue />} />
               <Route path="/event-pnl" element={<EventPnL />} />
