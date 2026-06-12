@@ -53,6 +53,7 @@ const AdminTools = () => {
         { label: "ประวัติการลบ", icon: History, onClick: () => navigate("/deleted-history") },
         { label: "ตรวจสอบรายการซ้ำ", icon: AlertTriangle, onClick: () => navigate("/duplicate-checker") },
         { label: "แก้วันที่อัตโนมัติ (DD/YY สลับ)", icon: CalendarClock, onClick: () => navigate("/fix-swapped-dates") },
+        { label: "วิเคราะห์สลิปล่าสุดใหม่ (OCR)", icon: RefreshCw, onClick: () => navigate("/reanalyze-recent") },
       ],
     },
     {
