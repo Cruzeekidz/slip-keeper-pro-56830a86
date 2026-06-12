@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft, BarChart3, FileText, Wallet, Banknote, FolderOpen, AlertTriangle, History,
-  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare, CalendarClock,
+  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare, CalendarClock, RefreshCw,
 } from "lucide-react";
 
 interface ToolItem {
