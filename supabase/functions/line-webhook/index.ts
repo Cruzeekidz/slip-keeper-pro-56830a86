@@ -961,7 +961,7 @@ serve(async (req) => {
           const billingPath = `vendor-bills/${ownerUserId}/${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/line_${Date.now()}_${messageId}.${billingExt}`;
 
           const { error: billUploadErr } = await supabase.storage
-            .from('documents')
+            .from('receipts')
             .upload(billingPath, billingBytes, { contentType: billingContentType, upsert: false });
 
           if (billUploadErr) {
