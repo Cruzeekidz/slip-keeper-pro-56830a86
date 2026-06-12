@@ -96,6 +96,21 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 
 ## ข้อมูลที่ต้องดึง:
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
+
+## 📅 รูปแบบวันที่ในสลิปไทย (สำคัญมาก!)
+สลิปธนาคารไทยใช้รูปแบบ **dd/mm/yy** หรือ **d MMM yy** (ปี 2 หลักเป็น ค.ศ. ไม่ใช่ พ.ศ.)
+ตัวอย่าง:
+- "6 Jun 26" / "06/06/26" → 2026-06-06 (วันที่ 6, เดือน 6, ปี 2026)
+- "23/04/26" → 2026-04-23 (วันที่ 23, เดือน 4, ปี 2026)
+- "15 ธ.ค. 25" → 2025-12-15
+- "01/01/25" → 2025-01-01
+
+**กฎสำคัญ**:
+1. ปี 2 หลัก (yy) ให้บวก 2000 เสมอ (เช่น 26 → 2026, 25 → 2025) — **ห้ามตีความเป็น พ.ศ.**
+2. รูปแบบเป็น **วัน/เดือน/ปี** เสมอ (ไทย) ไม่ใช่ เดือน/วัน/ปี (อเมริกัน)
+3. ถ้าเลขแรกมากกว่า 12 ชัดเจน (เช่น 23/04/26) → เลขแรกคือ "วัน" แน่นอน
+4. ถ้าเห็นเดือนเป็นชื่อ (Jan, Feb, Jun, ม.ค., มิ.ย.) → ใช้เลขเดือนตามนั้น
+5. ถ้าไม่แน่ใจวันที่ → ใส่ confidence_score ต่ำ (<70) และ needs_review = true
 - transaction_type: TRANSFER / BUSINESS / PERSONAL
 - category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC_NEXT / GENERAL (เฉพาะ BUSINESS) หรือ null
 - project_tag: **ต้องเลือกจากรายการอีเวนท์ที่ให้ไว้เท่านั้น** หรือ null
