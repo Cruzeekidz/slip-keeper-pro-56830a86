@@ -177,6 +177,14 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
           <h2 className="text-xl font-bold">ลงทะเบียนสำเร็จ!</h2>
           <p className="text-muted-foreground">ข้อมูลของคุณถูกบันทึกเรียบร้อยแล้ว รอการอนุมัติจากผู้ดูแล</p>
+          <a
+            href="http://line.me/ti/p/%40cruzeekidz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-green-500 hover:bg-green-600 text-white px-4 py-2 text-sm font-medium transition-colors"
+          >
+            💬 ติดต่อแอดมินผ่าน LINE
+          </a>
         </CardContent>
       </Card>
     );
