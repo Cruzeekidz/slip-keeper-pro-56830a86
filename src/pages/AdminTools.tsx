@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft, BarChart3, FileText, Wallet, Banknote, FolderOpen, AlertTriangle, History,
-  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare, CalendarClock, RefreshCw,
+  Send, Database, Settings, Users, Link2, ServerCog, Shield, BookOpen, MessageSquare, CalendarClock, RefreshCw, Plug,
 } from "lucide-react";
 
 interface ToolItem {
@@ -98,6 +98,29 @@ const AdminTools = () => {
             const { data, error } = await supabase.functions.invoke("migrate-categories");
             if (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); return; }
             toast({ title: "จัดหมวดหมู่สำเร็จ", description: `อัพเดท ${data?.migrated || 0} จาก ${data?.total || 0} รายการ` });
+          },
+        },
+        {
+          label: "ทดสอบ FlowAccount Sandbox Token",
+          icon: Plug,
+          onClick: async () => {
+            toast({ title: "กำลังขอ access token..." });
+            const { data, error } = await supabase.functions.invoke("flowaccount-test");
+            if (error) { toast({ title: "เรียก function ไม่สำเร็จ", description: error.message, variant: "destructive" }); return; }
+            if (!data?.success) {
+              toast({
+                title: `❌ Token ล้มเหลว (HTTP ${data?.status ?? '?'})`,
+                description: typeof data?.response === 'string' ? data.response : JSON.stringify(data?.response ?? data?.error ?? data).slice(0, 200),
+                variant: "destructive",
+              });
+              console.error('[flowaccount-test]', data);
+              return;
+            }
+            toast({
+              title: `✅ Token OK (${data.latencyMs}ms)`,
+              description: `type=${data.token?.type} expires_in=${data.token?.expires_in}s scope=${data.token?.scope ?? '-'}`,
+            });
+            console.log('[flowaccount-test] success', data);
           },
         },
       ],
