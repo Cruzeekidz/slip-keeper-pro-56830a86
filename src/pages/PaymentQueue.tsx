@@ -528,6 +528,11 @@ const PaymentQueue = () => {
                         <p className="text-sm text-muted-foreground">
                           {inv.event_name || "ไม่ระบุอีเวนท์"} • {inv.invoice_number}
                         </p>
+                        {inv.created_at && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <CalendarClock className="h-3 w-3" />ส่งเข้าเมื่อ {formatSubmittedAt(inv.created_at)}
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         {inv.matched_expense_id && (
