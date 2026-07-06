@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -41,6 +41,7 @@ interface PaymentItem {
   status: string;
   payment_slip_url: string | null;
   matched_expense_id: string | null;
+  created_at: string;
   staff_profiles: {
     staff_name: string;
     nickname: string | null;
@@ -53,6 +54,28 @@ interface PaymentItem {
 const cleanAccountNumber = (account: string | null | undefined): string => {
   if (!account) return "";
   return account.replace(/[-\s]/g, "");
+};
+
+// FlowAccount deep-links (production UI). User has real account here.
+const FA_BASE = "https://app.flowaccount.com";
+const FA_LINKS = {
+  createExpense: `${FA_BASE}/#/expense-notes/create`,
+  uploadBill: `${FA_BASE}/#/purchase-tax-invoices/create`,
+  createWht: `${FA_BASE}/#/withholding-taxes/create`,
+};
+
+const formatSubmittedAt = (iso?: string | null) => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const day = d.getDate().toString().padStart(2, "0");
+    const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    const m = months[d.getMonth()];
+    const y = d.getFullYear() + 543;
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    return `${day} ${m} ${y} · ${hh}:${mm}`;
+  } catch { return ""; }
 };
 
 const PaymentQueue = () => {
