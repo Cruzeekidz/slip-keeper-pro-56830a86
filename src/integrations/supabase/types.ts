@@ -1438,6 +1438,13 @@ export type Database = {
           document_type: string
           due_date: string | null
           file_url: string | null
+          flowaccount_bill_id: string | null
+          flowaccount_bill_url: string | null
+          flowaccount_push_error: string | null
+          flowaccount_push_status: string | null
+          flowaccount_pushed_at: string | null
+          flowaccount_wht_id: string | null
+          flowaccount_wht_url: string | null
           id: string
           invoice_date: string | null
           invoice_number: string | null
@@ -1466,6 +1473,13 @@ export type Database = {
           document_type?: string
           due_date?: string | null
           file_url?: string | null
+          flowaccount_bill_id?: string | null
+          flowaccount_bill_url?: string | null
+          flowaccount_push_error?: string | null
+          flowaccount_push_status?: string | null
+          flowaccount_pushed_at?: string | null
+          flowaccount_wht_id?: string | null
+          flowaccount_wht_url?: string | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
@@ -1494,6 +1508,13 @@ export type Database = {
           document_type?: string
           due_date?: string | null
           file_url?: string | null
+          flowaccount_bill_id?: string | null
+          flowaccount_bill_url?: string | null
+          flowaccount_push_error?: string | null
+          flowaccount_push_status?: string | null
+          flowaccount_pushed_at?: string | null
+          flowaccount_wht_id?: string | null
+          flowaccount_wht_url?: string | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null

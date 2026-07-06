@@ -130,7 +130,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, submitted_via_line_display_name, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
+        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
         .in("status", ["pending", "approved"])
         .neq("link_type", "staff")
         .order("invoice_date", { ascending: true, nullsFirst: false });
@@ -147,14 +147,55 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      return action;
+      // Auto-push to FlowAccount on paid
+      if (action === "paid") {
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
+            body: { invoice_id: id, invoice_type: "vendor" },
+          });
+          return { action, faSuccess: !fnErr && data?.success, faData: data, faError: fnErr?.message };
+        } catch (e: any) {
+          return { action, faSuccess: false, faError: e?.message };
+        }
+      }
+      return { action };
     },
-    onSuccess: (action) => {
+    onSuccess: (result: any) => {
+      const action = result?.action;
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : action === "paid" ? "บันทึกว่าจ่ายแล้ว" : "ปฏิเสธบิลแล้ว" });
+      if (action === "paid") {
+        if (result?.faSuccess) {
+          toast({ title: "✅ จ่ายแล้ว + ส่งเข้า FlowAccount สำเร็จ", description: "สร้างใบกำกับซื้อ/หนังสือ WHT บน FA เรียบร้อย" });
+        } else {
+          toast({
+            title: "บันทึกว่าจ่ายแล้ว (⚠️ FA push ล้มเหลว)",
+            description: (result?.faError || "").slice(0, 200) || "กด 'ลองส่ง FA อีกครั้ง' ในการ์ดบิล",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : "ปฏิเสธบิลแล้ว" });
+      }
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const retryFlowAccountPush = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { data, error } = await supabase.functions.invoke("flowaccount-push-payment", {
+        body: { invoice_id: invoiceId, invoice_type: "vendor" },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      if (data?.success) toast({ title: "✅ ส่งเข้า FlowAccount สำเร็จ" });
+      else toast({ title: "⚠️ ส่งไม่สำเร็จ", description: (data?.errors || []).join(" | ").slice(0, 200), variant: "destructive" });
+    },
+    onError: (err: any) => toast({ title: "เรียก function ไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
 
   const openVendorBillFile = async (path: string | null) => {
@@ -927,24 +968,61 @@ const PaymentQueue = () => {
 
                         {/* FlowAccount quick links */}
                         <div className="border-t pt-3">
-                          <p className="text-[11px] text-muted-foreground mb-2">🔗 เปิดใน FlowAccount</p>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.createExpense} target="_blank" rel="noopener noreferrer" title="สร้างบันทึกค่าใช้จ่าย">
-                                <ExternalLink className="h-3 w-3 mr-1" />ค่าใช้จ่าย
-                              </a>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.uploadBill} target="_blank" rel="noopener noreferrer" title="อัพโหลด/สร้างใบกำกับซื้อ">
-                                <ExternalLink className="h-3 w-3 mr-1" />บิลซื้อ
-                              </a>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer" title="ออกหนังสือหัก ณ ที่จ่าย">
-                                <ExternalLink className="h-3 w-3 mr-1" />WHT
-                              </a>
-                            </Button>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[11px] text-muted-foreground">🔗 FlowAccount</p>
+                            {b.flowaccount_push_status === "success" && (
+                              <Badge variant="secondary" className="text-[10px]">🟢 อยู่ใน FA</Badge>
+                            )}
+                            {b.flowaccount_push_status === "failed" && (
+                              <Badge variant="destructive" className="text-[10px]">🔴 ส่งไม่สำเร็จ</Badge>
+                            )}
+                            {!b.flowaccount_push_status && (
+                              <Badge variant="outline" className="text-[10px]">⚪ ยังไม่ส่ง</Badge>
+                            )}
                           </div>
+                          {b.flowaccount_push_error && (
+                            <p className="text-[10px] text-destructive mb-2 break-words">{b.flowaccount_push_error}</p>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            {b.flowaccount_bill_url ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={b.flowaccount_bill_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />ใบกำกับซื้อ
+                                </a>
+                              </Button>
+                            ) : (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={FA_LINKS.uploadBill} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />สร้างบิลเอง
+                                </a>
+                              </Button>
+                            )}
+                            {b.flowaccount_wht_url ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={b.flowaccount_wht_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />หนังสือ WHT
+                                </a>
+                              </Button>
+                            ) : Number(b.wht_amount) > 0 ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />สร้าง WHT เอง
+                                </a>
+                              </Button>
+                            ) : null}
+                          </div>
+                          {(b.flowaccount_push_status === "failed" || (!b.flowaccount_push_status && b.status === "paid")) && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="w-full mt-2"
+                              disabled={retryFlowAccountPush.isPending}
+                              onClick={() => retryFlowAccountPush.mutate(b.id)}
+                            >
+                              <Send className="h-3 w-3 mr-1" />
+                              {retryFlowAccountPush.isPending ? "กำลังส่ง..." : (b.flowaccount_push_status === "failed" ? "ลองส่ง FA อีกครั้ง" : "ส่งเข้า FA ตอนนี้")}
+                            </Button>
+                          )}
                         </div>
 
                         {/* Action buttons */}
