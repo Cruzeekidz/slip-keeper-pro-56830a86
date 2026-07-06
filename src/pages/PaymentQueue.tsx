@@ -717,6 +717,11 @@ const PaymentQueue = () => {
                         {c.expense_date && <span>· {c.expense_date}</span>}
                         {c.event_name && <span>· {c.event_name}</span>}
                       </div>
+                      {c.created_at && (
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <CalendarClock className="h-3 w-3" />ส่งเข้าเมื่อ {formatSubmittedAt(c.created_at)}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {c.receipt_url && (
