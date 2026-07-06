@@ -147,14 +147,55 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      return action;
+      // Auto-push to FlowAccount on paid
+      if (action === "paid") {
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
+            body: { invoice_id: id, invoice_type: "vendor" },
+          });
+          return { action, faSuccess: !fnErr && data?.success, faData: data, faError: fnErr?.message };
+        } catch (e: any) {
+          return { action, faSuccess: false, faError: e?.message };
+        }
+      }
+      return { action };
     },
-    onSuccess: (action) => {
+    onSuccess: (result: any) => {
+      const action = result?.action;
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : action === "paid" ? "บันทึกว่าจ่ายแล้ว" : "ปฏิเสธบิลแล้ว" });
+      if (action === "paid") {
+        if (result?.faSuccess) {
+          toast({ title: "✅ จ่ายแล้ว + ส่งเข้า FlowAccount สำเร็จ", description: "สร้างใบกำกับซื้อ/หนังสือ WHT บน FA เรียบร้อย" });
+        } else {
+          toast({
+            title: "บันทึกว่าจ่ายแล้ว (⚠️ FA push ล้มเหลว)",
+            description: (result?.faError || "").slice(0, 200) || "กด 'ลองส่ง FA อีกครั้ง' ในการ์ดบิล",
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : "ปฏิเสธบิลแล้ว" });
+      }
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
+  });
+
+  const retryFlowAccountPush = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { data, error } = await supabase.functions.invoke("flowaccount-push-payment", {
+        body: { invoice_id: invoiceId, invoice_type: "vendor" },
+      });
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      if (data?.success) toast({ title: "✅ ส่งเข้า FlowAccount สำเร็จ" });
+      else toast({ title: "⚠️ ส่งไม่สำเร็จ", description: (data?.errors || []).join(" | ").slice(0, 200), variant: "destructive" });
+    },
+    onError: (err: any) => toast({ title: "เรียก function ไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
 
   const openVendorBillFile = async (path: string | null) => {
