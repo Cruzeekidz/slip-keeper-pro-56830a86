@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -41,6 +41,7 @@ interface PaymentItem {
   status: string;
   payment_slip_url: string | null;
   matched_expense_id: string | null;
+  created_at: string;
   staff_profiles: {
     staff_name: string;
     nickname: string | null;
@@ -53,6 +54,28 @@ interface PaymentItem {
 const cleanAccountNumber = (account: string | null | undefined): string => {
   if (!account) return "";
   return account.replace(/[-\s]/g, "");
+};
+
+// FlowAccount deep-links (production UI). User has real account here.
+const FA_BASE = "https://app.flowaccount.com";
+const FA_LINKS = {
+  createExpense: `${FA_BASE}/#/expense-notes/create`,
+  uploadBill: `${FA_BASE}/#/purchase-tax-invoices/create`,
+  createWht: `${FA_BASE}/#/withholding-taxes/create`,
+};
+
+const formatSubmittedAt = (iso?: string | null) => {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    const day = d.getDate().toString().padStart(2, "0");
+    const months = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+    const m = months[d.getMonth()];
+    const y = d.getFullYear() + 543;
+    const hh = d.getHours().toString().padStart(2, "0");
+    const mm = d.getMinutes().toString().padStart(2, "0");
+    return `${day} ${m} ${y} · ${hh}:${mm}`;
+  } catch { return ""; }
 };
 
 const PaymentQueue = () => {
@@ -93,7 +116,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_expense_claims")
-        .select("id, staff_id, amount, description, category, expense_date, event_name, receipt_url, status, staff_profiles(staff_name, nickname)")
+        .select("id, staff_id, amount, description, category, expense_date, event_name, receipt_url, status, created_at, staff_profiles(staff_name, nickname)")
         .in("status", ["submitted", "approved"])
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -107,7 +130,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, vendor_profiles(company_name, bank_name, bank_account)")
+        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, submitted_via_line_display_name, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
         .in("status", ["pending", "approved"])
         .neq("link_type", "staff")
         .order("invoice_date", { ascending: true, nullsFirst: false });
@@ -505,6 +528,11 @@ const PaymentQueue = () => {
                         <p className="text-sm text-muted-foreground">
                           {inv.event_name || "ไม่ระบุอีเวนท์"} • {inv.invoice_number}
                         </p>
+                        {inv.created_at && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                            <CalendarClock className="h-3 w-3" />ส่งเข้าเมื่อ {formatSubmittedAt(inv.created_at)}
+                          </p>
+                        )}
                       </div>
                       <div className="flex gap-1">
                         {inv.matched_expense_id && (
@@ -689,6 +717,11 @@ const PaymentQueue = () => {
                         {c.expense_date && <span>· {c.expense_date}</span>}
                         {c.event_name && <span>· {c.event_name}</span>}
                       </div>
+                      {c.created_at && (
+                        <p className="text-[11px] text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <CalendarClock className="h-3 w-3" />ส่งเข้าเมื่อ {formatSubmittedAt(c.created_at)}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-1 shrink-0">
                       {c.receipt_url && (
@@ -764,96 +797,202 @@ const PaymentQueue = () => {
             {filteredVendorBills.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {filteredVendorBills.map((b: any) => {
                   const net = Number(b.net_amount || b.amount || 0);
-                  const acct = b.vendor_profiles?.bank_account?.replace(/[-\s]/g, "");
+                  const gross = Number(b.amount || 0);
+                  const wht = Number(b.wht_amount || 0);
+                  const acct = cleanAccountNumber(b.vendor_profiles?.bank_account);
+                  const vendorName = b.vendor_profiles?.company_name || "ยังไม่ผูกคู่ค้า";
+                  const isCopied = copiedId === `vb-${b.id}`;
                   return (
-                    <div key={b.id} className="flex items-center justify-between gap-2 p-3 border rounded-md">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">{b.vendor_profiles?.company_name || "ยังไม่ผูกคู่ค้า"}</span>
-                          <Badge variant={b.status === "approved" ? "default" : "secondary"} className="text-[10px]">
-                            {b.status === "approved" ? "อนุมัติแล้ว · รอจ่าย" : "รออนุมัติ"}
+                    <Card key={b.id}>
+                      <CardContent className="pt-4 space-y-3">
+                        {/* Header */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-medium truncate">{vendorName}</p>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {b.invoice_number ? `${b.invoice_number} • ` : ""}{b.description || "—"}
+                            </p>
+                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                              <CalendarClock className="h-3 w-3" />
+                              ส่งเข้าเมื่อ {formatSubmittedAt(b.created_at)}
+                              {b.submitted_via_line_display_name && (
+                                <span className="ml-1">· โดย {b.submitted_via_line_display_name}</span>
+                              )}
+                            </p>
+                          </div>
+                          <Badge variant={b.status === "approved" ? "default" : "secondary"}>
+                            {b.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
                           </Badge>
-                          {b.invoice_number && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted">{b.invoice_number}</span>
-                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground truncate">{b.description || "—"}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                          <span className="font-semibold text-foreground">{net.toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿</span>
-                          {b.invoice_date && <span>· {b.invoice_date}</span>}
-                          {b.due_date && <span>· ครบกำหนด {b.due_date}</span>}
-                          {acct && (
-                            <span className="font-mono">· {b.vendor_profiles?.bank_name} {acct}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex gap-1 shrink-0">
-                        {b.file_url && (
-                          <Button size="icon" variant="ghost" onClick={() => openVendorBillFile(b.file_url)} title="ดูบิล">
-                            <FileText className="h-4 w-4" />
-                          </Button>
+
+                        {/* Bank account block */}
+                        {b.vendor_profiles?.bank_name && acct && (
+                          <div className="flex items-center justify-between bg-muted rounded-lg p-3">
+                            <div className="min-w-0">
+                              <p className="text-xs text-muted-foreground truncate">{b.vendor_profiles.bank_name} — {vendorName}</p>
+                              <p className="font-mono text-lg font-bold tracking-wider">{acct}</p>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(acct);
+                                setCopiedId(`vb-${b.id}`);
+                                setTimeout(() => setCopiedId(null), 2000);
+                                toast({ title: "คัดลอกเลขบัญชีแล้ว", description: acct });
+                              }}
+                            >
+                              {isCopied ? (
+                                <><Check className="h-4 w-4 mr-1 text-green-500" />คัดลอกแล้ว</>
+                              ) : (
+                                <><Copy className="h-4 w-4 mr-1" />คัดลอก</>
+                              )}
+                            </Button>
+                          </div>
                         )}
-                        {acct && (
+
+                        {/* Dates */}
+                        {(b.invoice_date || b.due_date) && (
+                          <div className="flex gap-3 text-xs text-muted-foreground">
+                            {b.invoice_date && <span>วันที่บิล: {b.invoice_date}</span>}
+                            {b.due_date && <span className="text-amber-600">ครบกำหนด: {b.due_date}</span>}
+                          </div>
+                        )}
+
+                        {/* Amount breakdown */}
+                        <div className="bg-muted rounded-lg p-3 space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">ยอดบิล (Gross)</span>
+                            <span className="font-medium">{gross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                          </div>
+                          {wht > 0 && (
+                            <div className="flex justify-between text-destructive">
+                              <span>หัก ณ ที่จ่าย</span>
+                              <span>-{wht.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          <Separator />
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold">ยอดโอนจริง (Net)</span>
+                            <span className="font-bold text-primary">
+                              {net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Copy / view bill */}
+                        <div className="flex gap-2">
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            title="คัดลอกเลขบัญชี"
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
                             onClick={() => {
-                              navigator.clipboard.writeText(acct);
-                              toast({ title: "คัดลอกเลขบัญชีแล้ว", description: acct });
+                              navigator.clipboard.writeText(net.toFixed(2));
+                              toast({ title: "คัดลอกยอดโอน", description: `${net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท` });
                             }}
                           >
-                            <Copy className="h-4 w-4" />
+                            <Copy className="h-4 w-4 mr-1" />คัดลอกยอดโอน
                           </Button>
-                        )}
+                          {b.file_url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1"
+                              onClick={() => openVendorBillFile(b.file_url)}
+                            >
+                              <FileText className="h-4 w-4 mr-1" />ดูบิล
+                            </Button>
+                          )}
+                        </div>
+
+                        {/* Send info to accounting */}
                         {acct && (
                           <Button
-                            size="icon"
-                            variant="ghost"
-                            title="ส่งข้อมูลโอนให้บัญชี"
+                            variant="secondary"
+                            size="sm"
+                            className="w-full"
                             disabled={sending === `vb-${b.id}`}
                             onClick={() => sendInfoToAccounting(
                               `vb-${b.id}`,
-                              `💰 ขอโอนเงินบิลคู่ค้า\n\n🏢 ${b.vendor_profiles?.company_name ?? "ยังไม่ผูกคู่ค้า"}${b.invoice_number ? `\n📋 ${b.invoice_number}` : ""}${b.description ? `\n📝 ${b.description}` : ""}\n💵 ยอดโอน: ${net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท${b.due_date ? `\n📅 ครบกำหนด: ${b.due_date}` : ""}\n\n🏦 ${b.vendor_profiles?.bank_name ?? ""}\nเลขบัญชี: ${acct}\nชื่อบัญชี: ${b.vendor_profiles?.company_name ?? ""}`
+                              `💰 ขอโอนเงินบิลคู่ค้า\n\n🏢 ${vendorName}${b.invoice_number ? `\n📋 ${b.invoice_number}` : ""}${b.description ? `\n📝 ${b.description}` : ""}\n💵 ยอดโอน: ${net.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท${b.due_date ? `\n📅 ครบกำหนด: ${b.due_date}` : ""}\n\n🏦 ${b.vendor_profiles?.bank_name ?? ""}\nเลขบัญชี: ${acct}\nชื่อบัญชี: ${vendorName}`
                             )}
                           >
-                            <Send className="h-4 w-4" />
+                            <Send className="h-4 w-4 mr-1" />
+                            {sending === `vb-${b.id}` ? "กำลังส่ง..." : "ส่งข้อมูลโอนให้บัญชี"}
                           </Button>
                         )}
-                        {b.status === "pending" && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "approve" })}
-                              disabled={vendorBillActionMutation.isPending}
-                            >
-                              <CheckCircle2 className="h-3 w-3 mr-1" />อนุมัติ
+
+                        {/* FlowAccount quick links */}
+                        <div className="border-t pt-3">
+                          <p className="text-[11px] text-muted-foreground mb-2">🔗 เปิดใน FlowAccount</p>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={FA_LINKS.createExpense} target="_blank" rel="noopener noreferrer" title="สร้างบันทึกค่าใช้จ่าย">
+                                <ExternalLink className="h-3 w-3 mr-1" />ค่าใช้จ่าย
+                              </a>
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:text-destructive"
-                              onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "reject" })}
-                            >
-                              <XCircle className="h-3 w-3 mr-1" />ปฏิเสธ
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={FA_LINKS.uploadBill} target="_blank" rel="noopener noreferrer" title="อัพโหลด/สร้างใบกำกับซื้อ">
+                                <ExternalLink className="h-3 w-3 mr-1" />บิลซื้อ
+                              </a>
                             </Button>
-                          </>
-                        )}
-                        {b.status === "approved" && (
-                          <Button
-                            size="sm"
-                            onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "paid" })}
-                            disabled={vendorBillActionMutation.isPending}
-                          >
-                            <Banknote className="h-3 w-3 mr-1" />จ่ายแล้ว
-                          </Button>
-                        )}
-                      </div>
-                    </div>
+                            <Button variant="outline" size="sm" asChild>
+                              <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer" title="ออกหนังสือหัก ณ ที่จ่าย">
+                                <ExternalLink className="h-3 w-3 mr-1" />WHT
+                              </a>
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-2">
+                          {b.status === "pending" && (
+                            <>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "approve" })}
+                                disabled={vendorBillActionMutation.isPending}
+                              >
+                                <CheckCircle2 className="h-4 w-4 mr-1" />อนุมัติ
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "reject" })}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />ปฏิเสธ
+                              </Button>
+                            </>
+                          )}
+                          {b.status === "approved" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "paid" })}
+                                disabled={vendorBillActionMutation.isPending}
+                              >
+                                <Banknote className="h-4 w-4 mr-1" />บันทึกว่าจ่ายแล้ว
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "reject" })}
+                              >
+                                <XCircle className="h-4 w-4 mr-1" />ยกเลิก
+                              </Button>
+                            </>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
                   );
                 })}
               </div>
