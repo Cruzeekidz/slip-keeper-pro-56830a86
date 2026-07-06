@@ -968,24 +968,61 @@ const PaymentQueue = () => {
 
                         {/* FlowAccount quick links */}
                         <div className="border-t pt-3">
-                          <p className="text-[11px] text-muted-foreground mb-2">🔗 เปิดใน FlowAccount</p>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.createExpense} target="_blank" rel="noopener noreferrer" title="สร้างบันทึกค่าใช้จ่าย">
-                                <ExternalLink className="h-3 w-3 mr-1" />ค่าใช้จ่าย
-                              </a>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.uploadBill} target="_blank" rel="noopener noreferrer" title="อัพโหลด/สร้างใบกำกับซื้อ">
-                                <ExternalLink className="h-3 w-3 mr-1" />บิลซื้อ
-                              </a>
-                            </Button>
-                            <Button variant="outline" size="sm" asChild>
-                              <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer" title="ออกหนังสือหัก ณ ที่จ่าย">
-                                <ExternalLink className="h-3 w-3 mr-1" />WHT
-                              </a>
-                            </Button>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-[11px] text-muted-foreground">🔗 FlowAccount</p>
+                            {b.flowaccount_push_status === "success" && (
+                              <Badge variant="secondary" className="text-[10px]">🟢 อยู่ใน FA</Badge>
+                            )}
+                            {b.flowaccount_push_status === "failed" && (
+                              <Badge variant="destructive" className="text-[10px]">🔴 ส่งไม่สำเร็จ</Badge>
+                            )}
+                            {!b.flowaccount_push_status && (
+                              <Badge variant="outline" className="text-[10px]">⚪ ยังไม่ส่ง</Badge>
+                            )}
                           </div>
+                          {b.flowaccount_push_error && (
+                            <p className="text-[10px] text-destructive mb-2 break-words">{b.flowaccount_push_error}</p>
+                          )}
+                          <div className="grid grid-cols-2 gap-2">
+                            {b.flowaccount_bill_url ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={b.flowaccount_bill_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />ใบกำกับซื้อ
+                                </a>
+                              </Button>
+                            ) : (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={FA_LINKS.uploadBill} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />สร้างบิลเอง
+                                </a>
+                              </Button>
+                            )}
+                            {b.flowaccount_wht_url ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={b.flowaccount_wht_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />หนังสือ WHT
+                                </a>
+                              </Button>
+                            ) : Number(b.wht_amount) > 0 ? (
+                              <Button variant="outline" size="sm" asChild>
+                                <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />สร้าง WHT เอง
+                                </a>
+                              </Button>
+                            ) : null}
+                          </div>
+                          {(b.flowaccount_push_status === "failed" || (!b.flowaccount_push_status && b.status === "paid")) && (
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="w-full mt-2"
+                              disabled={retryFlowAccountPush.isPending}
+                              onClick={() => retryFlowAccountPush.mutate(b.id)}
+                            >
+                              <Send className="h-3 w-3 mr-1" />
+                              {retryFlowAccountPush.isPending ? "กำลังส่ง..." : (b.flowaccount_push_status === "failed" ? "ลองส่ง FA อีกครั้ง" : "ส่งเข้า FA ตอนนี้")}
+                            </Button>
+                          )}
                         </div>
 
                         {/* Action buttons */}
