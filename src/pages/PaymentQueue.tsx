@@ -116,7 +116,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("staff_expense_claims")
-        .select("id, staff_id, amount, description, category, expense_date, event_name, receipt_url, status, staff_profiles(staff_name, nickname)")
+        .select("id, staff_id, amount, description, category, expense_date, event_name, receipt_url, status, created_at, staff_profiles(staff_name, nickname)")
         .in("status", ["submitted", "approved"])
         .order("created_at", { ascending: true });
       if (error) throw error;
