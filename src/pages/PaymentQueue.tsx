@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock, Plus } from "lucide-react";
+import AdminVendorBillSheet from "@/components/payment/AdminVendorBillSheet";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -96,6 +97,7 @@ const PaymentQueue = () => {
   const [dueFrom, setDueFrom] = useState("");
   const [dueTo, setDueTo] = useState("");
   const [sending, setSending] = useState<string | null>(null);
+  const [adminBillOpen, setAdminBillOpen] = useState(false);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -130,7 +132,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
+        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, source, line_raw_text, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_expense_id, flowaccount_expense_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
         .in("status", ["pending", "approved"])
         .neq("link_type", "staff")
         .order("invoice_date", { ascending: true, nullsFirst: false });
@@ -147,7 +149,17 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      // Auto-push to FlowAccount on paid
+      // Auto-push to FlowAccount
+      if (action === "approve") {
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-expense-note", {
+            body: { invoice_id: id },
+          });
+          return { action, faSuccess: !fnErr && (data as any)?.success, faData: data, faError: fnErr?.message };
+        } catch (e: any) {
+          return { action, faSuccess: false, faError: e?.message };
+        }
+      }
       if (action === "paid") {
         try {
           const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
@@ -174,8 +186,18 @@ const PaymentQueue = () => {
             variant: "destructive",
           });
         }
+      } else if (action === "approve") {
+        if (result?.faSuccess) {
+          toast({ title: "✅ อนุมัติ + ส่ง Expense Note ไป FA สำเร็จ" });
+        } else {
+          toast({
+            title: "อนุมัติแล้ว (⚠️ Expense Note push ล้มเหลว)",
+            description: (result?.faError || "").slice(0, 200) || "กดปุ่ม 'ลองส่ง FA' เพื่อลองใหม่",
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : "ปฏิเสธบิลแล้ว" });
+        toast({ title: "ปฏิเสธบิลแล้ว" });
       }
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
@@ -461,6 +483,9 @@ const PaymentQueue = () => {
             </Button>
             <Button onClick={() => navigate("/vendor-management")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Building2 className="h-4 w-4 mr-1" />คู่ค้า
+            </Button>
+            <Button onClick={() => setAdminBillOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <Plus className="h-4 w-4 mr-1" />สร้างบิล
             </Button>
           </div>
         </div>
@@ -984,6 +1009,13 @@ const PaymentQueue = () => {
                             <p className="text-[10px] text-destructive mb-2 break-words">{b.flowaccount_push_error}</p>
                           )}
                           <div className="grid grid-cols-2 gap-2">
+                            {b.flowaccount_expense_url && (
+                              <Button variant="outline" size="sm" asChild className="col-span-2 border-green-300 bg-green-50 text-green-700 hover:bg-green-100">
+                                <a href={b.flowaccount_expense_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />Expense Note (FA)
+                                </a>
+                              </Button>
+                            )}
                             {b.flowaccount_bill_url ? (
                               <Button variant="outline" size="sm" asChild>
                                 <a href={b.flowaccount_bill_url} target="_blank" rel="noopener noreferrer">
@@ -1205,6 +1237,7 @@ const PaymentQueue = () => {
           </AlertDialogContent>
         </AlertDialog>
       </main>
+      <AdminVendorBillSheet open={adminBillOpen} onOpenChange={setAdminBillOpen} />
     </div>
   );
 };
