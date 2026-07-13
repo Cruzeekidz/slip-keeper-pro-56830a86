@@ -1097,11 +1097,14 @@ export type Database = {
           has_formal_receipt: boolean
           id: string
           invoice_id: string | null
+          line_raw_text: string | null
+          line_sender_user_id: string | null
           notes: string | null
           project_tag: string | null
           receipt_url: string | null
           reimbursed_at: string | null
           reimbursed_expense_id: string | null
+          source: string | null
           staff_id: string
           status: string
           substitute_receipt_url: string | null
@@ -1126,11 +1129,14 @@ export type Database = {
           has_formal_receipt?: boolean
           id?: string
           invoice_id?: string | null
+          line_raw_text?: string | null
+          line_sender_user_id?: string | null
           notes?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           reimbursed_at?: string | null
           reimbursed_expense_id?: string | null
+          source?: string | null
           staff_id: string
           status?: string
           substitute_receipt_url?: string | null
@@ -1155,11 +1161,14 @@ export type Database = {
           has_formal_receipt?: boolean
           id?: string
           invoice_id?: string | null
+          line_raw_text?: string | null
+          line_sender_user_id?: string | null
           notes?: string | null
           project_tag?: string | null
           receipt_url?: string | null
           reimbursed_at?: string | null
           reimbursed_expense_id?: string | null
+          source?: string | null
           staff_id?: string
           status?: string
           substitute_receipt_url?: string | null
@@ -1440,6 +1449,8 @@ export type Database = {
           file_url: string | null
           flowaccount_bill_id: string | null
           flowaccount_bill_url: string | null
+          flowaccount_expense_id: string | null
+          flowaccount_expense_url: string | null
           flowaccount_push_error: string | null
           flowaccount_push_status: string | null
           flowaccount_pushed_at: string | null
@@ -1449,6 +1460,8 @@ export type Database = {
           invoice_date: string | null
           invoice_number: string | null
           is_formal: boolean
+          line_raw_text: string | null
+          line_sender_user_id: string | null
           link_type: string
           linked_staff_id: string | null
           matched_expense_id: string | null
@@ -1457,6 +1470,7 @@ export type Database = {
           ocr_data: Json | null
           paid_at: string | null
           payment_slip_url: string | null
+          source: string | null
           status: string
           submitted_via_line_display_name: string | null
           submitted_via_line_user_id: string | null
@@ -1475,6 +1489,8 @@ export type Database = {
           file_url?: string | null
           flowaccount_bill_id?: string | null
           flowaccount_bill_url?: string | null
+          flowaccount_expense_id?: string | null
+          flowaccount_expense_url?: string | null
           flowaccount_push_error?: string | null
           flowaccount_push_status?: string | null
           flowaccount_pushed_at?: string | null
@@ -1484,6 +1500,8 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           is_formal?: boolean
+          line_raw_text?: string | null
+          line_sender_user_id?: string | null
           link_type?: string
           linked_staff_id?: string | null
           matched_expense_id?: string | null
@@ -1492,6 +1510,7 @@ export type Database = {
           ocr_data?: Json | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          source?: string | null
           status?: string
           submitted_via_line_display_name?: string | null
           submitted_via_line_user_id?: string | null
@@ -1510,6 +1529,8 @@ export type Database = {
           file_url?: string | null
           flowaccount_bill_id?: string | null
           flowaccount_bill_url?: string | null
+          flowaccount_expense_id?: string | null
+          flowaccount_expense_url?: string | null
           flowaccount_push_error?: string | null
           flowaccount_push_status?: string | null
           flowaccount_pushed_at?: string | null
@@ -1519,6 +1540,8 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           is_formal?: boolean
+          line_raw_text?: string | null
+          line_sender_user_id?: string | null
           link_type?: string
           linked_staff_id?: string | null
           matched_expense_id?: string | null
@@ -1527,6 +1550,7 @@ export type Database = {
           ocr_data?: Json | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          source?: string | null
           status?: string
           submitted_via_line_display_name?: string | null
           submitted_via_line_user_id?: string | null
