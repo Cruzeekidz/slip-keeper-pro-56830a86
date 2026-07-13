@@ -484,6 +484,9 @@ const PaymentQueue = () => {
             <Button onClick={() => navigate("/vendor-management")} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
               <Building2 className="h-4 w-4 mr-1" />คู่ค้า
             </Button>
+            <Button onClick={() => setAdminBillOpen(true)} size="sm" className="bg-white/20 hover:bg-white/30 text-primary-foreground">
+              <Plus className="h-4 w-4 mr-1" />สร้างบิล
+            </Button>
           </div>
         </div>
       </header>
