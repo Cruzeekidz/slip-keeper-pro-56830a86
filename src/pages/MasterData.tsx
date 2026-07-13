@@ -509,7 +509,7 @@ const MasterData = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-6 shadow-elevated">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
@@ -529,7 +529,7 @@ const MasterData = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6">
+      <main className="max-w-[1600px] mx-auto p-6">
         <Tabs defaultValue="category" className="w-full">
           <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="category">ประเภท</TabsTrigger>

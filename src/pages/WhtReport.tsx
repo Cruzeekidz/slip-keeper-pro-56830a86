@@ -84,7 +84,7 @@ const WhtReport = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-to-r from-rose-600 to-pink-700 text-white p-4">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-3">
           <Button variant="ghost" size="icon" className="text-white hover:bg-white/20" onClick={() => navigate("/")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -93,7 +93,7 @@ const WhtReport = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 space-y-4">
+      <main className="max-w-[1600px] mx-auto p-4 space-y-4">
         {/* Month/Year selector */}
         <Card>
           <CardContent className="py-4">

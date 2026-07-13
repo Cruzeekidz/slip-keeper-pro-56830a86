@@ -123,7 +123,7 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-[1600px] mx-auto">
           <div className="flex flex-col gap-4">
             {/* Title Section */}
             <div className="flex items-center justify-between">
@@ -233,7 +233,7 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-6 space-y-6">
+      <main className="max-w-[1600px] mx-auto p-6 space-y-6">
         <MonthlyQuickStats />
         <Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center text-sm text-muted-foreground">กำลังโหลดรายการ…</div>}>
           <ExpenseListReal editId={editId} />

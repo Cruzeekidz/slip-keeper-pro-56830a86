@@ -178,7 +178,7 @@ const ReimbursementSummary = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
-        <div className="max-w-7xl mx-auto flex items-center gap-4">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")} className="text-primary-foreground hover:bg-white/20">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -189,7 +189,7 @@ const ReimbursementSummary = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-4">
         <Card className="p-4 flex flex-wrap items-center gap-2">
           <Select value={preset} onValueChange={(v) => setPreset(v as Preset)}>
             <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
