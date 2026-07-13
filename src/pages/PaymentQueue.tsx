@@ -10,7 +10,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock } from "lucide-react";
+import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock, Plus } from "lucide-react";
+import AdminVendorBillSheet from "@/components/payment/AdminVendorBillSheet";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -96,6 +97,7 @@ const PaymentQueue = () => {
   const [dueFrom, setDueFrom] = useState("");
   const [dueTo, setDueTo] = useState("");
   const [sending, setSending] = useState<string | null>(null);
+  const [adminBillOpen, setAdminBillOpen] = useState(false);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -147,7 +149,17 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      // Auto-push to FlowAccount on paid
+      // Auto-push to FlowAccount
+      if (action === "approve") {
+        try {
+          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-expense-note", {
+            body: { invoice_id: id },
+          });
+          return { action, faSuccess: !fnErr && (data as any)?.success, faData: data, faError: fnErr?.message };
+        } catch (e: any) {
+          return { action, faSuccess: false, faError: e?.message };
+        }
+      }
       if (action === "paid") {
         try {
           const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
@@ -174,8 +186,18 @@ const PaymentQueue = () => {
             variant: "destructive",
           });
         }
+      } else if (action === "approve") {
+        if (result?.faSuccess) {
+          toast({ title: "✅ อนุมัติ + ส่ง Expense Note ไป FA สำเร็จ" });
+        } else {
+          toast({
+            title: "อนุมัติแล้ว (⚠️ Expense Note push ล้มเหลว)",
+            description: (result?.faError || "").slice(0, 200) || "กดปุ่ม 'ลองส่ง FA' เพื่อลองใหม่",
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({ title: action === "approve" ? "อนุมัติบิลคู่ค้าแล้ว" : "ปฏิเสธบิลแล้ว" });
+        toast({ title: "ปฏิเสธบิลแล้ว" });
       }
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
