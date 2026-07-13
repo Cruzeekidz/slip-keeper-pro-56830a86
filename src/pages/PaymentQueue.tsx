@@ -132,7 +132,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
+        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, source, line_raw_text, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_expense_id, flowaccount_expense_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
         .in("status", ["pending", "approved"])
         .neq("link_type", "staff")
         .order("invoice_date", { ascending: true, nullsFirst: false });
