@@ -116,7 +116,7 @@ const StaffManagement = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto p-4 space-y-4">
+      <main className="max-w-[1600px] mx-auto p-4 space-y-4">
         <div className="flex justify-between items-center gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {selectedIds.size > 0 && (

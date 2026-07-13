@@ -138,7 +138,7 @@ const AdminTools = () => {
           <h1 className="text-xl font-bold">เครื่องมือทั้งหมด</h1>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto p-4 md:p-6 grid gap-4 md:grid-cols-2">
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 grid gap-4 md:grid-cols-2">
         {groups.map((g) => (
           <Card key={g.title}>
             <CardHeader className="pb-3">
