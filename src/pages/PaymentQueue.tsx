@@ -1009,6 +1009,13 @@ const PaymentQueue = () => {
                             <p className="text-[10px] text-destructive mb-2 break-words">{b.flowaccount_push_error}</p>
                           )}
                           <div className="grid grid-cols-2 gap-2">
+                            {b.flowaccount_expense_url && (
+                              <Button variant="outline" size="sm" asChild className="col-span-2 border-green-300 bg-green-50 text-green-700 hover:bg-green-100">
+                                <a href={b.flowaccount_expense_url} target="_blank" rel="noopener noreferrer">
+                                  <ExternalLink className="h-3 w-3 mr-1" />Expense Note (FA)
+                                </a>
+                              </Button>
+                            )}
                             {b.flowaccount_bill_url ? (
                               <Button variant="outline" size="sm" asChild>
                                 <a href={b.flowaccount_bill_url} target="_blank" rel="noopener noreferrer">
