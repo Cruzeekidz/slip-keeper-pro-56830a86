@@ -130,7 +130,7 @@ const AdminTools = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 shadow-elevated">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="text-primary-foreground hover:bg-white/20">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -138,7 +138,7 @@ const AdminTools = () => {
           <h1 className="text-xl font-bold">เครื่องมือทั้งหมด</h1>
         </div>
       </header>
-      <main className="max-w-5xl mx-auto p-4 md:p-6 grid gap-4 md:grid-cols-2">
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 grid gap-4 md:grid-cols-2">
         {groups.map((g) => (
           <Card key={g.title}>
             <CardHeader className="pb-3">

@@ -249,7 +249,7 @@ export default function AttachmentsArchive() {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/admin-tools")} className="text-primary-foreground hover:bg-white/20">
             <ArrowLeft className="h-5 w-5" />
           </Button>
@@ -263,7 +263,7 @@ export default function AttachmentsArchive() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 md:p-6 space-y-4">
+      <main className="max-w-[1600px] mx-auto p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-1 text-sm flex-wrap">
           <button onClick={() => { setSelSource(null); setSelYear(null); setSelMonth(null); }} className="text-primary hover:underline font-medium">🏠 คลังเอกสารแนบ</button>
           {breadcrumbs.map((bc, i) => (
