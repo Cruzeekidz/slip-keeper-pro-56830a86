@@ -208,7 +208,7 @@ const PayeeGroupManagement = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 md:p-6 shadow-elevated">
-        <div className="max-w-5xl mx-auto flex items-center gap-4">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate('/')} className="text-primary-foreground hover:bg-white/20">
             <ArrowLeft className="h-4 w-4 mr-2" />กลับ
           </Button>

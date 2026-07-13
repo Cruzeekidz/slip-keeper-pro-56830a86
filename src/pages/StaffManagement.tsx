@@ -107,7 +107,7 @@ const StaffManagement = () => {
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 shadow-elevated">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="text-primary-foreground hover:bg-white/20">
             <ArrowLeft className="h-5 w-5" />
           </Button>
