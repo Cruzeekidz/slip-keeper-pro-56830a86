@@ -1237,6 +1237,7 @@ const PaymentQueue = () => {
           </AlertDialogContent>
         </AlertDialog>
       </main>
+      <AdminVendorBillSheet open={adminBillOpen} onOpenChange={setAdminBillOpen} />
     </div>
   );
 };
