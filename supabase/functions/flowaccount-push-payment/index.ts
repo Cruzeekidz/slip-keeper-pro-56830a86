@@ -5,6 +5,7 @@ const TOKEN_URL = Deno.env.get('FLOWACCOUNT_TOKEN_URL') || 'https://openapi.flow
 const API_BASE = Deno.env.get('FLOWACCOUNT_API_BASE_URL') || 'https://sandbox-api.flowaccount.com';
 const CLIENT_ID = Deno.env.get('FLOWACCOUNT_CLIENT_ID')!;
 const CLIENT_SECRET = Deno.env.get('FLOWACCOUNT_CLIENT_SECRET')!;
+const ATTACH_PATH = Deno.env.get('FLOWACCOUNT_ATTACHMENT_PATH') || '/attachments';
 
 // Default payer (Mengsin Trading) — from Payer Configuration memory
 const PAYER = {
@@ -55,6 +56,46 @@ function today(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+async function attachFileToFA(admin: any, faToken: string, opts: {
+  bucket: 'receipts' | 'documents';
+  path: string;
+  documentType: string;
+  documentId: string;
+  label: string;
+}) {
+  try {
+    const { data: blob, error } = await admin.storage.from(opts.bucket).download(opts.path);
+    if (error || !blob) throw new Error(error?.message || 'no file');
+    const filename = opts.path.split('/').pop() || 'attachment';
+    const form = new FormData();
+    form.append('documentType', opts.documentType);
+    form.append('documentId', opts.documentId);
+    form.append('file', blob, filename);
+    const r = await fetch(`${API_BASE}${ATTACH_PATH}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${faToken}` },
+      body: form,
+    });
+    const txt = await r.text();
+    let json: any = null; try { json = JSON.parse(txt); } catch { /* raw */ }
+    return {
+      label: opts.label, bucket: opts.bucket, path: opts.path,
+      document_type: opts.documentType, document_id: opts.documentId,
+      ok: r.ok, status: r.status,
+      fa_id: json?.data?.id || json?.id || null,
+      error: r.ok ? null : (txt || '').slice(0, 300),
+      uploaded_at: new Date().toISOString(),
+    };
+  } catch (e: any) {
+    return {
+      label: opts.label, bucket: opts.bucket, path: opts.path,
+      document_type: opts.documentType, document_id: opts.documentId,
+      ok: false, error: String(e?.message || e).slice(0, 300),
+      uploaded_at: new Date().toISOString(),
+    };
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -101,7 +142,7 @@ Deno.serve(async (req) => {
     // Load invoice + vendor
     const { data: inv, error: invErr } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_profiles(company_name, tax_id, address, phone, email, bank_name, bank_account)')
+      .select('*, vendor_profiles(company_name, tax_id, address, phone, email, bank_name, bank_account), matched_expense:expenses!vendor_invoices_matched_expense_id_fkey(id, receipt_url)')
       .eq('id', invoiceId)
       .maybeSingle();
     if (invErr || !inv) {
@@ -218,11 +259,33 @@ Deno.serve(async (req) => {
       updates.flowaccount_wht_id = results.wht.id;
       updates.flowaccount_wht_url = results.wht.url;
     }
+    // Auto-attach files: bill file → both docs, transfer slip (from matched expense) → both docs
+    const attachResults: any[] = [];
+    const billFile: string | null = inv.file_url || null;
+    const slipFile: string | null = (inv as any).matched_expense?.receipt_url || null;
+
+    const doAttach = async (docType: string, docId: string) => {
+      if (billFile) attachResults.push(await attachFileToFA(admin, faToken, {
+        bucket: 'documents', path: billFile, documentType: docType, documentId: docId, label: 'บิล/ใบกำกับภาษี',
+      }));
+      if (slipFile) attachResults.push(await attachFileToFA(admin, faToken, {
+        bucket: 'receipts', path: slipFile, documentType: docType, documentId: docId, label: 'สลิปโอนเงิน',
+      }));
+    };
+    if (results.bill?.id) await doAttach('purchase-tax-invoice', String(results.bill.id));
+    if (results.wht?.id) await doAttach('withholding-tax', String(results.wht.id));
+
+    if (attachResults.length) {
+      const prev: any[] = Array.isArray(inv.flowaccount_attachments) ? inv.flowaccount_attachments : [];
+      updates.flowaccount_attachments = [...prev, ...attachResults];
+    }
+
     await admin.from('vendor_invoices').update(updates).eq('id', invoiceId);
 
     return new Response(JSON.stringify({
       success: !anyFailed,
       results,
+      attachments: attachResults,
       errors: anyFailed ? errors : undefined,
       apiBase: API_BASE,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
