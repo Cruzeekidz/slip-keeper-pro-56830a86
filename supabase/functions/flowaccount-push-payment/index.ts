@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     // Load invoice + vendor
     const { data: inv, error: invErr } = await admin
       .from('vendor_invoices')
-      .select('*, vendor_profiles(company_name, tax_id, address, phone, email, bank_name, bank_account), matched_expense:expenses!vendor_invoices_matched_expense_id_fkey(id, receipt_url)')
+      .select('*, vendor_profiles(company_name, tax_id, address, phone, email, bank_name, bank_account)')
       .eq('id', invoiceId)
       .maybeSingle();
     if (invErr || !inv) {
@@ -262,7 +262,15 @@ Deno.serve(async (req) => {
     // Auto-attach files: bill file → both docs, transfer slip (from matched expense) → both docs
     const attachResults: any[] = [];
     const billFile: string | null = inv.file_url || null;
-    const slipFile: string | null = (inv as any).matched_expense?.receipt_url || null;
+    let slipFile: string | null = null;
+    if (inv.matched_expense_id) {
+      const { data: exp } = await admin
+        .from('expenses')
+        .select('receipt_url')
+        .eq('id', inv.matched_expense_id)
+        .maybeSingle();
+      slipFile = exp?.receipt_url || null;
+    }
 
     const doAttach = async (docType: string, docId: string) => {
       if (billFile) attachResults.push(await attachFileToFA(admin, faToken, {
