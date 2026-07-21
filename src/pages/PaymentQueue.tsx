@@ -226,7 +226,6 @@ const PaymentQueue = () => {
       const targets: Array<{ type: string; id: string | null }> = [
         { type: "expense-note", id: bill.flowaccount_expense_id },
         { type: "purchase-tax-invoice", id: bill.flowaccount_bill_id },
-        { type: "withholding-tax", id: bill.flowaccount_wht_id },
       ];
       const anyDoc = targets.find(t => t.id);
       if (!anyDoc) throw new Error("ยังไม่มีเอกสารใน FlowAccount — กด 'ส่งเข้า FA' ก่อน");
