@@ -1078,20 +1078,12 @@ const PaymentQueue = () => {
                                 </a>
                               </Button>
                             )}
-                            {b.flowaccount_wht_url ? (
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={b.flowaccount_wht_url} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3 w-3 mr-1" />หนังสือ WHT
-                                </a>
-                              </Button>
-                            ) : Number(b.wht_amount) > 0 ? (
-                              <Button variant="outline" size="sm" asChild>
-                                <a href={FA_LINKS.createWht} target="_blank" rel="noopener noreferrer">
-                                  <ExternalLink className="h-3 w-3 mr-1" />สร้าง WHT เอง
-                                </a>
-                              </Button>
-                            ) : null}
                           </div>
+                          {Number(b.wht_amount) > 0 && (
+                            <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
+                              💡 มี WHT {Number(b.wht_amount).toLocaleString()} ฿ — ตอนบันทึกจ่ายใน FlowAccount ให้ติ๊ก "หัก ณ ที่จ่าย" ระบบ FA จะออกหนังสือ WHT ให้อัตโนมัติ
+                            </p>
+                          )}
                           {(b.flowaccount_push_status === "failed" || (!b.flowaccount_push_status && b.status === "paid")) && (
                             <Button
                               variant="secondary"
