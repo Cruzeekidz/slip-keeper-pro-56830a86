@@ -1,0 +1,1 @@
+ALTER TABLE public.vendor_invoices ADD COLUMN IF NOT EXISTS flowaccount_attachments jsonb DEFAULT '[]'::jsonb;
