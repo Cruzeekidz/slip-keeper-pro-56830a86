@@ -1104,6 +1104,19 @@ const PaymentQueue = () => {
                               {retryFlowAccountPush.isPending ? "กำลังส่ง..." : (b.flowaccount_push_status === "failed" ? "ลองส่ง FA อีกครั้ง" : "ส่งเข้า FA ตอนนี้")}
                             </Button>
                           )}
+                          {(b.flowaccount_expense_id || b.flowaccount_bill_id || b.flowaccount_wht_id) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full mt-2"
+                              disabled={attachToFA.isPending}
+                              onClick={() => attachToFA.mutate(b)}
+                              title="แนบบิล + สลิปโอน เข้าเอกสาร FA ทุกใบที่มี"
+                            >
+                              <Upload className="h-3 w-3 mr-1" />
+                              {attachToFA.isPending ? "กำลังแนบ..." : "แนบไฟล์เข้า FA"}
+                            </Button>
+                          )}
                         </div>
 
                         {/* Action buttons */}
