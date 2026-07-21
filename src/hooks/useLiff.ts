@@ -13,6 +13,7 @@ interface LiffProfile {
 export const useLiff = () => {
   const [lineUserId, setLineUserId] = useState<string | null>(null);
   const [lineProfile, setLineProfile] = useState<LiffProfile | null>(null);
+  const [lineAccessToken, setLineAccessToken] = useState<string | null>(null);
   const [isInLineApp, setIsInLineApp] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
@@ -38,6 +39,12 @@ export const useLiff = () => {
         if (liff.isLoggedIn()) {
           const profile = await liff.getProfile();
           setLineUserId(profile.userId);
+          try {
+            const token = liff.getAccessToken();
+            if (token) setLineAccessToken(token);
+          } catch (e) {
+            console.error("liff.getAccessToken failed:", e);
+          }
           setLineProfile({
             userId: profile.userId,
             displayName: profile.displayName,
@@ -54,5 +61,16 @@ export const useLiff = () => {
     initLiff();
   }, []);
 
-  return { lineUserId, lineProfile, isInLineApp, isReady };
+  const loginWithLine = async () => {
+    try {
+      const liff = (await import("@line/liff")).default;
+      if (!liff.isLoggedIn()) {
+        liff.login({ redirectUri: window.location.href });
+      }
+    } catch (err) {
+      console.error("liff.login failed:", err);
+    }
+  };
+
+  return { lineUserId, lineProfile, lineAccessToken, isInLineApp, isReady, loginWithLine };
 };

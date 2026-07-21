@@ -1938,6 +1938,14 @@ export type Database = {
         }
         Returns: Json
       }
+      portal_list_active_events: {
+        Args: { p_owner: string; p_since: string }
+        Returns: {
+          event_date: string
+          event_name: string
+          id: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin" | "user" | "super_admin" | "accountant"
