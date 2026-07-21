@@ -243,7 +243,6 @@ Deno.serve(async (req) => {
       }));
     };
     if (results.bill?.id) await doAttach('purchase-tax-invoice', String(results.bill.id));
-    if (results.wht?.id) await doAttach('withholding-tax', String(results.wht.id));
 
     if (attachResults.length) {
       const prev: any[] = Array.isArray(inv.flowaccount_attachments) ? inv.flowaccount_attachments : [];
