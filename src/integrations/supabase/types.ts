@@ -1447,6 +1447,7 @@ export type Database = {
           document_type: string
           due_date: string | null
           file_url: string | null
+          flowaccount_attachments: Json | null
           flowaccount_bill_id: string | null
           flowaccount_bill_url: string | null
           flowaccount_expense_id: string | null
@@ -1487,6 +1488,7 @@ export type Database = {
           document_type?: string
           due_date?: string | null
           file_url?: string | null
+          flowaccount_attachments?: Json | null
           flowaccount_bill_id?: string | null
           flowaccount_bill_url?: string | null
           flowaccount_expense_id?: string | null
@@ -1527,6 +1529,7 @@ export type Database = {
           document_type?: string
           due_date?: string | null
           file_url?: string | null
+          flowaccount_attachments?: Json | null
           flowaccount_bill_id?: string | null
           flowaccount_bill_url?: string | null
           flowaccount_expense_id?: string | null
