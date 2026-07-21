@@ -203,47 +203,9 @@ Deno.serve(async (req) => {
       results.bill = { id: inv.flowaccount_bill_id, url: inv.flowaccount_bill_url, skipped: true };
     }
 
-    // 2) Withholding Tax
-    if (wht > 0 && !inv.flowaccount_wht_id) {
-      const whtRate = gross > 0 ? Number(((wht / gross) * 100).toFixed(2)) : 3;
-      const whtPayload = {
-        payer: {
-          name: PAYER.name,
-          taxId: PAYER.taxId,
-          branchNumber: PAYER.branch,
-          address: PAYER.address,
-        },
-        payee: {
-          name: vendor.company_name || 'Unknown',
-          taxId: vendor.tax_id || '',
-          address: vendor.address || '',
-        },
-        documentDate: today(),
-        pndType: (vendor.tax_id && vendor.tax_id.length === 13 && vendor.tax_id.startsWith('0')) ? 'PND53' : 'PND3',
-        payerCondition: 'WithHolding',
-        items: [{
-          incomeType: 'ServiceFee',
-          incomeDescription: inv.description || 'ค่าบริการ',
-          paymentDate: today(),
-          grossAmount: gross,
-          taxRate: whtRate,
-          taxAmount: wht,
-        }],
-        totalGrossAmount: gross,
-        totalTaxAmount: wht,
-      };
-      const r = await faPost('/withholding-taxes', faToken, whtPayload);
-      if (r.ok) {
-        const id = r.json?.data?.id || r.json?.id || r.json?.documentId || null;
-        const url = r.json?.data?.viewUrl || r.json?.viewUrl || (id ? `https://app.flowaccount.com/#/withholding-taxes/${id}` : null);
-        results.wht = { id, url, status: r.status };
-      } else {
-        anyFailed = true;
-        errors.push(`WHT ${r.status}: ${(r.text || '').slice(0, 300)}`);
-      }
-    } else if (inv.flowaccount_wht_id) {
-      results.wht = { id: inv.flowaccount_wht_id, url: inv.flowaccount_wht_url, skipped: true };
-    }
+    // NOTE: WHT certificate is intentionally NOT created via API.
+    // In FlowAccount, ticking "หัก ณ ที่จ่าย" when recording payment auto-generates
+    // the legally-correct WHT form. We only push the purchase tax invoice.
 
     // Persist
     const updates: any = {
@@ -281,7 +243,6 @@ Deno.serve(async (req) => {
       }));
     };
     if (results.bill?.id) await doAttach('purchase-tax-invoice', String(results.bill.id));
-    if (results.wht?.id) await doAttach('withholding-tax', String(results.wht.id));
 
     if (attachResults.length) {
       const prev: any[] = Array.isArray(inv.flowaccount_attachments) ? inv.flowaccount_attachments : [];
