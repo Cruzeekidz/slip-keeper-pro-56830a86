@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,12 +7,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { CheckCircle, Upload, FileImage, File } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
-import { buildUploadPath } from "@/lib/storage-path";
+import { callPortalSubmit, fileToBase64 } from "@/lib/portal-submit";
+import { useLiff } from "@/hooks/useLiff";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
   const { toast } = useToast();
+  const { lineAccessToken, loginWithLine } = useLiff();
   const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -58,43 +59,26 @@ const VendorBillUpload = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
       toast({ title: "กรุณาแนบไฟล์บิล", variant: "destructive" });
       return;
     }
+    if (!lineAccessToken) {
+      toast({
+        title: "กรุณาเข้าสู่ระบบด้วย LINE ก่อน",
+        description: "เปิดลิงก์นี้ผ่านแอป LINE เพื่อยืนยันตัวตน",
+        variant: "destructive",
+      });
+      await loginWithLine();
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Upload bill file
-      const fileName = buildUploadPath("vendor-bills", ownerId, `${Date.now()}-${billFile.name}`);
-      const { error: uploadError } = await supabase.storage
-        .from("receipts")
-        .upload(fileName, billFile, { upsert: false });
-      if (uploadError) throw uploadError;
-
-      // Create vendor invoice record
-      const { error } = await supabase.from("vendor_invoices").insert({
-        user_id: ownerId,
-        invoice_number: form.invoice_number || null,
-        amount: form.amount || 0,
-        net_amount: form.amount || 0,
-        description: form.company_name ? `${form.company_name} - ${form.description}` : form.description || "บิลจากคู่ค้า",
-        file_url: fileName,
-        notes: form.notes || null,
-        status: "pending",
+      const filePayload = await fileToBase64(billFile);
+      await callPortalSubmit({
+        action: "submit_vendor_bill",
+        owner: ownerId,
+        lineAccessToken,
+        payload: form,
+        file: filePayload,
       });
-
-      if (error) throw error;
-
-      // Notify admin via LINE (fire-and-forget)
-      supabase.functions.invoke("notify-admin-event", {
-        body: {
-          owner_user_id: ownerId,
-          event_type: "vendor_bill_new",
-          actor_kind: "vendor",
-          actor_name: form.company_name || "คู่ค้า",
-          amount: form.amount || 0,
-          invoice_number: form.invoice_number || undefined,
-          description: form.description || undefined,
-        },
-      }).catch((e) => console.error("notify-admin-event failed:", e));
-
       setSubmitted(true);
     } catch (err: any) {
       toast({ title: "เกิดข้อผิดพลาด", description: err.message, variant: "destructive" });

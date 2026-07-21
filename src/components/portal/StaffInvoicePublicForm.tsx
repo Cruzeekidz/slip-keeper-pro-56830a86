@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { callPortalSubmit } from "@/lib/portal-submit";
+import { useLiff } from "@/hooks/useLiff";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +30,7 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
   const fallbackParams = new URLSearchParams(window.location.search);
   const ownerParam = ownerIdProp || fallbackParams.get("owner");
   const staffParam = fallbackParams.get("staff");
+  const { lineAccessToken, loginWithLine } = useLiff();
 
   const [step, setStep] = useState<"search" | "form" | "submitted">(staffParam ? "form" : "search");
   const [phone, setPhone] = useState("");
@@ -87,23 +90,20 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
   }, [staffParam]);
 
   const loadEvents = async (userId: string) => {
-    // กรองเฉพาะอีเวนท์ที่อยู่ในช่วง 3 เดือนย้อนหลัง ถึงอนาคต (รวมที่ยังไม่มีวันที่)
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const cutoffDate = threeMonthsAgo.toISOString().split("T")[0];
-
-    const { data } = await supabase
-      .from("event_registry")
-      .select("id, event_name, event_date")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .or(`event_date.gte.${cutoffDate},event_date.is.null`)
-      .order("event_date", { ascending: false, nullsFirst: false });
-    if (data) {
-      setEvents(data);
-      // ถ้าไม่มี event ในระบบ → switch เป็น type mode ทันที (UX ลื่น)
-      if (data.length === 0) setEventMode("type");
-    } else {
+    if (!lineAccessToken) {
+      setEventMode("type");
+      return;
+    }
+    try {
+      const res = await callPortalSubmit<{ events: EventOption[] }>({
+        action: "list_events",
+        owner: userId,
+        lineAccessToken,
+      });
+      const list = res?.events || [];
+      setEvents(list);
+      if (list.length === 0) setEventMode("type");
+    } catch {
       setEventMode("type");
     }
   };
@@ -200,80 +200,42 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
       return;
     }
 
+    if (!lineAccessToken) {
+      toast.error("กรุณาเข้าสู่ระบบด้วย LINE ก่อน — เปิดผ่านแอป LINE");
+      await loginWithLine();
+      return;
+    }
+
     setSubmitting(true);
     setError("");
 
     try {
-      // ถ้าผู้ใช้พิมพ์ชื่อ event เอง (ไม่ได้เลือกจาก dropdown) → สร้างเข้า event_registry เพื่อให้คนต่อไปเห็น
-      let finalEventId: string | null = form.event_id || null;
-      if (!finalEventId && form.event_name.trim()) {
-        const trimmedName = form.event_name.trim();
-        // ตรวจซ้ำใน list ปัจจุบันก่อน (case-insensitive)
-        const existing = events.find(
-          (ev) => ev.event_name.toLowerCase() === trimmedName.toLowerCase()
-        );
-        if (existing) {
-          finalEventId = existing.id;
-        } else {
-          // สร้างใหม่
-          const projectTag = `EVT-MANUAL-${Date.now().toString().slice(-8)}`;
-          const { data: newEvent } = await supabase
-            .from("event_registry")
-            .insert({
-              user_id: selectedStaff.user_id,
-              event_name: trimmedName,
-              project_tag: projectTag,
-              event_date: form.work_start_date || null,
-              is_active: true,
-            })
-            .select("id")
-            .single();
-          if (newEvent) finalEventId = newEvent.id;
-        }
-      }
+      const existing = events.find(
+        (ev) => ev.event_name.toLowerCase() === form.event_name.trim().toLowerCase()
+      );
+      const finalEventId = form.event_id || existing?.id || null;
 
-      const invoiceNumber = `SI-${new Date().getFullYear() + 543}-${String(Date.now()).slice(-4)}`;
-
-      const { error: insertError } = await supabase.from("staff_invoices").insert({
-        user_id: selectedStaff.user_id,
-        staff_id: selectedStaff.id,
-        invoice_number: invoiceNumber,
-        event_id: finalEventId,
-        event_name: form.event_name.trim(),
-        days_worked: form.days_worked,
-        daily_rate: form.daily_rate,
-        gross_amount: grossAmount,
-        wht_rate: whtRate,
-        wht_amount: whtAmount,
-        net_amount: netAmount,
-        work_start_date: form.work_start_date || null,
-        work_end_date: form.work_end_date || null,
-        notes: form.notes || null,
-        status: "submitted",
-        submitted_via: "web",
-        submitted_at: new Date().toISOString(),
+      await callPortalSubmit({
+        action: "submit_staff_invoice",
+        owner: selectedStaff.user_id,
+        lineAccessToken,
+        payload: {
+          staff_id: selectedStaff.id,
+          event_id: finalEventId,
+          event_name: form.event_name.trim(),
+          days_worked: form.days_worked,
+          daily_rate: form.daily_rate,
+          gross_amount: grossAmount,
+          wht_rate: whtRate,
+          wht_amount: whtAmount,
+          net_amount: netAmount,
+          work_start_date: form.work_start_date || null,
+          work_end_date: form.work_end_date || null,
+          notes: form.notes || null,
+        },
       });
-
-      if (insertError) {
-        const friendly = translateDbError(insertError.message);
-        setError(friendly);
-        toast.error(friendly);
-        console.error(insertError);
-      } else {
-        toast.success("ส่งใบเรียกเก็บเงินสำเร็จ");
-        setStep("submitted");
-        supabase.functions.invoke("notify-admin-event", {
-          body: {
-            owner_user_id: selectedStaff.user_id,
-            event_type: "staff_claim_new",
-            actor_kind: "staff",
-            actor_name: selectedStaff.staff_name,
-            amount: netAmount,
-            invoice_number: invoiceNumber,
-            description: form.event_name.trim() || form.notes || "ใบเรียกเก็บเงินทีมงาน",
-          },
-        }).catch((e) => console.error("notify-admin-event failed:", e));
-      }
+      toast.success("ส่งใบเรียกเก็บเงินสำเร็จ");
+      setStep("submitted");
     } catch (err: any) {
       const friendly = translateDbError(err?.message || "");
       setError(friendly);

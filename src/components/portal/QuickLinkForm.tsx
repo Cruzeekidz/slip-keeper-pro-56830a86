@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CheckCircle, Link2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { callPortalSubmit } from "@/lib/portal-submit";
+import { useLiff } from "@/hooks/useLiff";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,6 +20,7 @@ type Candidate = { id: string; staff_name?: string; nickname?: string; company_n
 
 const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps) => {
   const { toast } = useToast();
+  const { lineAccessToken, loginWithLine } = useLiff();
   const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [phone, setPhone] = useState("");
   const [taxId, setTaxId] = useState("");
@@ -28,14 +30,20 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
   const [notFound, setNotFound] = useState(false);
 
   const handleSelectCandidate = async (candidate: Candidate, kind: "staff" | "vendor") => {
+    if (!lineAccessToken) {
+      toast({ title: "กรุณาเข้าสู่ระบบด้วย LINE ก่อน", variant: "destructive" });
+      await loginWithLine();
+      return;
+    }
     setSubmitting(true);
     try {
-      const rpcName = kind === "staff" ? "link_staff_line_id" : "link_vendor_line_id";
-      const params: any = kind === "staff"
-        ? { p_owner: ownerId, p_phone: phone, p_line_user_id: lineUserId || "", p_staff_id: candidate.id }
-        : { p_owner: ownerId, p_phone: phone, p_tax_id: taxId, p_line_user_id: lineUserId || "", p_vendor_id: candidate.id };
-      const { data, error } = await supabase.rpc(rpcName as any, params);
-      if (error) throw error;
+      const res = await callPortalSubmit<{ result: any }>({
+        action: "quick_link",
+        owner: ownerId,
+        lineAccessToken,
+        payload: { kind, phone, tax_id: taxId, target_id: candidate.id },
+      });
+      const data = res?.result;
       const status = (data as any)?.status;
       if (status === "linked" || status === "already_linked") {
         setLinked({ kind, name: candidate.staff_name || candidate.company_name || "—" });
@@ -66,6 +74,11 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       toast({ title: "กรุณากรอกเบอร์โทรหรือเลขผู้เสียภาษี", variant: "destructive" });
       return;
     }
+    if (!lineAccessToken) {
+      toast({ title: "กรุณาเข้าสู่ระบบด้วย LINE ก่อน", variant: "destructive" });
+      await loginWithLine();
+      return;
+    }
     if (phone) {
       const digits = phone.replace(/[^0-9]/g, "");
       if (digits.length !== 10 || !digits.startsWith("0")) {
@@ -93,10 +106,11 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       // ลองทีมงานก่อน (เบอร์โทร)
       let foundAny = false;
       if (phone) {
-        const { data } = await supabase.rpc("link_staff_line_id", {
-          p_owner: ownerId,
-          p_phone: phone,
-          p_line_user_id: lineUserId || "",
+        const { result: data } = await callPortalSubmit<{ result: any }>({
+          action: "quick_link",
+          owner: ownerId,
+          lineAccessToken,
+          payload: { kind: "staff", phone },
         });
         const status = (data as any)?.status;
         if (status === "linked" || status === "already_linked") {
@@ -123,11 +137,11 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
       }
 
       // ลองคู่ค้า (tax_id หรือ phone)
-      const { data: vendorData } = await supabase.rpc("link_vendor_line_id", {
-        p_owner: ownerId,
-        p_phone: phone,
-        p_tax_id: taxId,
-        p_line_user_id: lineUserId || "",
+      const { result: vendorData } = await callPortalSubmit<{ result: any }>({
+        action: "quick_link",
+        owner: ownerId,
+        lineAccessToken,
+        payload: { kind: "vendor", phone, tax_id: taxId },
       });
       const vStatus = (vendorData as any)?.status;
       if (vStatus === "linked" || vStatus === "already_linked") {

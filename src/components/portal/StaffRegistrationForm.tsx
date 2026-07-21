@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle, Users, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
+import { callPortalSubmit, fileToBase64 } from "@/lib/portal-submit";
+import { useLiff } from "@/hooks/useLiff";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,6 +20,7 @@ interface StaffRegistrationFormProps {
 
 const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdProp }: StaffRegistrationFormProps) => {
   const { toast } = useToast();
+  const { lineAccessToken, isReady, loginWithLine } = useLiff();
   const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -37,14 +39,6 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
     address: "",
     daily_rate: 0,
   });
-
-  const notifyAdmin = async (body: Record<string, unknown>) => {
-    try {
-      await supabase.functions.invoke("notify-admin-event", { body });
-    } catch (e) {
-      console.error("notify-admin-event failed:", e);
-    }
-  };
 
   const handleIdCardChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -82,74 +76,25 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
       toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
       return;
     }
+    if (!lineAccessToken) {
+      toast({
+        title: "กรุณาเข้าสู่ระบบด้วย LINE ก่อน",
+        description: "เปิดลิงก์นี้ผ่านแอป LINE เพื่อยืนยันตัวตน",
+        variant: "destructive",
+      });
+      await loginWithLine();
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Auto-link: ถ้าเปิดผ่าน LIFF + มี LINE ID → ลองผูกกับ profile เดิมก่อน
-      if (lineUserId) {
-        const { data: linkResult } = await supabase.rpc("link_staff_line_id", {
-          p_owner: ownerId,
-          p_phone: form.phone,
-          p_line_user_id: lineUserId,
-        });
-        const status = (linkResult as any)?.status;
-        if (status === "linked" || status === "already_linked") {
-          const profile = (linkResult as any)?.profile;
-          if (status === "linked") {
-            await notifyAdmin({
-              owner_user_id: ownerId,
-              event_type: "link_success",
-              actor_kind: "staff",
-              actor_name: profile?.staff_name || form.staff_name || "ทีมงาน",
-            });
-          }
-          toast({
-            title: status === "already_linked" ? "เชื่อม LINE อยู่แล้ว" : "✓ เชื่อม LINE สำเร็จ",
-            description: `ระบบพบว่าคุณคือ ${profile?.staff_name}${profile?.nickname ? ` (${profile.nickname})` : ""} — ไม่ต้องลงทะเบียนซ้ำ`,
-          });
-          setSubmitted(true);
-          setSubmitting(false);
-          return;
-        }
-        // status === "multiple": ผู้ใช้ควรไปใช้ /portal/quick-link เพื่อเลือกชื่อ
-        // status === "not_found" / "invalid_phone": ดำเนินการสมัครใหม่ตามปกติ
-      }
-
-      let idCardUrl = null;
-
-      // Upload ID card if provided
-      if (idCardFile) {
-        const fileName = `id-cards/${ownerId}/${Date.now()}-${idCardFile.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("documents")
-          .upload(fileName, idCardFile);
-        if (!uploadError) {
-          idCardUrl = fileName;
-        }
-      }
-
-      const { error } = await supabase.from("staff_profiles").insert({
-        user_id: ownerId,
-        staff_name: form.staff_name,
-        nickname: form.nickname || null,
-        position: form.position || null,
-        phone: form.phone || null,
-        email: form.email || null,
-        tax_id: form.tax_id || null,
-        bank_name: form.bank_name || null,
-        bank_account: form.bank_account || null,
-        address: form.address || null,
-        daily_rate: form.daily_rate || 0,
-        id_card_url: idCardUrl,
-        line_user_id: lineUserId || null,
-      });
-
-      if (error) throw error;
-      await notifyAdmin({
-        owner_user_id: ownerId,
-        event_type: "new_registration",
-        actor_kind: "staff",
-        actor_name: form.staff_name,
+      const filePayload = idCardFile ? await fileToBase64(idCardFile) : undefined;
+      await callPortalSubmit({
+        action: "register_staff",
+        owner: ownerId,
+        lineAccessToken,
+        payload: form,
+        file: filePayload,
       });
       setSubmitted(true);
     } catch (err: any) {

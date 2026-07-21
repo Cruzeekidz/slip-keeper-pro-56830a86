@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CheckCircle, Building2, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
+import { callPortalSubmit, fileToBase64 } from "@/lib/portal-submit";
+import { useLiff } from "@/hooks/useLiff";
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -19,6 +20,7 @@ interface VendorRegistrationFormProps {
 
 const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdProp }: VendorRegistrationFormProps) => {
   const { toast } = useToast();
+  const { lineAccessToken, loginWithLine } = useLiff();
   const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -36,14 +38,6 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
     bank_name: "",
     bank_account: "",
   });
-
-  const notifyAdmin = async (body: Record<string, unknown>) => {
-    try {
-      await supabase.functions.invoke("notify-admin-event", { body });
-    } catch (e) {
-      console.error("notify-admin-event failed:", e);
-    }
-  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -88,68 +82,25 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
       });
       return;
     }
+    if (!lineAccessToken) {
+      toast({
+        title: "กรุณาเข้าสู่ระบบด้วย LINE ก่อน",
+        description: "เปิดลิงก์นี้ผ่านแอป LINE เพื่อยืนยันตัวตน",
+        variant: "destructive",
+      });
+      await loginWithLine();
+      return;
+    }
     setSubmitting(true);
 
     try {
-      // Auto-link: ถ้าเปิดผ่าน LIFF + มี LINE ID → ลองผูกกับคู่ค้าเดิมก่อน
-      if (lineUserId) {
-        const { data: linkResult } = await supabase.rpc("link_vendor_line_id", {
-          p_owner: ownerId,
-          p_phone: form.phone,
-          p_tax_id: form.tax_id,
-          p_line_user_id: lineUserId,
-        });
-        const status = (linkResult as any)?.status;
-        if (status === "linked" || status === "already_linked") {
-          const profile = (linkResult as any)?.profile;
-          if (status === "linked") {
-            await notifyAdmin({
-              owner_user_id: ownerId,
-              event_type: "link_success",
-              actor_kind: "vendor",
-              actor_name: profile?.company_name || form.company_name || "คู่ค้า",
-            });
-          }
-          toast({
-            title: status === "already_linked" ? "เชื่อม LINE อยู่แล้ว" : "✓ เชื่อม LINE สำเร็จ",
-            description: `ระบบพบว่าคุณคือคู่ค้า ${profile?.company_name} — ไม่ต้องลงทะเบียนซ้ำ`,
-          });
-          setSubmitted(true);
-          setSubmitting(false);
-          return;
-        }
-      }
-
-      let taxDocUrl = null;
-      if (taxDocFile) {
-        const fileName = `tax-docs/${ownerId}/${Date.now()}-${taxDocFile.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from("documents")
-          .upload(fileName, taxDocFile);
-        if (!uploadError) taxDocUrl = fileName;
-      }
-
-      const { error } = await supabase.from("vendor_profiles").insert({
-        user_id: ownerId,
-        vendor_type: form.vendor_type,
-        company_name: form.company_name,
-        tax_id: form.tax_id || null,
-        contact_name: form.contact_name || null,
-        phone: form.phone || null,
-        email: form.email || null,
-        address: form.address || null,
-        bank_name: form.bank_name || null,
-        bank_account: form.bank_account || null,
-        tax_doc_url: taxDocUrl,
-        line_user_id: lineUserId || null,
-      });
-
-      if (error) throw error;
-      await notifyAdmin({
-        owner_user_id: ownerId,
-        event_type: "new_registration",
-        actor_kind: "vendor",
-        actor_name: form.company_name,
+      const filePayload = taxDocFile ? await fileToBase64(taxDocFile) : undefined;
+      await callPortalSubmit({
+        action: "register_vendor",
+        owner: ownerId,
+        lineAccessToken,
+        payload: form,
+        file: filePayload,
       });
       setSubmitted(true);
     } catch (err: any) {
