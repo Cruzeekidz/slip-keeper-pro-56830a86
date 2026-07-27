@@ -9,8 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import browserImageCompression from "browser-image-compression";
 import { callPortalSubmit, fileToBase64 } from "@/lib/portal-submit";
 import { useLiff } from "@/hooks/useLiff";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { PORTAL_OWNER_UUID_REGEX, resolvePortalOwnerId } from "@/lib/portal-owner";
 
 interface VendorRegistrationFormProps {
   lineUserId?: string | null;
@@ -21,7 +20,7 @@ interface VendorRegistrationFormProps {
 const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdProp }: VendorRegistrationFormProps) => {
   const { toast } = useToast();
   const { lineAccessToken, loginWithLine } = useLiff();
-  const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
+  const ownerId = resolvePortalOwnerId(ownerIdProp || new URLSearchParams(window.location.search).get("owner"));
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [taxDocFile, setTaxDocFile] = useState<File | null>(null);
@@ -61,7 +60,7 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ownerId || !UUID_REGEX.test(ownerId)) {
+    if (!ownerId || !PORTAL_OWNER_UUID_REGEX.test(ownerId)) {
       toast({ title: "ลิงก์ไม่ถูกต้อง กรุณาติดต่อผู้ดูแล", variant: "destructive" });
       return;
     }
@@ -109,7 +108,7 @@ const VendorRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdP
     setSubmitting(false);
   };
 
-  if (!ownerId || !UUID_REGEX.test(ownerId)) {
+  if (!ownerId || !PORTAL_OWNER_UUID_REGEX.test(ownerId)) {
     return (
       <Card>
         <CardContent className="pt-6 text-center space-y-4">
