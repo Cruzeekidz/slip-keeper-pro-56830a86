@@ -7,8 +7,7 @@ import { CheckCircle, Link2, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { callPortalSubmit } from "@/lib/portal-submit";
 import { useLiff } from "@/hooks/useLiff";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+import { PORTAL_OWNER_UUID_REGEX, resolvePortalOwnerId } from "@/lib/portal-owner";
 
 interface QuickLinkFormProps {
   lineUserId?: string | null;
@@ -21,7 +20,7 @@ type Candidate = { id: string; staff_name?: string; nickname?: string; company_n
 const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps) => {
   const { toast } = useToast();
   const { lineAccessToken, loginWithLine } = useLiff();
-  const ownerId = ownerIdProp || new URLSearchParams(window.location.search).get("owner") || "";
+  const ownerId = resolvePortalOwnerId(ownerIdProp || new URLSearchParams(window.location.search).get("owner"));
   const [phone, setPhone] = useState("");
   const [taxId, setTaxId] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -66,7 +65,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setNotFound(false);
-    if (!ownerId || !UUID_REGEX.test(ownerId)) {
+    if (!ownerId || !PORTAL_OWNER_UUID_REGEX.test(ownerId)) {
       toast({ title: "ลิงก์ไม่ถูกต้อง", variant: "destructive" });
       return;
     }
@@ -172,7 +171,7 @@ const QuickLinkForm = ({ lineUserId, ownerId: ownerIdProp }: QuickLinkFormProps)
     setSubmitting(false);
   };
 
-  if (!ownerId || !UUID_REGEX.test(ownerId)) {
+  if (!ownerId || !PORTAL_OWNER_UUID_REGEX.test(ownerId)) {
     return (
       <Card>
         <CardContent className="pt-6 text-center space-y-4">

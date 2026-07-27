@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { callPortalSubmit } from "@/lib/portal-submit";
+import { resolvePortalOwnerId } from "@/lib/portal-owner";
 import { useLiff } from "@/hooks/useLiff";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ interface StaffOption {
   staff_name: string;
   daily_rate: number;
   user_id: string;
+  linked?: boolean;
 }
 
 interface EventOption {
@@ -28,11 +29,11 @@ interface EventOption {
 
 const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) => {
   const fallbackParams = new URLSearchParams(window.location.search);
-  const ownerParam = ownerIdProp || fallbackParams.get("owner");
+  const ownerParam = resolvePortalOwnerId(ownerIdProp || fallbackParams.get("owner"));
   const staffParam = fallbackParams.get("staff");
-  const { lineAccessToken, loginWithLine } = useLiff();
+  const { lineAccessToken, loginWithLine, isReady } = useLiff();
 
-  const [step, setStep] = useState<"search" | "form" | "submitted">(staffParam ? "form" : "search");
+  const [step, setStep] = useState<"search" | "form" | "submitted">("search");
   const [phone, setPhone] = useState("");
   const [staffList, setStaffList] = useState<StaffOption[]>([]);
   const [selectedStaff, setSelectedStaff] = useState<StaffOption | null>(null);
@@ -68,26 +69,33 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
   // If staff param is provided, load directly
   useEffect(() => {
     if (!staffParam) return;
+    if (!isReady) return;
+    if (!lineAccessToken) {
+      setError("กรุณาเปิดผ่าน LINE เพื่อยืนยันตัวตน");
+      return;
+    }
     const loadStaff = async () => {
       setLoading(true);
-      const { data } = await (supabase
-        .from("staff_profiles_public" as any)
-        .select("id, staff_name, daily_rate, user_id")
-        .eq("id", staffParam)
-        .eq("is_active", true) as any)
-        .maybeSingle();
-      if (data) {
-        setSelectedStaff(data);
-        setForm((f) => ({ ...f, daily_rate: data.daily_rate }));
-        await loadEvents(data.user_id);
+      setError("");
+      try {
+        const res = await callPortalSubmit<{ staff: StaffOption }>({
+          action: "lookup_staff_by_id",
+          owner: ownerParam,
+          lineAccessToken,
+          payload: { staff_id: staffParam },
+        });
+        if (!res.staff) throw new Error("not_found");
+        setSelectedStaff(res.staff);
+        setForm((f) => ({ ...f, daily_rate: res.staff.daily_rate }));
+        await loadEvents(res.staff.user_id);
         setStep("form");
-      } else {
+      } catch {
         setError("ไม่พบข้อมูลทีมงาน");
       }
       setLoading(false);
     };
     loadStaff();
-  }, [staffParam]);
+  }, [staffParam, isReady, lineAccessToken, ownerParam]);
 
   const loadEvents = async (userId: string) => {
     if (!lineAccessToken) {
@@ -115,17 +123,27 @@ const StaffInvoicePublicForm = ({ ownerId: ownerIdProp }: { ownerId?: string }) 
     }
     setLoading(true);
     setError("");
-    const query = (supabase
-      .from("staff_profiles_public" as any)
-      .select("id, staff_name, daily_rate, user_id")
-      .eq("is_active", true)
-      .ilike("phone", `%${phone.replace(/-/g, "").slice(-4)}%`) as any);
-
-    const { data } = ownerParam ? await query.eq("user_id", ownerParam) : await query;
-    if (data && data.length > 0) {
-      setStaffList(data);
-    } else {
-      setError("ไม่พบข้อมูล กรุณาลงทะเบียนก่อน");
+    if (!lineAccessToken) {
+      setLoading(false);
+      toast.error("กรุณาเข้าสู่ระบบด้วย LINE ก่อน — เปิดผ่านแอป LINE");
+      await loginWithLine();
+      return;
+    }
+    try {
+      const res = await callPortalSubmit<{ staff: StaffOption[] }>({
+        action: "lookup_staff_by_phone",
+        owner: ownerParam,
+        lineAccessToken,
+        payload: { phone },
+      });
+      const list = res?.staff || [];
+      if (list.length > 0) {
+        setStaffList(list);
+      } else {
+        setError("ไม่พบข้อมูล กรุณาลงทะเบียนก่อน");
+      }
+    } catch (err: any) {
+      setError(translateDbError(err?.message || "request_failed"));
     }
     setLoading(false);
   };

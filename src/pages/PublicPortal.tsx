@@ -9,10 +9,9 @@ import VendorRegistrationForm from "@/components/portal/VendorRegistrationForm";
 import VendorBillUpload from "@/components/portal/VendorBillUpload";
 import QuickLinkForm from "@/components/portal/QuickLinkForm";
 import { useLiff } from "@/hooks/useLiff";
+import { PORTAL_OWNER_UUID_REGEX, resolvePortalOwnerId } from "@/lib/portal-owner";
 
 type PortalView = "menu" | "staff-register" | "staff-invoice" | "vendor-register" | "vendor-bill" | "quick-link";
-
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const VIEW_PARAM_MAP: Record<string, PortalView> = {
   "staff-register": "staff-register",
@@ -91,7 +90,7 @@ const getPortalParams = (): URLSearchParams => {
         mergedParams.set("view", extractedView);
       }
 
-      if ((!UUID_REGEX.test(currentOwner) || currentOwner === "YOUR_USER_ID") && UUID_REGEX.test(extractedOwner)) {
+      if ((!PORTAL_OWNER_UUID_REGEX.test(currentOwner) || currentOwner === "YOUR_USER_ID") && PORTAL_OWNER_UUID_REGEX.test(extractedOwner)) {
         mergedParams.set("owner", extractedOwner);
       }
     }
@@ -106,7 +105,7 @@ const PublicPortal = () => {
   const [manualView, setManualView] = useState<PortalView | null>(null);
   const view = manualView ?? parsedView;
   const { lineUserId, lineProfile } = useLiff();
-  const ownerId = (parsedParams.get("owner") || "").trim();
+  const ownerId = resolvePortalOwnerId(parsedParams.get("owner"));
   if (view !== "menu") {
     return (
       <div className="min-h-screen bg-background p-4">
