@@ -417,6 +417,10 @@ serve(async (req) => {
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Process events in the background so LINE gets an immediate 200 ACK.
+    // Without this, sending many slips at once (e.g. 50) keeps the webhook
+    // busy for minutes and LINE / the user perceive the bot as unresponsive.
+    const processEvents = async () => {
     for (const event of events) {
       // ===== Handle follow event (user added bot as friend) =====
       if (event.type === "follow") {
@@ -1513,6 +1517,17 @@ serve(async (req) => {
         );
       }
     }
+    };
+
+    // Kick off background processing; ACK LINE immediately.
+    const bgPromise = processEvents().catch((e) => console.error("bg process error", e));
+    try {
+      // @ts-ignore - EdgeRuntime is provided by the Supabase Edge runtime
+      if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(bgPromise);
+      }
+    } catch (_e) { /* ignore */ }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
