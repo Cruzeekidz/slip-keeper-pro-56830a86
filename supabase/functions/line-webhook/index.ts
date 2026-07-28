@@ -885,7 +885,7 @@ serve(async (req) => {
                       id_card_number: ocr.id_number,
                       id_card_verified_at: new Date().toISOString(),
                     } as any).eq('id', idProfile.profileId);
-                    await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+                    await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
                       `✅ บันทึกสำเนาบัตรประชาชนแล้ว\n👤 ${ocr.full_name || '-'}\n🆔 ${formatThaiId(ocr.id_number)}${ocr.expiry ? `\n📅 หมดอายุ ${ocr.expiry}` : ''}\n\nขอบคุณค่ะ! 🙏`);
                     continue;
                   }
@@ -945,7 +945,7 @@ serve(async (req) => {
           }
 
           if (!ownerUserId) {
-            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
               `❌ ยังไม่ได้ลงทะเบียนเป็นทีมงาน/คู่ค้า\nกรุณากดเมนู "ลงทะเบียน" จาก Rich Menu ก่อน`);
             continue;
           }
@@ -970,7 +970,7 @@ serve(async (req) => {
 
           if (billUploadErr) {
             console.error("Billing upload error:", billUploadErr);
-            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
               `❌ อัพโหลดไม่สำเร็จ: ${billUploadErr.message}`);
             continue;
           }
@@ -994,7 +994,7 @@ serve(async (req) => {
 
           if (invErr) {
             console.error("Vendor invoice insert error:", invErr);
-            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
               `❌ บันทึกไม่สำเร็จ: ${invErr.message}`);
             continue;
           }
@@ -1015,17 +1015,20 @@ serve(async (req) => {
           const amtText = pendingBilling.amount
             ? `\n💰 ${pendingBilling.amount.toLocaleString()} บาท`
             : '';
-          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+          await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
             `✅ ส่ง${kindLabel}สำเร็จ!${amtText}\n📝 ${pendingBilling.description || '-'}\n\n⏳ รอแอดมินตรวจสอบและเลือกอีเวนท์`);
           continue;
         }
 
         // ===== B. Default flow: slip analysis (admin only) =====
         if (userRole !== 'admin') {
-          await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+          await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
             `📷 รับรูปแล้ว แต่ไม่มีข้อความ "วางบิล" หรือ "ใบเสร็จ" นำหน้า\n\n💡 พิมพ์ "help" เพื่อดูวิธีส่งใบวางบิล/ใบเสร็จ`);
           continue;
         }
+
+        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+          `📥 รับสลิปแล้ว กำลังอ่าน OCR และบันทึกให้ค่ะ\nถ้าส่งหลายรูปพร้อมกัน ระบบจะทยอยส่งผลลัพธ์กลับมาเป็นลำดับ`);
 
         // 1. Check for pending memo from this user (within last 5 minutes)
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
@@ -1390,7 +1393,7 @@ serve(async (req) => {
 
           if (isDuplicate) {
             const amt = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : '';
-            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
               `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}`);
             continue;
           }
@@ -1517,11 +1520,11 @@ serve(async (req) => {
           },
         };
 
-        await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken, flexMessage);
+        await pushFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, userId, flexMessage);
 
       } catch (err) {
         console.error("Error processing image:", err);
-        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
+        await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
           `❌ เกิดข้อผิดพลาด: ${err instanceof Error ? err.message : 'Unknown error'}\nกรุณาลองใหม่อีกครั้ง`
         );
       }
@@ -1591,6 +1594,29 @@ async function replyFlexToUser(token: string, replyToken: string, flexMessage: R
     }
   } catch (e) {
     console.error("Flex reply error:", e);
+  }
+}
+
+async function pushTextToUser(token: string, to: string, message: string) {
+  await pushMessage(token, to, [{ type: "text", text: message }]);
+}
+
+async function pushFlexToUser(token: string, to: string, flexMessage: Record<string, unknown>) {
+  try {
+    const res = await fetch("https://api.line.me/v2/bot/message/push", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ to, messages: [flexMessage] }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Flex push failed:", errText);
+    }
+  } catch (e) {
+    console.error("Flex push error:", e);
   }
 }
 
