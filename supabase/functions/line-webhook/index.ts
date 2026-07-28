@@ -417,6 +417,10 @@ serve(async (req) => {
     
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Process events in the background so LINE gets an immediate 200 ACK.
+    // Without this, sending many slips at once (e.g. 50) keeps the webhook
+    // busy for minutes and LINE / the user perceive the bot as unresponsive.
+    const processEvents = async () => {
     for (const event of events) {
       // ===== Handle follow event (user added bot as friend) =====
       if (event.type === "follow") {
@@ -1124,19 +1128,28 @@ serve(async (req) => {
           ];
         }
 
-        const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: aiMessages,
-            tools: [TOOL_SCHEMA],
-            tool_choice: { type: "function", function: { name: "extract_receipt_data" } }
-          }),
-        });
+        // Retry on 429/5xx with jittered backoff — handles bursts (e.g. 50 slips at once).
+        let analyzeResponse: Response = new Response(null, { status: 0 });
+        for (let attempt = 0; attempt < 4; attempt++) {
+          analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: aiMessages,
+              tools: [TOOL_SCHEMA],
+              tool_choice: { type: "function", function: { name: "extract_receipt_data" } }
+            }),
+          });
+          if (analyzeResponse.status !== 429 && analyzeResponse.status < 500) break;
+          const base = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+          const jitter = Math.floor(Math.random() * 500);
+          console.warn(`AI gateway ${analyzeResponse.status}, retry ${attempt + 1} in ${base + jitter}ms`);
+          await new Promise((r) => setTimeout(r, base + jitter));
+        }
 
         let extractedData: Record<string, unknown> | null = null;
 
@@ -1513,6 +1526,17 @@ serve(async (req) => {
         );
       }
     }
+    };
+
+    // Kick off background processing; ACK LINE immediately.
+    const bgPromise = processEvents().catch((e) => console.error("bg process error", e));
+    try {
+      // @ts-ignore - EdgeRuntime is provided by the Supabase Edge runtime
+      if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(bgPromise);
+      }
+    } catch (_e) { /* ignore */ }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
