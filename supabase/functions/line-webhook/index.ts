@@ -1128,19 +1128,28 @@ serve(async (req) => {
           ];
         }
 
-        const analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: aiMessages,
-            tools: [TOOL_SCHEMA],
-            tool_choice: { type: "function", function: { name: "extract_receipt_data" } }
-          }),
-        });
+        // Retry on 429/5xx with jittered backoff — handles bursts (e.g. 50 slips at once).
+        let analyzeResponse: Response = new Response(null, { status: 0 });
+        for (let attempt = 0; attempt < 4; attempt++) {
+          analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: aiMessages,
+              tools: [TOOL_SCHEMA],
+              tool_choice: { type: "function", function: { name: "extract_receipt_data" } }
+            }),
+          });
+          if (analyzeResponse.status !== 429 && analyzeResponse.status < 500) break;
+          const base = 1000 * Math.pow(2, attempt); // 1s, 2s, 4s, 8s
+          const jitter = Math.floor(Math.random() * 500);
+          console.warn(`AI gateway ${analyzeResponse.status}, retry ${attempt + 1} in ${base + jitter}ms`);
+          await new Promise((r) => setTimeout(r, base + jitter));
+        }
 
         let extractedData: Record<string, unknown> | null = null;
 
