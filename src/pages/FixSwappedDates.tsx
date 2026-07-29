@@ -21,8 +21,10 @@ interface Row {
 
 /**
  * DD/YY swap detection (mirrors line-webhook + analyze-receipt logic).
- * If expense_date year is far in the past (< createdYear - 1) AND day is >= 20,
- * swap: newYear = 2000 + day, newDay = year % 100.
+ * Catches both cases where OCR swapped the day and the 2-digit year:
+ *  - stale year (< createdYear - 1), e.g. 2023-04-26 -> 2026-04-23
+ *  - future year (> createdYear), e.g. 2027-01-26 -> 2026-01-27
+ * Swap: newYear = 2000 + day, newDay = year % 100.
  * Returns null if no swap suggested.
  */
 function suggestSwap(expenseDate: string, createdAt: string): string | null {
@@ -33,13 +35,16 @@ function suggestSwap(expenseDate: string, createdAt: string): string | null {
   const day = parseInt(m[3], 10);
   const createdYear = new Date(createdAt).getFullYear();
 
-  if (year >= createdYear - 1) return null; // not stale
+  const isStale = year < createdYear - 1;
+  const isFuture = year > createdYear;
+  if (!isStale && !isFuture) return null;
   if (day < 20) return null; // can't be a year suffix
 
   const newYear = 2000 + day;
   const newDay = year % 100;
   if (newDay < 1 || newDay > 31) return null;
   if (newYear > createdYear + 1) return null;
+  if (newYear === year) return null;
 
   // Validate the resulting date
   const d = new Date(newYear, month - 1, newDay);
