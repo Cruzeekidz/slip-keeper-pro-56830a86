@@ -1027,8 +1027,7 @@ serve(async (req) => {
           continue;
         }
 
-        await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, replyToken,
-          `📥 รับสลิปแล้ว กำลังอ่าน OCR และบันทึกให้ค่ะ\nถ้าส่งหลายรูปพร้อมกัน ระบบจะทยอยส่งผลลัพธ์กลับมาเป็นลำดับ`);
+        // No "received slip" acknowledgement — only the final OCR summary is pushed back.
 
         // 1. Check for pending memo from this user (within last 5 minutes)
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
