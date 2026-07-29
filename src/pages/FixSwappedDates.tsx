@@ -71,12 +71,15 @@ export default function FixSwappedDates() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    // Pull suspicious candidates: expense_date year <= 2024 (broad net), then filter client-side.
+    // Pull suspicious candidates: stale years OR future years (broad net), then filter client-side.
+    const nowYear = new Date().getFullYear();
+    const futureFrom = `${nowYear + 1}-01-01`;
+    const staleTo = `${nowYear - 2}-12-31`;
     const { data, error } = await supabase
       .from("expenses")
       .select("id, amount, description, merchant, expense_date, created_at")
       .eq("user_id", user.id)
-      .lte("expense_date", "2024-12-31")
+      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom}`)
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) {
