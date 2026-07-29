@@ -3,6 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import {
   API_BASE, getToken, faPost, today, extractDocId, docUrl,
   buildExpensePayload, attachFileToFA,
+  getDefaultBankAccountId,
 } from '../_shared/flowaccount.ts';
 
 Deno.serve(async (req) => {
@@ -113,10 +114,13 @@ Deno.serve(async (req) => {
     // 2) Record the payment (transfer). WHT is passed as an amount so FlowAccount
     //    generates the legally-correct หัก ณ ที่จ่าย form on its side.
     if (expenseId) {
+      const bankAccountId = await getDefaultBankAccountId(faToken);
       const paymentPayload: any = {
         paymentStructureType: 'Transfer',
         documentId: Number(expenseId),
-        paymentMethod: 5, // 5 = โอนเงิน
+        // 5 = โอนเงิน (ต้องมี bankAccountId) / 1 = เงินสด (fallback ถ้ายังไม่ได้ผูกบัญชีธนาคารใน FlowAccount)
+        paymentMethod: bankAccountId ? 5 : 1,
+        ...(bankAccountId ? { bankAccountId } : {}),
         paymentDate: (inv.paid_at ? String(inv.paid_at).split('T')[0] : today()),
         collected: Number(net.toFixed(2)),
         withheldPercentage: wht > 0 ? -1 : 0,
@@ -125,9 +129,9 @@ Deno.serve(async (req) => {
       };
       const p = await faPost(`/expenses/${expenseId}/payment`, faToken, paymentPayload);
       if (p.ok) {
-        results.payment = { ok: true, status: p.status };
+        results.payment = { ok: true, status: p.status, bankAccountId, paymentMethod: bankAccountId ? 5 : 1 };
       } else {
-        errors.push(`Payment ${p.status} @ ${p.url}: ${(p.text || '').slice(0, 300)}`);
+        errors.push(`Payment ${p.status} @ ${p.url}: ${(p.text || '').slice(0, 300)}${bankAccountId ? '' : ' (ไม่พบบัญชีธนาคารใน FlowAccount)'}`);
         results.payment = { ok: false, status: p.status };
       }
     }
