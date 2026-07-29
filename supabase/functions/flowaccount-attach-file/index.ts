@@ -1,60 +1,25 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-
-const TOKEN_URL = Deno.env.get('FLOWACCOUNT_TOKEN_URL') || 'https://openapi.flowaccount.com/test/token';
-const API_BASE = Deno.env.get('FLOWACCOUNT_API_BASE_URL') || 'https://sandbox-api.flowaccount.com';
-const CLIENT_ID = Deno.env.get('FLOWACCOUNT_CLIENT_ID')!;
-const CLIENT_SECRET = Deno.env.get('FLOWACCOUNT_CLIENT_SECRET')!;
-const ATTACH_PATH = Deno.env.get('FLOWACCOUNT_ATTACHMENT_PATH') || '/attachments';
-
-async function getToken(): Promise<string> {
-  const form = new URLSearchParams({
-    client_id: CLIENT_ID,
-    client_secret: CLIENT_SECRET,
-    grant_type: 'client_credentials',
-    scope: 'flowaccount-api',
-  });
-  const r = await fetch(TOKEN_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-  });
-  const txt = await r.text();
-  if (!r.ok) throw new Error(`Token ${r.status}: ${txt.slice(0, 300)}`);
-  const json = JSON.parse(txt);
-  if (!json?.access_token) throw new Error(`No access_token: ${txt.slice(0, 200)}`);
-  return json.access_token as string;
-}
+import { getToken, attachFileToFA, type FaDocKind } from '../_shared/flowaccount.ts';
 
 type AttachInput = {
   invoice_id: string;
-  document_type: 'expense-note' | 'purchase-tax-invoice' | 'withholding-tax';
+  // legacy values still accepted from older callers
+  document_type: FaDocKind | 'expense-note' | 'purchase-tax-invoice' | 'withholding-tax';
   document_id: string;
   bucket: 'receipts' | 'documents';
   path: string;
   label?: string;
 };
 
-async function attachOne(admin: any, faToken: string, inp: AttachInput) {
-  const { data: fileBlob, error: dlErr } = await admin.storage.from(inp.bucket).download(inp.path);
-  if (dlErr || !fileBlob) throw new Error(`storage: ${dlErr?.message || 'no file'}`);
-
-  const filename = inp.path.split('/').pop() || 'attachment';
-  const form = new FormData();
-  form.append('documentType', inp.document_type);
-  form.append('documentId', inp.document_id);
-  form.append('file', fileBlob, filename);
-
-  const r = await fetch(`${API_BASE}${ATTACH_PATH}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${faToken}` },
-    body: form,
-  });
-  const txt = await r.text();
-  let json: any = null;
-  try { json = JSON.parse(txt); } catch { /* raw */ }
-  return { ok: r.ok, status: r.status, json, text: txt, filename, label: inp.label };
-}
+const KIND_MAP: Record<string, FaDocKind> = {
+  'expenses': 'expenses',
+  'expense-note': 'expenses',
+  'purchases': 'purchases',
+  'purchase-tax-invoice': 'purchases',
+  'withholding-taxes': 'withholding-taxes',
+  'withholding-tax': 'withholding-taxes',
+};
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -97,34 +62,16 @@ Deno.serve(async (req) => {
 
     const results: any[] = [];
     for (const it of items) {
-      try {
-        const r = await attachOne(admin, faToken, it);
-        results.push({
-          label: it.label || it.path.split('/').pop(),
-          document_type: it.document_type,
-          document_id: it.document_id,
-          bucket: it.bucket,
-          path: it.path,
-          ok: r.ok,
-          status: r.status,
-          fa_id: r.json?.data?.id || r.json?.id || null,
-          error: r.ok ? null : (r.text || '').slice(0, 300),
-          uploaded_at: new Date().toISOString(),
-        });
-      } catch (e: any) {
-        results.push({
-          label: it.label || it.path.split('/').pop(),
-          document_type: it.document_type,
-          bucket: it.bucket,
-          path: it.path,
-          ok: false,
-          error: String(e?.message || e).slice(0, 300),
-          uploaded_at: new Date().toISOString(),
-        });
-      }
+      const kind = KIND_MAP[it.document_type] || 'expenses';
+      results.push(await attachFileToFA(admin, faToken, {
+        bucket: it.bucket,
+        path: it.path,
+        kind,
+        documentId: String(it.document_id),
+        label: it.label || it.path.split('/').pop() || 'attachment',
+      }));
     }
 
-    // Merge into vendor_invoices.flowaccount_attachments
     const { data: existing } = await admin
       .from('vendor_invoices')
       .select('flowaccount_attachments')
