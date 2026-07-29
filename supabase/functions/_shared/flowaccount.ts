@@ -152,6 +152,36 @@ export async function buildExpensePayload(token: string, opts: {
 }
 
 /** Download a file from storage, trying the given bucket first then the other one. */
+
+/**
+ * Transfer payments (paymentMethod 5) require a bankAccountId since 09/05/2024.
+ * Fetch the company's bank accounts and pick one (env override supported).
+ */
+let cachedBankAccountId: number | null | undefined = undefined;
+export async function getDefaultBankAccountId(token: string): Promise<number | null> {
+  if (cachedBankAccountId !== undefined) return cachedBankAccountId;
+  const wanted = (Deno.env.get('FLOWACCOUNT_BANK_ACCOUNT_ID') || '').trim();
+  const r = await faGet('/bank-accounts', token);
+  if (!r.ok) {
+    console.error('[flowaccount] bank-accounts fetch failed', r.status, (r.text || '').slice(0, 200));
+    cachedBankAccountId = null;
+    return null;
+  }
+  const list: any[] = r.json?.data ?? r.json ?? [];
+  if (!Array.isArray(list) || list.length === 0) {
+    cachedBankAccountId = null;
+    return null;
+  }
+  const idOf = (b: any) => Number(b?.bankAccountId ?? b?.id ?? b?.bankId);
+  const picked =
+    (wanted && list.find((b) => String(idOf(b)) === wanted)) ||
+    list.find((b) => b?.isDefault === true) ||
+    list[0];
+  const id = idOf(picked);
+  cachedBankAccountId = Number.isFinite(id) ? id : null;
+  return cachedBankAccountId;
+}
+
 async function downloadFile(admin: any, bucket: string, path: string) {
   const buckets = bucket === 'receipts' ? ['receipts', 'documents'] : ['documents', 'receipts'];
   for (const b of buckets) {
