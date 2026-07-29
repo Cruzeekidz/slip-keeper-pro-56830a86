@@ -367,14 +367,38 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
-    if (editId && expenses.length > 0) {
-      const target = expenses.find(e => e.id === editId);
-      if (target) {
-        setEditingExpense(target);
-        setEditDialogOpen(true);
-      }
+    if (!editId) return;
+    let cancelled = false;
+
+    const target = expenses.find(e => e.id === editId);
+    if (target) {
+      setEditingExpense(target);
+      setEditDialogOpen(true);
+      return;
     }
-  }, [editId, expenses]);
+
+    // Item is outside the current data window (month/page) → fetch it directly
+    (async () => {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('id', editId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !data) {
+        toast({
+          title: "ไม่พบรายการ",
+          description: "รายการนี้อาจถูกลบไปแล้ว",
+          variant: "destructive",
+        });
+        return;
+      }
+      setEditingExpense(data as unknown as Expense);
+      setEditDialogOpen(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [editId, expenses, toast]);
 
   const needsReviewCount = useMemo(() => expenses.filter(e => e.needs_review).length, [expenses]);
 
