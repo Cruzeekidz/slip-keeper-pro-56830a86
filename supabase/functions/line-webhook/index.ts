@@ -1215,11 +1215,11 @@ serve(async (req) => {
             const cy = new Date().getFullYear();
             const oy = parseInt(m[1], 10);
             const od = parseInt(m[3], 10);
-            // If extracted year is far in the past, but day looks like a recent year suffix → swap
-            if (oy < cy - 1 && od >= 20 && od <= 31) {
+            // If extracted year is far in the past OR in the future, but day looks like a recent year suffix → swap
+            if ((oy < cy - 1 || oy > cy) && od >= 20 && od <= 31) {
               const candidateYear = 2000 + od;
               const candidateDay = oy % 100;
-              if (Math.abs(candidateYear - cy) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
+              if (candidateYear !== oy && Math.abs(candidateYear - cy) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
                 const fixed = `${candidateYear}-${m[2]}-${String(candidateDay).padStart(2, '0')}`;
                 console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
                 extractedData.date = fixed;
