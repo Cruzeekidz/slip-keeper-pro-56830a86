@@ -1132,7 +1132,7 @@ serve(async (req) => {
         }
 
         // Retry on 429/5xx with jittered backoff — handles bursts (e.g. 50 slips at once).
-        let analyzeResponse: Response = new Response(null, { status: 0 });
+        let analyzeResponse: Response | null = null;
         for (let attempt = 0; attempt < 4; attempt++) {
           analyzeResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
             method: "POST",
@@ -1156,7 +1156,7 @@ serve(async (req) => {
 
         let extractedData: Record<string, unknown> | null = null;
 
-        if (analyzeResponse.ok) {
+        if (analyzeResponse?.ok) {
           const aiData = await analyzeResponse.json();
           const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
           if (toolCall?.function?.arguments) {
@@ -1176,9 +1176,11 @@ serve(async (req) => {
               } catch (_e) { console.error("Failed to parse content JSON"); }
             }
           }
-        } else {
+        } else if (analyzeResponse) {
           const errText = await analyzeResponse.text();
           console.error("AI analysis failed:", analyzeResponse.status, errText);
+        } else {
+          console.error("AI analysis failed: no response from gateway");
         }
 
         // Fallback: if AI completely failed, use memo-based categorization
