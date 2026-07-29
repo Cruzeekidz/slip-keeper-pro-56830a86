@@ -9,16 +9,17 @@ function resolveApiBase(): string {
   const raw = (Deno.env.get('FLOWACCOUNT_API_BASE_URL') || '').trim().replace(/\/+$/, '');
   // Only accept an explicit base if it points at the documented OpenAPI host
   if (raw && /openapi\.flowaccount\.com/.test(raw)) {
-    return /\/v1$/.test(raw) ? raw : `${raw}/v1`;
+    if (/\/v1$/.test(raw) || /\/test$/.test(raw)) return raw;
+    return raw.includes('/test') ? 'https://openapi.flowaccount.com/test' : `${raw}/v1`;
   }
-  // Derive from the token URL: /test/token => sandbox, /token => production
-  return TOKEN_URL.includes('/test/') 
-    ? 'https://openapi.flowaccount.com/test/v1'
+  // Derive from the token URL: /test/token => sandbox (base /test), /token => production (base /v1)
+  return TOKEN_URL.includes('/test/')
+    ? 'https://openapi.flowaccount.com/test'
     : 'https://openapi.flowaccount.com/v1';
 }
 
 export const API_BASE = resolveApiBase();
-export const IS_SANDBOX = API_BASE.includes('/test/');
+export const IS_SANDBOX = API_BASE.endsWith('/test');
 
 export async function getToken(): Promise<string> {
   const form = new URLSearchParams({
