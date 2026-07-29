@@ -152,6 +152,7 @@ export async function buildExpensePayload(token: string, opts: {
 }
 
 /** Download a file from storage, trying the given bucket first then the other one. */
+
 async function downloadFile(admin: any, bucket: string, path: string) {
   const buckets = bucket === 'receipts' ? ['receipts', 'documents'] : ['documents', 'receipts'];
   for (const b of buckets) {
