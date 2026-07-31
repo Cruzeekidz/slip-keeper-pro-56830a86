@@ -35,6 +35,7 @@ export default function ReanalyzeRecent() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [count, setCount] = useState(30);
+  const [skip, setSkip] = useState(0);
   const [records, setRecords] = useState<Rec[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -46,19 +47,31 @@ export default function ReanalyzeRecent() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase
-      .from('expenses')
-      .select('id, receipt_url, created_at, expense_date, amount, description')
-      .eq('user_id', user.id)
-      .not('receipt_url', 'is', null)
-      .order('created_at', { ascending: false })
-      .limit(count);
+    // Supabase caps each request at 1000 rows — page through until we have `count`
+    const PAGE = 500;
+    const all: any[] = [];
+    let error: any = null;
+    while (all.length < count) {
+      const from = skip + all.length;
+      const to = Math.min(from + PAGE, skip + count) - 1;
+      const res = await supabase
+        .from('expenses')
+        .select('id, receipt_url, created_at, expense_date, amount, description')
+        .eq('user_id', user.id)
+        .not('receipt_url', 'is', null)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (res.error) { error = res.error; break; }
+      const batch = res.data || [];
+      all.push(...batch);
+      if (batch.length < to - from + 1) break;
+    }
     setLoading(false);
     if (error) {
       toast({ title: "โหลดไม่สำเร็จ", description: error.message, variant: "destructive" });
       return;
     }
-    setRecords((data || []).map(r => ({
+    setRecords(all.map(r => ({
       id: r.id,
       receipt_url: r.receipt_url,
       created_at: r.created_at,
@@ -223,9 +236,21 @@ export default function ReanalyzeRecent() {
                 id="count"
                 type="number"
                 min={1}
-                max={200}
+                max={5000}
                 value={count}
-                onChange={(e) => setCount(Math.max(1, Math.min(200, Number(e.target.value) || 30)))}
+                onChange={(e) => setCount(Math.max(1, Math.min(5000, Number(e.target.value) || 30)))}
+                disabled={processing}
+                className="w-28"
+              />
+            </div>
+            <div>
+              <Label htmlFor="skip" className="text-xs">ข้ามรายการล่าสุด (เริ่มที่ลำดับ)</Label>
+              <Input
+                id="skip"
+                type="number"
+                min={0}
+                value={skip}
+                onChange={(e) => setSkip(Math.max(0, Number(e.target.value) || 0))}
                 disabled={processing}
                 className="w-28"
               />
