@@ -88,11 +88,13 @@ export default function FixSwappedDates() {
     const nowYear = new Date().getFullYear();
     const futureFrom = `${nowYear + 1}-01-01`;
     const staleTo = `${nowYear - 2}-12-31`;
+    // anything dated after today is inherently suspicious for a slip
+    const todayStr = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("expenses")
       .select("id, amount, description, merchant, expense_date, created_at")
       .eq("user_id", user.id)
-      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom}`)
+      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom},expense_date.gt.${todayStr}`)
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) {
