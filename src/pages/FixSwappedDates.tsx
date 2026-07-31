@@ -34,11 +34,24 @@ function suggestSwap(expenseDate: string, createdAt: string): string | null {
   const month = parseInt(m[2], 10);
   const day = parseInt(m[3], 10);
   const createdYear = new Date(createdAt).getFullYear();
+  const created = new Date(createdAt);
+  const exp = new Date(year, month - 1, day);
+  const daysAfterCreated = (exp.getTime() - created.getTime()) / 86400000;
 
   const isStale = year < createdYear - 1;
   const isFuture = year > createdYear;
-  if (!isStale && !isFuture) return null;
-  if (day < 20) return null; // can't be a year suffix
+  // Also treat "dated well after it was submitted" as suspicious (e.g. 2026-12-05
+  // recorded in July 2026 — really 2026-05-12 with month/day swapped).
+  const isAfterSubmission = daysAfterCreated > 45;
+  if (!isStale && !isFuture && !isAfterSubmission) return null;
+
+  if (day < 20) {
+    // MM/DD swap: only meaningful when the swap moves the date back before submission
+    if (!isAfterSubmission || month > 12 || day > 12 || day === month || day < 1) return null;
+    const swapped = new Date(year, day - 1, month);
+    if (swapped.getTime() > created.getTime()) return null;
+    return `${year}-${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}`;
+  }
 
   const newYear = 2000 + day;
   const newDay = year % 100;
@@ -75,11 +88,13 @@ export default function FixSwappedDates() {
     const nowYear = new Date().getFullYear();
     const futureFrom = `${nowYear + 1}-01-01`;
     const staleTo = `${nowYear - 2}-12-31`;
+    // anything dated after today is inherently suspicious for a slip
+    const todayStr = new Date().toISOString().slice(0, 10);
     const { data, error } = await supabase
       .from("expenses")
       .select("id, amount, description, merchant, expense_date, created_at")
       .eq("user_id", user.id)
-      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom}`)
+      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom},expense_date.gt.${todayStr}`)
       .order("created_at", { ascending: false })
       .limit(1000);
     if (error) {
