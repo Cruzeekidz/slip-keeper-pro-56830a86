@@ -324,7 +324,7 @@ serve(async (req) => {
         if ((ocrYear < currentYear - 1 || ocrYear > currentYear) && ocrDay >= 20 && ocrDay <= 31) {
           const candidateYear = 2000 + ocrDay;
           const candidateDay = ocrYear % 100;
-          if (candidateYear !== ocrYear && Math.abs(candidateYear - currentYear) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
+          if (candidateYear !== ocrYear && candidateYear >= 2015 && candidateYear <= currentYear + 1 && candidateDay >= 1 && candidateDay <= 31) {
             const fixed = `${candidateYear}-${match[2]}-${String(candidateDay).padStart(2, '0')}`;
             console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
             extractedData.date = fixed;
