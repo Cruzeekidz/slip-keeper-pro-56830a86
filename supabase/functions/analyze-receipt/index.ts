@@ -333,13 +333,16 @@ serve(async (req) => {
               extractedData.confidence_score = 60;
             }
           }
-        } else if (Math.abs(ocrYear - currentYear) > 1) {
-          console.warn(`OCR year mismatch: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
+        } else if (ocrYear > currentYear + 1) {
+          console.warn(`OCR year in the future: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
           extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
           extractedData.needs_review = true;
           if (extractedData.confidence_score && extractedData.confidence_score > 60) {
             extractedData.confidence_score = 60;
           }
+        } else if (ocrYear < currentYear - 1) {
+          // Historical slip: keep the date but flag for review instead of forcing the current year
+          extractedData.needs_review = true;
         }
       }
     }
