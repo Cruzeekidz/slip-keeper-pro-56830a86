@@ -1231,7 +1231,7 @@ serve(async (req) => {
             if ((oy < cy - 1 || oy > cy) && od >= 20 && od <= 31) {
               const candidateYear = 2000 + od;
               const candidateDay = oy % 100;
-              if (candidateYear !== oy && Math.abs(candidateYear - cy) <= 1 && candidateDay >= 1 && candidateDay <= 31) {
+              if (candidateYear !== oy && candidateYear >= 2015 && candidateYear <= cy + 1 && candidateDay >= 1 && candidateDay <= 31) {
                 const fixed = `${candidateYear}-${m[2]}-${String(candidateDay).padStart(2, '0')}`;
                 console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
                 extractedData.date = fixed;
