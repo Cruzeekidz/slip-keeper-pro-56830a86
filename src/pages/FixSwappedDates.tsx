@@ -43,7 +43,10 @@ function suggestSwap(expenseDate: string, createdAt: string): string | null {
   // Also treat "dated well after it was submitted" as suspicious (e.g. 2026-12-05
   // recorded in July 2026 — really 2026-05-12 with month/day swapped).
   const isAfterSubmission = daysAfterCreated > 45;
-  if (!isStale && !isFuture && !isAfterSubmission) return null;
+  // Ambiguous: year matches the year it was recorded, but the day could be a 2-digit
+  // year (e.g. 2026-03-24 recorded in Jul 2026 — really 2024-03-26).
+  const isLongBefore = daysAfterCreated < -90;
+  if (!isStale && !isFuture && !isAfterSubmission && !isLongBefore) return null;
 
   if (day < 20) {
     // MM/DD swap: only meaningful when the swap moves the date back before submission
@@ -58,6 +61,7 @@ function suggestSwap(expenseDate: string, createdAt: string): string | null {
   if (newDay < 1 || newDay > 31) return null;
   if (newYear > createdYear + 1) return null;
   if (newYear === year) return null;
+  if (newYear < 2015) return null;
 
   // Validate the resulting date
   const d = new Date(newYear, month - 1, newDay);
