@@ -1,128 +1,52 @@
-# Phase 4 — LINE Inbox + Admin Quick Entry + FA Expense Note ตอน Approve
+# วางระบบ "ยอดค่าใช้จ่าย" vs "ยอดจ่ายจริง" ให้ชัดเจน
 
-## สรุปที่จะทำ (3 ส่วน เชื่อมกัน)
+## ปัญหาที่เกิดขึ้นจริง
+ตอนนี้ช่อง `amount` ของรายการค่าใช้จ่าย ถูกใช้ปนกัน 2 ความหมาย
+- บางรายการเก็บ **ยอดเต็ม (Gross)** ตามใบแจ้งหนี้/ค่าแรง
+- บางรายการเก็บ **ยอดโอนจริง (Net)** ที่หัก ณ ที่จ่ายแล้ว (ตามที่เห็นบนสลิป)
 
+ผลคือ ตอนกด "วิเคราะห์สลิปใหม่ (OCR)" ระบบอ่านยอดจากสลิป = ยอดสุทธิ แล้วเอาไปทับยอดเต็มที่บันทึกไว้ → รายงานค่าใช้จ่ายเพี้ยน และภาษีหัก ณ ที่จ่ายหาย
+
+## หลักบัญชีที่ถูกต้อง (Liability Settlement Model — ใช้อยู่แล้ว ให้บังคับใช้ทุกจุด)
+สำหรับค่าจ้าง 10,000 หัก 3%:
 ```text
-[LINE ข้อความ/ไฟล์]           [Admin Payment Queue]              [FlowAccount]
-      │                              │                                 │
-      ▼                              ▼                                 ▼
-1. AI สร้าง draft bill  ──►  2. Inline review + edit  ──►  3. กด "อนุมัติ" 
-   เก็บใน vendor_invoices          (ไม่เปิดหน้าใหม่)          → สร้าง Expense Note
-   status='draft_from_line'         approve/reject               ใน FA อัตโนมัติ
+Dr ค่าใช้จ่าย (Gross)        10,000   <- amount = ยอดค่าใช้จ่ายที่ลงบัญชี/P&L
+   Cr ภาษีหัก ณ ที่จ่ายค้างจ่าย   300   <- wht_amount = หนี้ที่ต้องนำส่งกรมสรรพากร
+   Cr เงินฝากธนาคาร            9,700   <- ยอดบนสลิป = amount - wht_amount (ค่าคำนวณ ไม่เก็บซ้ำ)
 ```
+กฎเดียวที่ต้องจำ: **`amount` = Gross เสมอ** และ **ยอดจ่ายจริง = คำนวณ ไม่ใช่ช่องกรอก**
 
-ไม่มีหน้าใหม่ — ทุกอย่างอยู่ใน Payment Queue เดิม แค่เพิ่ม tab "รอตรวจ (จาก LINE)" + ปุ่ม inline
+## สิ่งที่จะทำ
 
----
+### 1. นิยามฟิลด์ให้ตายตัว (ไม่เพิ่มตารางใหม่)
+- `amount` = ยอดค่าใช้จ่าย (Gross, รวม VAT ถ้ามี, ก่อนหัก WHT) — ใช้ในทุกรายงาน P&L
+- `wht_amount` / `vat_amount` = ยอดภาษี
+- `amount_input_mode` = ที่มาของยอดที่ผู้ใช้กรอก (`gross` | `net` | `none`) ใช้แปลงกลับ
 
-## 1. LINE Auto-draft (คู่ค้า/ทีมงาน พิมพ์ freeform มา)
+### 2. เพิ่มฟังก์ชันกลาง `src/lib/amount-model.ts`
+- `deriveAmounts({ input, mode, whtRate, vatRate })` → `{ gross, wht, net }`
+- `grossFromSlip(slipAmount, whtRate)` = `slipAmount / (1 - rate)` สำหรับกรณีอ่านยอดจากสลิป
+ให้ทุกหน้า/ทุก edge function เรียกใช้ตัวนี้ตัวเดียว จะไม่มีสูตรกระจัดกระจายอีก
 
-### เปลี่ยน `line-webhook`
-เมื่อได้ข้อความ + รูป จากคนที่ link แล้ว (vendor หรือ staff):
-- ถ้ามี**รูป**อย่างเดียว → เรียก `analyze-receipt` เดิม (มีอยู่แล้ว)
-- ถ้ามี**ข้อความ**อย่างเดียว หรือ **ข้อความ+รูป** → เรียก AI ใหม่:
-  - Prompt: "ดึง: ยอดเงิน, VAT, WHT, วันที่, เลขที่บิล, คำอธิบาย, เลขบัญชีรับโอน จากข้อความ+รูปนี้"
-  - ใช้ `google/gemini-2.5-flash` ผ่าน Lovable AI Gateway (multimodal)
-- สร้าง row ใน `vendor_invoices` (ถ้าเป็น vendor) หรือ `staff_expense_claims` (ถ้าเป็น staff)
-  - `status = 'draft_from_line'` (สถานะใหม่)
-  - `source = 'line_freeform'`
-  - แนบ receipt URL ถ้ามีรูป
-  - เก็บข้อความต้นฉบับใน `line_raw_text` (column ใหม่)
-- ตอบกลับใน LINE: "📝 รับบิลแล้ว รอแอดมินตรวจ ยอด XXX บาท" + Flex ปุ่ม "ดูรายการ"
+### 3. แก้ตัววิเคราะห์ใหม่ (สาเหตุที่ค้างอยู่ตอนนี้) — `src/pages/ReanalyzeRecent.tsx`
+- ถ้ารายการนั้น `wht_amount > 0`: **ห้ามทับ `amount`** ให้เทียบยอดสลิปกับ `amount - wht_amount` แทน
+  - ถ้าตรงกัน → ถือว่า "ถูกต้องแล้ว" อัปเดตแค่วันที่
+  - ถ้าไม่ตรง → ขึ้นป้าย "ต้องตรวจ (มี WHT)" และ **ไม่ติ๊กเลือกให้อัตโนมัติ**
+- ถ้า `wht_amount = 0` → อัปเดตยอดได้ตามปกติ
+- แสดง 3 คอลัมน์ในตารางเทียบ: ยอดค่าใช้จ่าย / WHT / ยอดจ่ายจริง
 
-### Fallback
-ถ้า AI extract ไม่ได้ → สร้าง row เปล่าที่มีแค่ raw_text + รูป → admin กรอกเอง
-
----
-
-## 2. Admin Review Inline (ใน Payment Queue เดิม)
-
-### Tab ใหม่บนสุด: "🔍 รอตรวจจาก LINE" (badge = จำนวน)
-รายการ draft_from_line ทั้งหมด แสดงเป็น card:
-
+### 4. ทำให้ UI พูดภาษาเดียวกันทุกหน้า
+ทุกที่ที่มียอด (แก้ไขรายการ, Payment Queue, รายการธุรกรรม, Event P&L) แสดงเป็นชุด 3 บรรทัดเสมอ:
 ```text
-┌─────────────────────────────────────────┐
-│ 👤 คู่ค้า: [Combobox เลือก vendor]      │  ← ถ้ายังไม่ระบุ
-│ 📅 วันที่: [__] 💰 ยอด: [__]           │  ← inline edit
-│ 💧 VAT: [__] 🏷 WHT: [__] ยอดโอน: XXX  │
-│ 📝 คำอธิบาย: [_____________]           │
-│ 🏦 ธนาคาร: [__] เลขบัญชี: [__]         │
-│ ─────────────────────────────           │
-│ 📎 รูปบิล [preview]  📞 ข้อความต้นฉบับ  │
-│ ─────────────────────────────           │
-│ [✅ อนุมัติ + ส่ง FA] [❌ ปฏิเสธ] [🗑]  │
-└─────────────────────────────────────────┘
+ยอดค่าใช้จ่าย (ลงบัญชี)   10,000.00
+หัก ณ ที่จ่าย 3%             -300.00
+ยอดโอนจริง (ตามสลิป)       9,700.00
 ```
+ในฟอร์มกรอก มีสวิตช์ "ยอดที่กรอกคือ" = ยอดเต็ม / ยอดโอนจริง แล้วระบบคำนวณอีก 2 ค่าให้อัตโนมัติ
 
-- ทุก field แก้ inline (ไม่เปิด modal)
-- ปุ่ม "อนุมัติ + ส่ง FA" → เปลี่ยน status เป็น `pending_payment` + trigger `flowaccount-push-expense-note` (ใหม่)
-- ปุ่ม "ปฏิเสธ" → ขอเหตุผลสั้นๆ + ส่ง LINE กลับให้คนส่ง
+### 5. ตัวตรวจสอบความถูกต้อง (Reconcile)
+เพิ่มการตรวจในหน้าเครื่องมือ: หา่รายการที่ `amount` ดูเหมือนเป็นยอดสุทธิ (คือ `wht_amount > 0` แต่ยอดสลิป = `amount`) แล้วเสนอแก้เป็น Gross ทีละรายการพร้อมกดยืนยัน
 
-### Admin Quick Create (สำหรับกรณีที่ admin ทำแทนเอง)
-เพิ่มปุ่ม **"➕ สร้างบิลแทนคู่ค้า"** ที่มุมบนขวาของ Payment Queue → เปิด **Sheet (drawer จากขวา)** ไม่ใช่หน้าใหม่:
-- Combobox เลือก vendor (มี auto-add)
-- Drag-drop รูปบิล → AI OCR auto-fill
-- Field ครบเหมือน card ด้านบน
-- ปุ่ม "บันทึกเป็น draft" หรือ "อนุมัติ+ส่ง FA เลย"
-
----
-
-## 3. FA Expense Note ตอน Approve
-
-### Edge function ใหม่: `flowaccount-push-expense-note`
-- Trigger: กด "อนุมัติ" ในหน้า Payment Queue
-- สร้าง **Expense Note** (`POST /expense-notes`) — ไม่ใช่ Purchase Tax Invoice (เพราะยังไม่ได้จ่าย)
-- เก็บ FA doc ID + URL ใน `vendor_invoices.flowaccount_expense_id` (column ใหม่)
-- Show status badge บน card: "🟢 อยู่ใน FA (Expense)" 
-- ตอนกด "จ่ายแล้ว" (Phase 3 เดิม) → ยังคงสร้าง Purchase Tax Invoice + WHT ตามเดิม
-
-Flow บิลนึงจึงมี 3 stages ใน FA:
-1. อนุมัติ → **Expense Note** (คำขอเบิก)
-2. จ่ายเงิน → **Purchase Tax Invoice** (ใบกำกับซื้อ) 
-3. ถ้ามี WHT → **Withholding Tax** (หนังสือ 50 ทวิ)
-
----
-
-## Database migration
-
-เพิ่มใน `vendor_invoices`:
-- `source text default 'admin'` — `admin` / `line_freeform` / `line_form` / `portal`
-- `line_raw_text text` — ข้อความต้นฉบับจาก LINE
-- `line_sender_user_id text` — LINE user ที่ส่งเข้ามา
-- `flowaccount_expense_id text`
-- `flowaccount_expense_url text`
-
-เพิ่ม status ใหม่: `draft_from_line` (แก้ CHECK constraint หรือใช้ text อยู่แล้ว)
-
-เพิ่มใน `staff_expense_claims` (เหมือนกัน 3 columns บน) — สำหรับทีมงานที่ส่ง freeform
-
----
-
-## Files ที่จะแตะ
-
-- **Migration** — เพิ่ม columns + status
-- **`supabase/functions/line-webhook/index.ts`** — เพิ่ม branch freeform + AI extract
-- **`supabase/functions/flowaccount-push-expense-note/index.ts`** — ใหม่
-- **`src/pages/PaymentQueue.tsx`** — Tab "รอตรวจ" + inline card + Sheet "สร้างบิลแทน"
-- **`src/components/portal/VendorBillUpload.tsx`** — reuse เป็น admin mode ใน Sheet
-- **Memory update** — line-bot-architecture + flowaccount-integration-constraints
-
----
-
-## Scope นี้ (ไม่รวม)
-- Auto-approve (มนุษย์ยืนยันเสมอ ไม่งั้น OCR พลาดจะเลอะ FA)
-- Staff freeform → บัตรใน tab แยก (รอบหน้า ทำ vendor ก่อน)
-- แก้ไข Expense Note บน FA จากระบบ (ถ้าจะแก้ ยกเลิกใน FA แล้วสร้างใหม่)
-
----
-
-## Checklist
-- [ ] Migration 5 columns + status
-- [ ] Extend `line-webhook` freeform branch
-- [ ] Edge function `flowaccount-push-expense-note`
-- [ ] Tab + inline card ใน PaymentQueue
-- [ ] Sheet "สร้างบิลแทนคู่ค้า"
-- [ ] Reject flow + LINE reply
-- [ ] Memory update
-
-**ตอบว่า Approve** ถ้าให้ลุยตามลำดับนี้เลย
+## สรุปคำตอบคำถามหลัก
+ไม่ต้องแยกเป็น "บันทึกจ่าย" กับ "บันทึกค่าใช้จ่าย" เป็น 2 รายการ — จะทำให้ยอดซ้ำใน P&L
+ให้ใช้ **1 รายการ + 3 ตัวเลขในตัวมันเอง** (Gross / WHT / Net) แบบเดียวกับที่ FlowAccount ทำ แล้วบังคับให้ `amount` เป็น Gross เสมอ
