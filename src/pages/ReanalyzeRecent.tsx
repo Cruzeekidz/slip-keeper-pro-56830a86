@@ -34,8 +34,10 @@ export default function ReanalyzeRecent() {
   const { user } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [count, setCount] = useState(30);
-  const [skip, setSkip] = useState(0);
+  const [countText, setCountText] = useState("30");
+  const [skipText, setSkipText] = useState("0");
+  const count = Math.max(1, Math.min(5000, Number(countText) || 1));
+  const skip = Math.max(0, Number(skipText) || 0);
   const [records, setRecords] = useState<Rec[]>([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -234,26 +236,33 @@ export default function ReanalyzeRecent() {
               <Label htmlFor="count" className="text-xs">จำนวนสลิปล่าสุด</Label>
               <Input
                 id="count"
-                type="number"
-                min={1}
-                max={5000}
-                value={count}
-                onChange={(e) => setCount(Math.max(1, Math.min(5000, Number(e.target.value) || 30)))}
+                type="text"
+                inputMode="numeric"
+                value={countText}
+                onChange={(e) => setCountText(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => setCountText(String(count))}
                 disabled={processing}
                 className="w-28"
               />
             </div>
             <div>
-              <Label htmlFor="skip" className="text-xs">ข้ามรายการล่าสุด (เริ่มที่ลำดับ)</Label>
+              <Label htmlFor="skip" className="text-xs">ข้ามรายการใหม่สุดกี่รายการ</Label>
               <Input
                 id="skip"
-                type="number"
-                min={0}
-                value={skip}
-                onChange={(e) => setSkip(Math.max(0, Number(e.target.value) || 0))}
+                type="text"
+                inputMode="numeric"
+                value={skipText}
+                onChange={(e) => setSkipText(e.target.value.replace(/[^0-9]/g, ''))}
+                onBlur={() => setSkipText(String(skip))}
                 disabled={processing}
                 className="w-28"
               />
+            </div>
+            <div className="flex gap-1">
+              {[100, 300, 500, 1000].map(n => (
+                <Button key={n} type="button" size="sm" variant="secondary" disabled={processing}
+                  onClick={() => setCountText(String(n))}>{n}</Button>
+              ))}
             </div>
             <Button onClick={load} variant="outline" disabled={loading || processing} className="gap-2">
               <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /> โหลดรายการ
@@ -268,6 +277,10 @@ export default function ReanalyzeRecent() {
                 {paused ? 'เริ่มต่อ' : 'หยุดชั่วคราว'}
               </Button>
             )}
+          </div>
+
+          <div className="text-xs text-muted-foreground mb-3">
+            จะดึง: ข้ามรายการใหม่สุด {skip} รายการ แล้วอ่านต่ออีก {count} รายการ (เรียงใหม่→เก่า) — เปลี่ยนตัวเลขแล้วกด "โหลดรายการ" ก่อนเริ่มวิเคราะห์
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
