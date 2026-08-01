@@ -17,6 +17,7 @@ interface Row {
   created_at: string;
   suggested_date: string;
   selected: boolean;
+  ambiguous?: boolean;
 }
 
 /**
@@ -88,19 +89,14 @@ export default function FixSwappedDates() {
   const load = async () => {
     if (!user) return;
     setLoading(true);
-    // Pull suspicious candidates: stale years OR future years (broad net), then filter client-side.
-    const nowYear = new Date().getFullYear();
-    const futureFrom = `${nowYear + 1}-01-01`;
-    const staleTo = `${nowYear - 2}-12-31`;
-    // anything dated after today is inherently suspicious for a slip
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // Broad net: scan the latest records and filter client-side (covers ambiguous
+    // same-year cases like 2026-03-24 recorded in Jul 2026 → 2024-03-26).
     const { data, error } = await supabase
       .from("expenses")
       .select("id, amount, description, merchant, expense_date, created_at")
       .eq("user_id", user.id)
-      .or(`expense_date.lte.${staleTo},expense_date.gte.${futureFrom},expense_date.gt.${todayStr}`)
       .order("created_at", { ascending: false })
-      .limit(1000);
+      .limit(3000);
     if (error) {
       toast({ title: "โหลดข้อมูลไม่สำเร็จ", description: error.message, variant: "destructive" });
       setLoading(false);
@@ -110,6 +106,9 @@ export default function FixSwappedDates() {
     for (const r of data || []) {
       const sug = suggestSwap(r.expense_date, r.created_at);
       if (sug && sug !== r.expense_date) {
+        const expYear = parseInt(r.expense_date.slice(0, 4), 10);
+        const createdYear = new Date(r.created_at).getFullYear();
+        const ambiguous = expYear === createdYear;
         candidates.push({
           id: r.id,
           amount: Number(r.amount),
@@ -118,11 +117,12 @@ export default function FixSwappedDates() {
           expense_date: r.expense_date,
           created_at: r.created_at,
           suggested_date: sug,
-          selected: true,
+          selected: !ambiguous,
+          ambiguous,
         });
       }
     }
-    setRows(candidates);
+    setRows(candidates.sort((a, b) => Number(a.ambiguous) - Number(b.ambiguous)));
     setLoading(false);
   };
 
@@ -229,6 +229,9 @@ export default function FixSwappedDates() {
                       </div>
                       <div className="text-xs text-muted-foreground">
                         ยอด {r.amount.toLocaleString()} ฿
+                        {r.ambiguous && (
+                          <span className="ml-2 text-warning">• ไม่แน่ใจ ตรวจสอบก่อนแก้</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-xs text-right shrink-0">
