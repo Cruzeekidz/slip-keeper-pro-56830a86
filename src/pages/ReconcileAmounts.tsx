@@ -128,7 +128,7 @@ export default function ReconcileAmounts() {
     <div className="min-h-screen bg-background p-4">
       <div className="max-w-[1600px] mx-auto space-y-4">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/admin-tools")}>
+          <Button variant="ghost" size="sm" onClick={() => navigate("/admin")}>
             <ArrowLeft className="h-4 w-4 mr-1" /> กลับ
           </Button>
           <h1 className="text-xl font-bold flex items-center gap-2">

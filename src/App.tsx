@@ -51,6 +51,7 @@ const EventAnalysisPage  = lazy(() => import("./pages/EventAnalysisPage"));
 const ReimbursementSummary = lazy(() => import("./pages/ReimbursementSummary"));
 const FixSwappedDates    = lazy(() => import("./pages/FixSwappedDates"));
 const ReanalyzeRecent    = lazy(() => import("./pages/ReanalyzeRecent"));
+const ReconcileAmounts   = lazy(() => import("./pages/ReconcileAmounts"));
 
 const PageLoader = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -115,6 +116,7 @@ const App = () => (
               <Route path="/reanalyze-failed" element={<ReanalyzeFailed />} />
               <Route path="/reanalyze-recent" element={<ReanalyzeRecent />} />
               <Route path="/fix-swapped-dates" element={<FixSwappedDates />} />
+              <Route path="/reconcile-amounts" element={<ReconcileAmounts />} />
               <Route path="/cash-expense" element={<CashExpense />} />
               <Route path="/admin" element={<AdminTools />} />
               <Route path="/event-analysis" element={<EventAnalysisPage />} />
