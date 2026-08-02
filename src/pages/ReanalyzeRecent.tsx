@@ -138,7 +138,13 @@ export default function ReanalyzeRecent() {
     }
 
     const newDate = aiData.date || rec.expense_date;
-    const newAmount = aiData.amount ?? rec.amount;
+    const slipAmount = aiData.amount ?? null;
+    const hasWht = rec.wht_amount > 0;
+    // กฎ: amount ในระบบ = Gross เสมอ — ถ้ารายการมี WHT ห้ามเอายอดสลิป (Net) ไปทับ
+    const expectedNet = expectedSlipAmount(rec);
+    const slipMatchesNet = slipAmount != null && Math.abs(slipAmount - expectedNet) <= 1;
+    const needsManualCheck = hasWht && slipAmount != null && !slipMatchesNet;
+    const newAmount = hasWht ? rec.amount : (slipAmount ?? rec.amount);
 
     // Move to correct entity/year/month folder
     let receiptUrl = rec.receipt_url;
@@ -161,7 +167,6 @@ export default function ReanalyzeRecent() {
 
     const updatePayload: any = {
       expense_date: newDate,
-      amount: newAmount,
       expense_time: aiData.time || null,
       category,
       subcategory: aiData.subcategory || null,
@@ -172,9 +177,11 @@ export default function ReanalyzeRecent() {
       category_group: aiData.category_group || null,
       project_tag: aiData.project_tag || null,
       confidence_score: aiData.confidence_score ?? null,
-      needs_review: isLowConfidence,
+      needs_review: isLowConfidence || needsManualCheck,
       receipt_url: receiptUrl,
     };
+    // อัปเดตยอดเฉพาะรายการที่ไม่มี WHT (มี WHT = ยอดในระบบเป็น Gross อยู่แล้ว)
+    if (!hasWht) updatePayload.amount = newAmount;
 
     const { error: updErr } = await supabase.from('expenses').update(updatePayload).eq('id', rec.id);
     if (updErr) {
@@ -183,14 +190,18 @@ export default function ReanalyzeRecent() {
       setStats(s => ({ ...s, failed: s.failed + 1 }));
     } else {
       const changed = newDate !== rec.expense_date || Math.abs(newAmount - rec.amount) > 0.01 || receiptUrl !== rec.receipt_url;
-      list[idx].status = changed ? 'updated' : 'unchanged';
+      list[idx].status = needsManualCheck ? 'review' : (changed ? 'updated' : 'unchanged');
       list[idx].oldDate = rec.expense_date;
       list[idx].newDate = newDate;
       list[idx].oldAmount = rec.amount;
       list[idx].newAmount = newAmount;
+      list[idx].slipAmount = slipAmount ?? undefined;
+      list[idx].amountKept = hasWht;
       list[idx].oldPath = rec.receipt_url;
       list[idx].newPath = receiptUrl;
-      setStats(s => changed ? { ...s, updated: s.updated + 1 } : { ...s, unchanged: s.unchanged + 1 });
+      setStats(s => needsManualCheck
+        ? { ...s, review: s.review + 1 }
+        : changed ? { ...s, updated: s.updated + 1 } : { ...s, unchanged: s.unchanged + 1 });
     }
     setProcessed(p => p + 1);
     setRecords([...list]);
@@ -200,7 +211,7 @@ export default function ReanalyzeRecent() {
     if (!records.length) return;
     setProcessing(true);
     setProcessed(0);
-    setStats({ updated: 0, unchanged: 0, failed: 0 });
+    setStats({ updated: 0, unchanged: 0, review: 0, failed: 0 });
     isPausedRef.current = false;
     setPaused(false);
     const list = records.map(r => ({ ...r, status: 'pending' as const }));
