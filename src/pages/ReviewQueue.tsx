@@ -24,6 +24,7 @@ interface ReviewItem {
   expense_date: string;
   description: string | null;
   merchant: string | null;
+  receiver: string | null;
   receipt_url: string | null;
   confidence_score: number | null;
   transaction_type: string | null;
@@ -62,6 +63,9 @@ export default function ReviewQueue() {
   const [projectTag, setProjectTag] = useState("");
   const [eventName, setEventName] = useState("");
   const [amount, setAmount] = useState("");
+  const [expenseDate, setExpenseDate] = useState("");
+  const [merchant, setMerchant] = useState("");
+  const [receiver, setReceiver] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Bulk approve state
@@ -98,7 +102,7 @@ export default function ReviewQueue() {
     setLoading(true);
     const { data } = await supabase
       .from('expenses')
-      .select('id, amount, expense_date, description, merchant, receipt_url, confidence_score, transaction_type, category_group, subcategory, project_tag, event_name, memo_text')
+      .select('id, amount, expense_date, description, merchant, receiver, receipt_url, confidence_score, transaction_type, category_group, subcategory, project_tag, event_name, memo_text')
       .eq('user_id', user.id)
       .eq('needs_review', true)
       .order('expense_date', { ascending: false });
@@ -139,6 +143,9 @@ export default function ReviewQueue() {
     setProjectTag(current.project_tag || "");
     setEventName(current.event_name || "");
     setAmount(String(current.amount));
+    setExpenseDate(current.expense_date || "");
+    setMerchant(current.merchant || "");
+    setReceiver(current.receiver || "");
 
     if (current.receipt_url) {
       supabase.storage.from('receipts').createSignedUrl(current.receipt_url, 3600)
@@ -308,6 +315,9 @@ export default function ReviewQueue() {
       project_tag: projectTag || null,
       event_name: eventName || null,
       amount: parseFloat(amount),
+      expense_date: expenseDate || current.expense_date,
+      merchant: merchant.trim() || null,
+      receiver: receiver.trim() || null,
       needs_review: false,
       confidence_score: 100,
     }).eq('id', current.id);
@@ -618,15 +628,20 @@ export default function ReviewQueue() {
                   </div>
                   <div className="space-y-2">
                     <Label>วันที่</Label>
-                    <Input type="date" value={current.expense_date} disabled />
+                    <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
                   </div>
                 </div>
 
-                {current.merchant && (
-                  <div className="p-2 bg-muted rounded text-sm">
-                    <span className="text-muted-foreground">ร้านค้า:</span> {current.merchant}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>ร้านค้า / ผู้ขาย</Label>
+                    <Input value={merchant} onChange={e => setMerchant(e.target.value)} placeholder="ชื่อร้านค้า" />
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <Label>ชื่อผู้รับเงิน</Label>
+                    <Input value={receiver} onChange={e => setReceiver(e.target.value)} placeholder="ชื่อผู้รับเงิน (ตามสลิป)" />
+                  </div>
+                </div>
 
                 <div className="space-y-2">
                   <Label>ประเภทธุรกรรม *</Label>
