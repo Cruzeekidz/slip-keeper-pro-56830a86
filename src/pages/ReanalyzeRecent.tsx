@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, AlertTriangle, CheckCircle, XCircle, Pause, Play } from "lucide-react";
 import { buildReceiptPath } from "@/lib/storage-path";
+import { expectedSlipAmount } from "@/lib/amount-model";
+import { AmountBreakdown } from "@/components/amount-breakdown";
 
 interface Rec {
   id: string;
@@ -17,12 +19,16 @@ interface Rec {
   created_at: string;
   expense_date: string;
   amount: number;
+  wht_amount: number;
+  wht_rate: number;
   description: string | null;
-  status: 'pending' | 'analyzing' | 'updated' | 'unchanged' | 'failed';
+  status: 'pending' | 'analyzing' | 'updated' | 'unchanged' | 'review' | 'failed';
   oldDate?: string;
   newDate?: string;
   oldAmount?: number;
   newAmount?: number;
+  slipAmount?: number;
+  amountKept?: boolean;
   oldPath?: string;
   newPath?: string;
   error?: string;
@@ -42,7 +48,7 @@ export default function ReanalyzeRecent() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processed, setProcessed] = useState(0);
-  const [stats, setStats] = useState({ updated: 0, unchanged: 0, failed: 0 });
+  const [stats, setStats] = useState({ updated: 0, unchanged: 0, review: 0, failed: 0 });
   const isPausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
 
@@ -58,7 +64,7 @@ export default function ReanalyzeRecent() {
       const to = Math.min(from + PAGE, skip + count) - 1;
       const res = await supabase
         .from('expenses')
-        .select('id, receipt_url, created_at, expense_date, amount, description')
+        .select('id, receipt_url, created_at, expense_date, amount, wht_amount, wht_rate, description')
         .eq('user_id', user.id)
         .not('receipt_url', 'is', null)
         .order('created_at', { ascending: false })
@@ -79,10 +85,12 @@ export default function ReanalyzeRecent() {
       created_at: r.created_at,
       expense_date: r.expense_date,
       amount: Number(r.amount),
+      wht_amount: Number(r.wht_amount) || 0,
+      wht_rate: Number(r.wht_rate) || 0,
       description: r.description,
       status: 'pending' as const,
     })));
-    setStats({ updated: 0, unchanged: 0, failed: 0 });
+    setStats({ updated: 0, unchanged: 0, review: 0, failed: 0 });
     setProcessed(0);
   };
 
@@ -130,7 +138,13 @@ export default function ReanalyzeRecent() {
     }
 
     const newDate = aiData.date || rec.expense_date;
-    const newAmount = aiData.amount ?? rec.amount;
+    const slipAmount = aiData.amount ?? null;
+    const hasWht = rec.wht_amount > 0;
+    // กฎ: amount ในระบบ = Gross เสมอ — ถ้ารายการมี WHT ห้ามเอายอดสลิป (Net) ไปทับ
+    const expectedNet = expectedSlipAmount(rec);
+    const slipMatchesNet = slipAmount != null && Math.abs(slipAmount - expectedNet) <= 1;
+    const needsManualCheck = hasWht && slipAmount != null && !slipMatchesNet;
+    const newAmount = hasWht ? rec.amount : (slipAmount ?? rec.amount);
 
     // Move to correct entity/year/month folder
     let receiptUrl = rec.receipt_url;
@@ -153,7 +167,6 @@ export default function ReanalyzeRecent() {
 
     const updatePayload: any = {
       expense_date: newDate,
-      amount: newAmount,
       expense_time: aiData.time || null,
       category,
       subcategory: aiData.subcategory || null,
@@ -164,9 +177,11 @@ export default function ReanalyzeRecent() {
       category_group: aiData.category_group || null,
       project_tag: aiData.project_tag || null,
       confidence_score: aiData.confidence_score ?? null,
-      needs_review: isLowConfidence,
+      needs_review: isLowConfidence || needsManualCheck,
       receipt_url: receiptUrl,
     };
+    // อัปเดตยอดเฉพาะรายการที่ไม่มี WHT (มี WHT = ยอดในระบบเป็น Gross อยู่แล้ว)
+    if (!hasWht) updatePayload.amount = newAmount;
 
     const { error: updErr } = await supabase.from('expenses').update(updatePayload).eq('id', rec.id);
     if (updErr) {
@@ -175,14 +190,18 @@ export default function ReanalyzeRecent() {
       setStats(s => ({ ...s, failed: s.failed + 1 }));
     } else {
       const changed = newDate !== rec.expense_date || Math.abs(newAmount - rec.amount) > 0.01 || receiptUrl !== rec.receipt_url;
-      list[idx].status = changed ? 'updated' : 'unchanged';
+      list[idx].status = needsManualCheck ? 'review' : (changed ? 'updated' : 'unchanged');
       list[idx].oldDate = rec.expense_date;
       list[idx].newDate = newDate;
       list[idx].oldAmount = rec.amount;
       list[idx].newAmount = newAmount;
+      list[idx].slipAmount = slipAmount ?? undefined;
+      list[idx].amountKept = hasWht;
       list[idx].oldPath = rec.receipt_url;
       list[idx].newPath = receiptUrl;
-      setStats(s => changed ? { ...s, updated: s.updated + 1 } : { ...s, unchanged: s.unchanged + 1 });
+      setStats(s => needsManualCheck
+        ? { ...s, review: s.review + 1 }
+        : changed ? { ...s, updated: s.updated + 1 } : { ...s, unchanged: s.unchanged + 1 });
     }
     setProcessed(p => p + 1);
     setRecords([...list]);
@@ -192,7 +211,7 @@ export default function ReanalyzeRecent() {
     if (!records.length) return;
     setProcessing(true);
     setProcessed(0);
-    setStats({ updated: 0, unchanged: 0, failed: 0 });
+    setStats({ updated: 0, unchanged: 0, review: 0, failed: 0 });
     isPausedRef.current = false;
     setPaused(false);
     const list = records.map(r => ({ ...r, status: 'pending' as const }));
@@ -228,6 +247,10 @@ export default function ReanalyzeRecent() {
         <Card className="p-4 text-sm text-muted-foreground">
           อ่านสลิปล่าสุดอีกครั้งด้วย AI prompt ใหม่ (รองรับ dd/mm/yy แบบไทย) แล้วอัพเดทวันที่/หมวด/ย้ายโฟลเดอร์ให้ถูกต้อง
           ใช้เมื่อพบว่ามีสลิปจำนวนหนึ่งถูกอ่านวันที่ผิด หรือถูกแยกโฟลเดอร์ผิด
+          <div className="mt-2 text-foreground">
+            ปลอดภัยกับภาษีหัก ณ ที่จ่าย: รายการที่มี WHT ระบบ<strong>จะไม่ทับยอดค่าใช้จ่าย (Gross)</strong> ด้วยยอดสลิป (Net)
+            — ถ้ายอดสลิปไม่เท่ากับ (ยอดค่าใช้จ่าย − WHT) จะขึ้นป้าย "ต้องตรวจ (มี WHT)" ให้ตรวจเอง
+          </div>
         </Card>
 
         <Card className="p-4">
@@ -283,7 +306,7 @@ export default function ReanalyzeRecent() {
             จะดึง: ข้ามรายการใหม่สุด {skip} รายการ แล้วอ่านต่ออีก {count} รายการ (เรียงใหม่→เก่า) — เปลี่ยนตัวเลขแล้วกด "โหลดรายการ" ก่อนเริ่มวิเคราะห์
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div className="bg-muted/50 rounded p-3">
               <div className="text-xs text-muted-foreground">ทั้งหมด</div>
               <div className="text-2xl font-bold">{records.length}</div>
@@ -295,6 +318,10 @@ export default function ReanalyzeRecent() {
             <div className="bg-muted/30 rounded p-3">
               <div className="text-xs text-muted-foreground">ไม่เปลี่ยน</div>
               <div className="text-2xl font-bold">{stats.unchanged}</div>
+            </div>
+            <div className="bg-warning/10 rounded p-3">
+              <div className="text-xs text-muted-foreground">ต้องตรวจ (มี WHT)</div>
+              <div className="text-2xl font-bold text-warning">{stats.review}</div>
             </div>
             <div className="bg-destructive/10 rounded p-3">
               <div className="text-xs text-muted-foreground">ล้มเหลว</div>
@@ -319,10 +346,20 @@ export default function ReanalyzeRecent() {
                   {r.status === 'analyzing' && <RefreshCw className="h-4 w-4 animate-spin text-primary shrink-0" />}
                   {r.status === 'updated' && <CheckCircle className="h-4 w-4 text-success shrink-0" />}
                   {r.status === 'unchanged' && <CheckCircle className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  {r.status === 'review' && <AlertTriangle className="h-4 w-4 text-warning shrink-0" />}
                   {r.status === 'failed' && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="truncate font-medium">{r.description || '(ไม่มีรายละเอียด)'}</div>
-                    {r.status === 'updated' ? (
+                    {r.status === 'review' ? (
+                      <div className="space-y-1">
+                        <div className="text-warning font-medium">ต้องตรวจ (มี WHT) — ไม่ได้แก้ยอดให้</div>
+                        <AmountBreakdown gross={r.amount} wht={r.wht_amount} whtRate={r.wht_rate} className="max-w-xs" />
+                        <div className="text-muted-foreground">ยอดที่อ่านจากสลิป: {r.slipAmount?.toLocaleString()}฿</div>
+                        {r.oldDate !== r.newDate && (
+                          <div><span className="line-through text-destructive">{r.oldDate}</span> → <span className="text-success font-medium">{r.newDate}</span></div>
+                        )}
+                      </div>
+                    ) : r.status === 'updated' ? (
                       <div className="text-muted-foreground space-y-0.5">
                         {r.oldDate !== r.newDate && (
                           <div><span className="line-through text-destructive">{r.oldDate}</span> → <span className="text-success font-medium">{r.newDate}</span></div>
@@ -330,6 +367,7 @@ export default function ReanalyzeRecent() {
                         {r.oldAmount !== r.newAmount && (
                           <div><span className="line-through text-destructive">{r.oldAmount?.toLocaleString()}฿</span> → <span className="text-success font-medium">{r.newAmount?.toLocaleString()}฿</span></div>
                         )}
+                        {r.amountKept && <div className="text-warning">คงยอดค่าใช้จ่าย (Gross) เดิมไว้ เพราะรายการนี้มี WHT</div>}
                         {r.oldPath !== r.newPath && (
                           <div className="truncate"><span className="text-warning">ย้าย:</span> {r.newPath?.split('/').slice(0, 1).join('/')}/.../{r.newPath?.split('/').slice(-2).join('/')}</div>
                         )}
