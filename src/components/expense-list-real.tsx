@@ -22,6 +22,7 @@ import { th } from "date-fns/locale";
 import { ExpenseEditDialog } from "./expense-edit-dialog";
 import { AttachInvoiceDialog } from "./attach-invoice-dialog";
 import { ReceiptGallery } from "./receipt-gallery";
+import { AmountBreakdown } from "./amount-breakdown";
 import { cn } from "@/lib/utils";
 import {
   TransactionType, CategoryGroup,
@@ -53,6 +54,8 @@ interface Expense {
   payee_group: string | null;
   event_name: string | null;
   settled_batch_id: string | null;
+  wht_amount?: number | null;
+  wht_rate?: number | null;
 }
 
 // Query functions — fetch limited window for performance
@@ -800,6 +803,11 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                     </span>
                   </div>
                 </div>
+                {Number(expense.wht_amount) > 0 && (
+                  <div className="md:w-56 shrink-0">
+                    <AmountBreakdown gross={expense.amount} wht={expense.wht_amount} whtRate={expense.wht_rate} />
+                  </div>
+                )}
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -1052,6 +1060,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                       isIncome(expense) ? 'text-success' : 'text-expense'
                     )}>
                       {isIncome(expense) ? '+' : expense.transaction_type === 'TRANSFER' ? '↔' : '-'}฿{expense.amount.toLocaleString()}
+                      {Number(expense.wht_amount) > 0 && (
+                        <AmountBreakdown
+                          gross={expense.amount}
+                          wht={expense.wht_amount}
+                          whtRate={expense.wht_rate}
+                          className="mt-1 font-normal text-left"
+                        />
+                      )}
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
