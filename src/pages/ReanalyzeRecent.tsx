@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, RefreshCw, AlertTriangle, CheckCircle, XCircle, Pause, Play } from "lucide-react";
 import { buildReceiptPath } from "@/lib/storage-path";
+import { expectedSlipAmount } from "@/lib/amount-model";
+import { AmountBreakdown } from "@/components/amount-breakdown";
 
 interface Rec {
   id: string;
@@ -17,12 +19,16 @@ interface Rec {
   created_at: string;
   expense_date: string;
   amount: number;
+  wht_amount: number;
+  wht_rate: number;
   description: string | null;
-  status: 'pending' | 'analyzing' | 'updated' | 'unchanged' | 'failed';
+  status: 'pending' | 'analyzing' | 'updated' | 'unchanged' | 'review' | 'failed';
   oldDate?: string;
   newDate?: string;
   oldAmount?: number;
   newAmount?: number;
+  slipAmount?: number;
+  amountKept?: boolean;
   oldPath?: string;
   newPath?: string;
   error?: string;
@@ -42,7 +48,7 @@ export default function ReanalyzeRecent() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [processed, setProcessed] = useState(0);
-  const [stats, setStats] = useState({ updated: 0, unchanged: 0, failed: 0 });
+  const [stats, setStats] = useState({ updated: 0, unchanged: 0, review: 0, failed: 0 });
   const isPausedRef = useRef(false);
   const [paused, setPaused] = useState(false);
 
@@ -58,7 +64,7 @@ export default function ReanalyzeRecent() {
       const to = Math.min(from + PAGE, skip + count) - 1;
       const res = await supabase
         .from('expenses')
-        .select('id, receipt_url, created_at, expense_date, amount, description')
+        .select('id, receipt_url, created_at, expense_date, amount, wht_amount, wht_rate, description')
         .eq('user_id', user.id)
         .not('receipt_url', 'is', null)
         .order('created_at', { ascending: false })
@@ -79,10 +85,12 @@ export default function ReanalyzeRecent() {
       created_at: r.created_at,
       expense_date: r.expense_date,
       amount: Number(r.amount),
+      wht_amount: Number(r.wht_amount) || 0,
+      wht_rate: Number(r.wht_rate) || 0,
       description: r.description,
       status: 'pending' as const,
     })));
-    setStats({ updated: 0, unchanged: 0, failed: 0 });
+    setStats({ updated: 0, unchanged: 0, review: 0, failed: 0 });
     setProcessed(0);
   };
 
