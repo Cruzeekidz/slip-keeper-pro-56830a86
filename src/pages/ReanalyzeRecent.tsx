@@ -247,6 +247,10 @@ export default function ReanalyzeRecent() {
         <Card className="p-4 text-sm text-muted-foreground">
           อ่านสลิปล่าสุดอีกครั้งด้วย AI prompt ใหม่ (รองรับ dd/mm/yy แบบไทย) แล้วอัพเดทวันที่/หมวด/ย้ายโฟลเดอร์ให้ถูกต้อง
           ใช้เมื่อพบว่ามีสลิปจำนวนหนึ่งถูกอ่านวันที่ผิด หรือถูกแยกโฟลเดอร์ผิด
+          <div className="mt-2 text-foreground">
+            ปลอดภัยกับภาษีหัก ณ ที่จ่าย: รายการที่มี WHT ระบบ<strong>จะไม่ทับยอดค่าใช้จ่าย (Gross)</strong> ด้วยยอดสลิป (Net)
+            — ถ้ายอดสลิปไม่เท่ากับ (ยอดค่าใช้จ่าย − WHT) จะขึ้นป้าย "ต้องตรวจ (มี WHT)" ให้ตรวจเอง
+          </div>
         </Card>
 
         <Card className="p-4">
@@ -302,7 +306,7 @@ export default function ReanalyzeRecent() {
             จะดึง: ข้ามรายการใหม่สุด {skip} รายการ แล้วอ่านต่ออีก {count} รายการ (เรียงใหม่→เก่า) — เปลี่ยนตัวเลขแล้วกด "โหลดรายการ" ก่อนเริ่มวิเคราะห์
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div className="bg-muted/50 rounded p-3">
               <div className="text-xs text-muted-foreground">ทั้งหมด</div>
               <div className="text-2xl font-bold">{records.length}</div>
@@ -314,6 +318,10 @@ export default function ReanalyzeRecent() {
             <div className="bg-muted/30 rounded p-3">
               <div className="text-xs text-muted-foreground">ไม่เปลี่ยน</div>
               <div className="text-2xl font-bold">{stats.unchanged}</div>
+            </div>
+            <div className="bg-warning/10 rounded p-3">
+              <div className="text-xs text-muted-foreground">ต้องตรวจ (มี WHT)</div>
+              <div className="text-2xl font-bold text-warning">{stats.review}</div>
             </div>
             <div className="bg-destructive/10 rounded p-3">
               <div className="text-xs text-muted-foreground">ล้มเหลว</div>
@@ -338,10 +346,20 @@ export default function ReanalyzeRecent() {
                   {r.status === 'analyzing' && <RefreshCw className="h-4 w-4 animate-spin text-primary shrink-0" />}
                   {r.status === 'updated' && <CheckCircle className="h-4 w-4 text-success shrink-0" />}
                   {r.status === 'unchanged' && <CheckCircle className="h-4 w-4 text-muted-foreground shrink-0" />}
+                  {r.status === 'review' && <AlertTriangle className="h-4 w-4 text-warning shrink-0" />}
                   {r.status === 'failed' && <XCircle className="h-4 w-4 text-destructive shrink-0" />}
                   <div className="flex-1 min-w-0">
                     <div className="truncate font-medium">{r.description || '(ไม่มีรายละเอียด)'}</div>
-                    {r.status === 'updated' ? (
+                    {r.status === 'review' ? (
+                      <div className="space-y-1">
+                        <div className="text-warning font-medium">ต้องตรวจ (มี WHT) — ไม่ได้แก้ยอดให้</div>
+                        <AmountBreakdown gross={r.amount} wht={r.wht_amount} whtRate={r.wht_rate} className="max-w-xs" />
+                        <div className="text-muted-foreground">ยอดที่อ่านจากสลิป: {r.slipAmount?.toLocaleString()}฿</div>
+                        {r.oldDate !== r.newDate && (
+                          <div><span className="line-through text-destructive">{r.oldDate}</span> → <span className="text-success font-medium">{r.newDate}</span></div>
+                        )}
+                      </div>
+                    ) : r.status === 'updated' ? (
                       <div className="text-muted-foreground space-y-0.5">
                         {r.oldDate !== r.newDate && (
                           <div><span className="line-through text-destructive">{r.oldDate}</span> → <span className="text-success font-medium">{r.newDate}</span></div>
@@ -349,6 +367,7 @@ export default function ReanalyzeRecent() {
                         {r.oldAmount !== r.newAmount && (
                           <div><span className="line-through text-destructive">{r.oldAmount?.toLocaleString()}฿</span> → <span className="text-success font-medium">{r.newAmount?.toLocaleString()}฿</span></div>
                         )}
+                        {r.amountKept && <div className="text-warning">คงยอดค่าใช้จ่าย (Gross) เดิมไว้ เพราะรายการนี้มี WHT</div>}
                         {r.oldPath !== r.newPath && (
                           <div className="truncate"><span className="text-warning">ย้าย:</span> {r.newPath?.split('/').slice(0, 1).join('/')}/.../{r.newPath?.split('/').slice(-2).join('/')}</div>
                         )}
