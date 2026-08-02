@@ -97,6 +97,17 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 ## ข้อมูลที่ต้องดึง:
 - amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 
+## 👤 ผู้โอน / ผู้รับโอน (สำคัญมาก!)
+สลิปโอนเงินไทย (K PLUS, SCB, KTB, BBL ฯลฯ) วางข้อมูลเป็น 2 ฝั่ง:
+- **ฝั่งซ้าย** = "โอนจาก / จาก / From" → นี่คือ **ผู้โอน (sender)** ซึ่งมักเป็นบัญชีบริษัทเราเอง
+- **ฝั่งขวา** = "โอนเข้า / ไปที่ / To" → นี่คือ **ผู้รับโอน (receiver)**
+
+กฎ:
+1. sender = ชื่อฝั่งซ้ายเสมอ, receiver = ชื่อฝั่งขวาเสมอ ห้ามสลับ
+2. **merchant ต้องใช้ชื่อผู้รับโอน (ฝั่งขวา) เสมอ** ห้ามใช้ชื่อผู้โอน/บัญชีบริษัทเราเป็น merchant
+3. ยกเว้นกรณี transaction_direction = INCOME (เงินเข้าบัญชีเรา) → merchant = ผู้โอน (ฝั่งซ้าย)
+4. ถ้าอ่านชื่อฝั่งใดไม่ชัด ให้ใส่ null และลด confidence_score
+
 ## 📅 รูปแบบวันที่ในสลิปไทย (สำคัญมาก!)
 สลิปธนาคารไทยใช้รูปแบบ **dd/mm/yy** หรือ **d MMM yy** (ปี 2 หลักเป็น ค.ศ. ไม่ใช่ พ.ศ.)
 ตัวอย่าง:
