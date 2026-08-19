@@ -63,6 +63,8 @@
       },
       "devDependencies": {
         "@eslint/js": "^9.32.0",
+        "@lovable.dev/vite-plugin-dev-server-bridge": "^1.0.2",
+        "@lovable.dev/vite-plugin-hmr-gate": "^1.8.0",
         "@tailwindcss/typography": "^0.5.16",
         "@types/node": "^22.16.5",
         "@types/react": "^18.3.23",
@@ -290,6 +292,10 @@
     "@line/bot-sdk": ["@line/bot-sdk@10.6.0", "", { "dependencies": { "@types/node": "^24.0.0" }, "optionalDependencies": { "axios": "^1.7.4" } }, "sha512-4hSpglL/G/cW2JCcohaYz/BS0uOSJNV9IEYdMm0EiPEvDLayoI2hGq2D86uYPQFD2gvgkyhmzdShpWLG3P5r3w=="],
 
     "@line/liff": ["@line/liff@2.28.0", "", { "dependencies": { "@liff/analytics": "2.28.0", "@liff/close-window": "2.28.0", "@liff/consts": "2.28.0", "@liff/core": "2.28.0", "@liff/create-shortcut-on-home-screen": "2.28.0", "@liff/extensions": "2.28.0", "@liff/get-app-language": "2.28.0", "@liff/get-friendship": "2.28.0", "@liff/get-language": "2.28.0", "@liff/get-line-version": "2.28.0", "@liff/get-origins": "2.28.0", "@liff/get-os": "2.28.0", "@liff/get-profile": "2.28.0", "@liff/get-version": "2.28.0", "@liff/hooks": "2.28.0", "@liff/i18n": "2.28.0", "@liff/iap": "2.28.0", "@liff/init": "2.28.0", "@liff/is-api-available": "2.28.0", "@liff/is-in-client": "2.28.0", "@liff/is-logged-in": "2.28.0", "@liff/is-sub-window": "2.28.0", "@liff/liff-types": "2.28.0", "@liff/login": "2.28.0", "@liff/logout": "2.28.0", "@liff/native-bridge": "2.28.0", "@liff/open-window": "2.28.0", "@liff/permanent-link": "2.28.0", "@liff/permission": "2.28.0", "@liff/ready": "2.28.0", "@liff/request-friendship": "2.28.0", "@liff/scan-code-v2": "2.28.0", "@liff/send-messages": "2.28.0", "@liff/server-api": "2.28.0", "@liff/share-target-picker": "2.28.0", "@liff/store": "2.28.0", "@liff/sub-window": "2.28.0", "@liff/use": "2.28.0", "@liff/util": "2.28.0", "tslib": "^2.3.0", "whatwg-fetch": "^3.0.0" } }, "sha512-A2BNIZDbDnBRBVTbHv32YB54T4aUDQyNyXv9y6Ut8w4yZLnGVabHtdhK9HSa1FmfmF9pSxhdSnBzULsDXF3vag=="],
+
+    "@lovable.dev/vite-plugin-dev-server-bridge": ["@lovable.dev/vite-plugin-dev-server-bridge@1.3.2", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@lovable.dev/vite-plugin-dev-server-bridge/-/vite-plugin-dev-server-bridge-1.3.2.tgz", { "peerDependencies": { "vite": ">=5.0.0 <9.0.0" } }, "sha512-YaokG/3zDEu1lUE6pD+ua+fDxTVvnJQhs1NdXpnJAZMAMeu3kGqG0UrbSezD2u63dwzC1N0D6ku2lh35yErolQ=="],
+
+    "@lovable.dev/vite-plugin-hmr-gate": ["@lovable.dev/vite-plugin-hmr-gate@1.8.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@lovable.dev/vite-plugin-hmr-gate/-/vite-plugin-hmr-gate-1.8.0.tgz", { "peerDependencies": { "vite": ">=5.0.0 <9.0.0" } }, "sha512-JVs2d5UyDhphyeM9IU62UuVHO63sLgR9xeBIKRfqf0kTFloogjiEqtIxjQnWvm4fUmgNDrMNqxXKGnne7U/DSQ=="],
 
     "@nodelib/fs.scandir": ["@nodelib/fs.scandir@2.1.5", "", { "dependencies": { "@nodelib/fs.stat": "2.0.5", "run-parallel": "^1.1.9" } }, "sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g=="],
 
