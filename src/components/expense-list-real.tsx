@@ -180,11 +180,17 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   // Reset to page 1 when window/size changes
   useEffect(() => { setPage(1); }, [windowMonths, pageSize]);
 
+  // Sorting mode → drives server-side ordering/window
+  const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
+  const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
+  const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
+
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', windowMonths, pageSize, page],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize }),
+    queryKey: ['expenses', windowMonths, pageSize, page, sortField, sortAscending],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending }),
   });
+
   const expenses: Expense[] = pageData?.rows ?? [];
   const totalCount = pageData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
