@@ -204,13 +204,17 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
       if (error) { toast({ title: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
 
+      // Remember typed values so they stay in the dropdowns next time
+      addCustomOption('subcategory', subcategory);
+      addCustomOption('project_tag', projectTag);
+      addCustomOption('payee_group', payeeGroup);
+      setExistingSubcategories(prev => (subcategory && !prev.includes(subcategory) ? [...prev, subcategory] : prev));
+      setExistingTags(prev => (projectTag && !prev.includes(projectTag) ? [...prev, projectTag] : prev));
+
       // Auto-register tag in event_registry for next time
       if (projectTag) {
         const userId = (await supabase.auth.getUser()).data.user?.id;
         if (userId) {
-          addCustomOption('subcategory', subcategory);
-          addCustomOption('project_tag', projectTag);
-          addCustomOption('payee_group', payeeGroup);
           await autoRegisterEventTag({
             userId,
             projectTag,
