@@ -27,7 +27,33 @@ export async function autoRegisterEventTag(opts: {
       .limit(1)
       .maybeSingle();
 
-    if (existing) return;
+    if (existing) {
+      // Fill in a missing event name on an existing tag row so it shows up in dropdowns
+      if (name && !(existing.event_name || "").trim()) {
+        await supabase.from("event_registry").update({ event_name: name }).eq("id", existing.id);
+      }
+      // A new event name under an already-registered tag still deserves its own row
+      if (name && (existing.event_name || "").trim() && existing.event_name !== name) {
+        const { data: byName } = await supabase
+          .from("event_registry")
+          .select("id")
+          .eq("user_id", opts.userId)
+          .eq("event_name", name)
+          .limit(1)
+          .maybeSingle();
+        if (!byName) {
+          await supabase.from("event_registry").insert({
+            user_id: opts.userId,
+            project_tag: tag || name,
+            event_name: name,
+            event_date: opts.eventDate || null,
+            aliases: [],
+            is_active: true,
+          });
+        }
+      }
+      return;
+    }
 
     await supabase.from("event_registry").insert({
       user_id: opts.userId,
