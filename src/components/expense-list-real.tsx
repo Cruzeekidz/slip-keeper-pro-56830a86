@@ -132,7 +132,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterTag, setFilterTag] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "upload-asc">("date-desc");
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [attachInvoiceExpense, setAttachInvoiceExpense] = useState<Expense | null>(null);
