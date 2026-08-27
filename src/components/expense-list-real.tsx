@@ -59,23 +59,29 @@ interface Expense {
 }
 
 // Query functions — fetch limited window for performance
-const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number }): Promise<{ rows: Expense[]; total: number }> => {
+const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number; sortField?: 'expense_date' | 'created_at'; ascending?: boolean }): Promise<{ rows: Expense[]; total: number }> => {
+  const sortField = params.sortField ?? 'expense_date';
   let q = supabase
     .from('expenses')
     .select('*', { count: 'exact' })
-    .order('expense_date', { ascending: false })
+    .order(sortField, { ascending: params.ascending ?? false })
     .range(params.offset, params.offset + params.limit - 1);
 
   if (params.months > 0) {
     const from = new Date();
     from.setMonth(from.getMonth() - params.months);
     from.setHours(0, 0, 0, 0);
-    q = q.gte('expense_date', from.toISOString().split('T')[0]);
+    if (sortField === 'created_at') {
+      q = q.gte('created_at', from.toISOString());
+    } else {
+      q = q.gte('expense_date', from.toISOString().split('T')[0]);
+    }
   }
   const { data, error, count } = await q;
   if (error) throw error;
   return { rows: data || [], total: count || 0 };
 };
+
 
 const fetchEventNamesList = async (): Promise<string[]> => {
   const { data, error } = await supabase
