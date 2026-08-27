@@ -178,7 +178,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [page, setPage] = useState<number>(1);
 
   // Reset to page 1 when window/size changes
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize]);
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
