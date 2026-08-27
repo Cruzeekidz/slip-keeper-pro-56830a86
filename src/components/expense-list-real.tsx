@@ -823,10 +823,18 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                   />
                 </div>
                 <div className="flex items-center justify-between md:contents">
-                  <div className="shrink-0 flex items-center gap-1.5 md:w-24">
-                    <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
+                  <div className="shrink-0 md:w-28">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
+                    </div>
+                    {isUploadSort && expense.created_at && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 md:ml-5">
+                        บันทึก {format(new Date(expense.created_at), "d MMM HH:mm", { locale: th })}
+                      </div>
+                    )}
                   </div>
+
                   <div className="shrink-0 md:w-32">
                     <span className={cn("font-bold text-base md:text-lg",
                       expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
