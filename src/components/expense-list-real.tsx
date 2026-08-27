@@ -754,9 +754,11 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
           <SelectContent className="bg-background">
-            <SelectItem value="date-desc">วันที่ (ใหม่-เก่า)</SelectItem>
-            <SelectItem value="date-asc">วันที่ (เก่า-ใหม่)</SelectItem>
-            <SelectItem value="upload-desc">อัพโหลดล่าสุด</SelectItem>
+            <SelectItem value="date-desc">วันที่ในสลิป (ใหม่-เก่า)</SelectItem>
+            <SelectItem value="date-asc">วันที่ในสลิป (เก่า-ใหม่)</SelectItem>
+            <SelectItem value="upload-desc">เวลาที่บันทึก (ใหม่-เก่า)</SelectItem>
+            <SelectItem value="upload-asc">เวลาที่บันทึก (เก่า-ใหม่)</SelectItem>
+
           </SelectContent>
         </Select>
         <Popover>
