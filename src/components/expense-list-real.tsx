@@ -59,23 +59,29 @@ interface Expense {
 }
 
 // Query functions — fetch limited window for performance
-const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number }): Promise<{ rows: Expense[]; total: number }> => {
+const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number; sortField?: 'expense_date' | 'created_at'; ascending?: boolean }): Promise<{ rows: Expense[]; total: number }> => {
+  const sortField = params.sortField ?? 'expense_date';
   let q = supabase
     .from('expenses')
     .select('*', { count: 'exact' })
-    .order('expense_date', { ascending: false })
+    .order(sortField, { ascending: params.ascending ?? false })
     .range(params.offset, params.offset + params.limit - 1);
 
   if (params.months > 0) {
     const from = new Date();
     from.setMonth(from.getMonth() - params.months);
     from.setHours(0, 0, 0, 0);
-    q = q.gte('expense_date', from.toISOString().split('T')[0]);
+    if (sortField === 'created_at') {
+      q = q.gte('created_at', from.toISOString());
+    } else {
+      q = q.gte('expense_date', from.toISOString().split('T')[0]);
+    }
   }
   const { data, error, count } = await q;
   if (error) throw error;
   return { rows: data || [], total: count || 0 };
 };
+
 
 const fetchEventNamesList = async (): Promise<string[]> => {
   const { data, error } = await supabase
@@ -126,7 +132,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterTag, setFilterTag] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
-  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc">("date-desc");
+  const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "upload-asc">("date-desc");
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [attachInvoiceExpense, setAttachInvoiceExpense] = useState<Expense | null>(null);
@@ -172,13 +178,19 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [page, setPage] = useState<number>(1);
 
   // Reset to page 1 when window/size changes
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize]);
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy]);
+
+  // Sorting mode → drives server-side ordering/window
+  const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
+  const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
+  const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', windowMonths, pageSize, page],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize }),
+    queryKey: ['expenses', windowMonths, pageSize, page, sortField, sortAscending],
+    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending }),
   });
+
   const expenses: Expense[] = pageData?.rows ?? [];
   const totalCount = pageData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -364,7 +376,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     return [...filtered].sort((a, b) => {
       if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      if (sortBy === "upload-asc") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
     });
   }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
 
@@ -641,12 +655,29 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             แสดง {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} จาก {totalCount.toLocaleString()} รายการ
           </span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
-          <Filter className="h-3.5 w-3.5 mr-1.5" />
-          ตัวกรอง
-          <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={isUploadSort ? "default" : "outline"}
+            size="sm"
+            className="h-8"
+            onClick={() => setSortBy(isUploadSort ? "date-desc" : "upload-desc")}
+            title="เรียงตามเวลาที่บันทึกเข้าระบบ เพื่อตรวจรายการที่เพิ่งอัพโหลด"
+          >
+            🆕 เพิ่งบันทึก
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
+            <Filter className="h-3.5 w-3.5 mr-1.5" />
+            ตัวกรอง
+            <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
+          </Button>
+        </div>
       </div>
+      {isUploadSort && (
+        <div className="mb-3 text-xs text-muted-foreground">
+          เรียงตาม<strong className="text-foreground"> เวลาที่บันทึกเข้าระบบ</strong> {sortBy === "upload-desc" ? "(ใหม่→เก่า)" : "(เก่า→ใหม่)"} — ช่วงเวลาที่เลือกจะนับจากวันที่บันทึก ไม่ใช่วันที่ในสลิป
+        </div>
+      )}
+
 
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
       <CollapsibleContent>
@@ -723,9 +754,11 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
         <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
           <SelectTrigger className="w-[200px]"><SelectValue placeholder="เรียงลำดับ" /></SelectTrigger>
           <SelectContent className="bg-background">
-            <SelectItem value="date-desc">วันที่ (ใหม่-เก่า)</SelectItem>
-            <SelectItem value="date-asc">วันที่ (เก่า-ใหม่)</SelectItem>
-            <SelectItem value="upload-desc">อัพโหลดล่าสุด</SelectItem>
+            <SelectItem value="date-desc">วันที่ในสลิป (ใหม่-เก่า)</SelectItem>
+            <SelectItem value="date-asc">วันที่ในสลิป (เก่า-ใหม่)</SelectItem>
+            <SelectItem value="upload-desc">เวลาที่บันทึก (ใหม่-เก่า)</SelectItem>
+            <SelectItem value="upload-asc">เวลาที่บันทึก (เก่า-ใหม่)</SelectItem>
+
           </SelectContent>
         </Select>
         <Popover>
@@ -790,10 +823,18 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
                   />
                 </div>
                 <div className="flex items-center justify-between md:contents">
-                  <div className="shrink-0 flex items-center gap-1.5 md:w-24">
-                    <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
+                  <div className="shrink-0 md:w-28">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs md:text-sm">{format(new Date(expense.expense_date), "d MMM yy", { locale: th })}</span>
+                    </div>
+                    {isUploadSort && expense.created_at && (
+                      <div className="text-[10px] text-muted-foreground mt-0.5 md:ml-5">
+                        บันทึก {format(new Date(expense.created_at), "d MMM HH:mm", { locale: th })}
+                      </div>
+                    )}
                   </div>
+
                   <div className="shrink-0 md:w-32">
                     <span className={cn("font-bold text-base md:text-lg",
                       expense.transaction_type === 'TRANSFER' ? 'text-type-transfer' :
