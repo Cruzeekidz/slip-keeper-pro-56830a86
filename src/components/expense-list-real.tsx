@@ -655,12 +655,29 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             แสดง {totalCount === 0 ? 0 : (page - 1) * pageSize + 1}-{Math.min(page * pageSize, totalCount)} จาก {totalCount.toLocaleString()} รายการ
           </span>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
-          <Filter className="h-3.5 w-3.5 mr-1.5" />
-          ตัวกรอง
-          <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant={isUploadSort ? "default" : "outline"}
+            size="sm"
+            className="h-8"
+            onClick={() => setSortBy(isUploadSort ? "date-desc" : "upload-desc")}
+            title="เรียงตามเวลาที่บันทึกเข้าระบบ เพื่อตรวจรายการที่เพิ่งอัพโหลด"
+          >
+            🆕 เพิ่งบันทึก
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setFiltersOpen(o => !o)} className="h-8">
+            <Filter className="h-3.5 w-3.5 mr-1.5" />
+            ตัวกรอง
+            <ChevronDown className={cn("h-3.5 w-3.5 ml-1 transition-transform", filtersOpen && "rotate-180")} />
+          </Button>
+        </div>
       </div>
+      {isUploadSort && (
+        <div className="mb-3 text-xs text-muted-foreground">
+          เรียงตาม<strong className="text-foreground"> เวลาที่บันทึกเข้าระบบ</strong> {sortBy === "upload-desc" ? "(ใหม่→เก่า)" : "(เก่า→ใหม่)"} — ช่วงเวลาที่เลือกจะนับจากวันที่บันทึก ไม่ใช่วันที่ในสลิป
+        </div>
+      )}
+
 
       <Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
       <CollapsibleContent>
