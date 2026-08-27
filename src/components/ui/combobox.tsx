@@ -49,11 +49,7 @@ export function Combobox({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (
-      e.key === "Enter" &&
-      inputValue.trim() &&
-      !options.some((o) => o.toLowerCase() === inputValue.trim().toLowerCase())
-    ) {
+    if (e.key === "Enter" && inputValue.trim() && filtered.length === 0) {
       e.preventDefault();
       onValueChange(inputValue.trim());
       setOpen(false);
