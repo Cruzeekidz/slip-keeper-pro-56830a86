@@ -376,7 +376,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     return [...filtered].sort((a, b) => {
       if (sortBy === "date-desc") return new Date(b.expense_date).getTime() - new Date(a.expense_date).getTime();
       if (sortBy === "date-asc") return new Date(a.expense_date).getTime() - new Date(b.expense_date).getTime();
+      if (sortBy === "upload-asc") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
     });
   }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
 
