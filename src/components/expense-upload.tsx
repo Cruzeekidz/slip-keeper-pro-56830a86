@@ -18,6 +18,7 @@ import {
 } from "@/lib/category-constants";
 import { buildReceiptPath } from "@/lib/storage-path";
 import { autoRegisterEventTag } from "@/lib/event-registry";
+import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -58,13 +59,13 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   useEffect(() => {
     const fetchData = async () => {
       const [tagRes, subcatRes, pgRes] = await Promise.all([
-        supabase.from('expenses').select('project_tag').not('project_tag', 'is', null),
-        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
+        supabase.from('expenses').select('project_tag').not('project_tag', 'is', null).order('created_at', { ascending: false }).limit(3000),
+        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null).order('created_at', { ascending: false }).limit(3000),
         supabase.from('payee_groups').select('group_name'),
       ]);
-      if (tagRes.data) setExistingTags([...new Set(tagRes.data.map(i => i.project_tag).filter(Boolean))] as string[]);
-      if (subcatRes.data) setExistingSubcategories([...new Set(subcatRes.data.map(i => i.subcategory).filter(Boolean))] as string[]);
-      if (pgRes.data) setPayeeGroupNames([...new Set(pgRes.data.map(i => i.group_name).filter(Boolean))] as string[]);
+      setExistingTags([...new Set([...((tagRes.data || []).map(i => i.project_tag).filter(Boolean)), ...getCustomOptions('project_tag')])] as string[]);
+      setExistingSubcategories([...new Set([...((subcatRes.data || []).map(i => i.subcategory).filter(Boolean)), ...getCustomOptions('subcategory')])] as string[]);
+      setPayeeGroupNames([...new Set([...((pgRes.data || []).map(i => i.group_name).filter(Boolean)), ...getCustomOptions('payee_group')])] as string[]);
     };
     fetchData();
   }, []);
@@ -202,6 +203,13 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       });
 
       if (error) { toast({ title: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
+
+      // Remember typed values so they stay in the dropdowns next time
+      addCustomOption('subcategory', subcategory);
+      addCustomOption('project_tag', projectTag);
+      addCustomOption('payee_group', payeeGroup);
+      setExistingSubcategories(prev => (subcategory && !prev.includes(subcategory) ? [...prev, subcategory] : prev));
+      setExistingTags(prev => (projectTag && !prev.includes(projectTag) ? [...prev, projectTag] : prev));
 
       // Auto-register tag in event_registry for next time
       if (projectTag) {

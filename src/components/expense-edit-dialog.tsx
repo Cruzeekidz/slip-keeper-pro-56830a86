@@ -16,6 +16,7 @@ import {
 } from "@/lib/category-constants";
 import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
 import { autoRegisterEventTag } from "@/lib/event-registry";
+import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
 
 interface Expense {
   id: string;
@@ -157,20 +158,20 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         supabase.from('expenses').select('sender').not('sender', 'is', null),
         supabase.from('expenses').select('receiver').not('receiver', 'is', null),
         supabase.from('expenses').select('merchant').not('merchant', 'is', null),
-        supabase.from('expenses').select('project_tag').not('project_tag', 'is', null),
-        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null),
+        supabase.from('expenses').select('project_tag').not('project_tag', 'is', null).order('created_at', { ascending: false }).limit(3000),
+        supabase.from('expenses').select('subcategory').not('subcategory', 'is', null).order('created_at', { ascending: false }).limit(3000),
         supabase.from('payee_groups').select('payee_pattern, group_name'),
-        supabase.from('expenses').select('event_name').not('event_name', 'is', null),
+        supabase.from('expenses').select('event_name').not('event_name', 'is', null).order('created_at', { ascending: false }).limit(3000),
         supabase.from('event_registry').select('project_tag, event_name, event_date').eq('is_active', true).order('event_date', { ascending: false, nullsFirst: false }),
         supabase.from('bank_accounts').select('id, account_name, account_number, bank_name').eq('is_active', true),
       ]);
       setSenders([...new Set(senderRes.data?.map(i => i.sender).filter(Boolean) || [])] as string[]);
       setReceivers([...new Set(receiverRes.data?.map(i => i.receiver).filter(Boolean) || [])] as string[]);
       setMerchants([...new Set(merchantRes.data?.map(i => i.merchant).filter(Boolean) || [])] as string[]);
-      setExistingTags([...new Set(tagRes.data?.map(i => i.project_tag).filter(Boolean) || [])] as string[]);
-      setExistingSubcategories([...new Set(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || [])] as string[]);
+      setExistingTags([...new Set([...(tagRes.data?.map(i => i.project_tag).filter(Boolean) || []), ...getCustomOptions('project_tag')])] as string[]);
+      setExistingSubcategories([...new Set([...(subcatRes.data?.map(i => i.subcategory).filter(Boolean) || []), ...getCustomOptions('subcategory')])] as string[]);
       setPayeeGroups(pgRes.data?.map(i => ({ pattern: i.payee_pattern, name: i.group_name })) || []);
-      setExistingEventNames([...new Set(eventRes.data?.map(i => i.event_name).filter(Boolean) || [])] as string[]);
+      setExistingEventNames([...new Set([...(eventRes.data?.map(i => i.event_name).filter(Boolean) || []), ...getCustomOptions('event_name')])] as string[]);
       setRegistryTags(registryRes.data || []);
       setBankAccounts((bankRes.data || []) as BankAccount[]);
     } catch (error) {
@@ -270,6 +271,15 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         .eq('id', expense.id);
 
       if (error) throw error;
+
+      // Remember user-typed options locally so they stay in the dropdowns
+      addCustomOption('subcategory', formData.subcategory);
+      addCustomOption('event_name', formData.event_name);
+      addCustomOption('project_tag', formData.project_tag);
+      addCustomOption('payee_group', formData.payee_group);
+      setExistingSubcategories(prev => (formData.subcategory && !prev.includes(formData.subcategory) ? [...prev, formData.subcategory] : prev));
+      setExistingEventNames(prev => (formData.event_name && !prev.includes(formData.event_name) ? [...prev, formData.event_name] : prev));
+      setExistingTags(prev => (formData.project_tag && !prev.includes(formData.project_tag) ? [...prev, formData.project_tag] : prev));
 
       // Auto-register new event/tag in event_registry so it appears in dropdowns next time
       const userId = (await supabase.auth.getUser()).data.user?.id;

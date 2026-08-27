@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,9 +49,9 @@ export function Combobox({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && inputValue && filtered.length === 0) {
+    if (e.key === "Enter" && inputValue.trim() && filtered.length === 0) {
       e.preventDefault();
-      onValueChange(inputValue);
+      onValueChange(inputValue.trim());
       setOpen(false);
       setInputValue("");
     }
@@ -92,6 +92,17 @@ export function Combobox({
               )}
             </CommandEmpty>
             <CommandGroup>
+              {inputValue.trim() &&
+                !options.some((o) => o.toLowerCase() === inputValue.trim().toLowerCase()) && (
+                  <CommandItem
+                    value={`__create__${inputValue}`}
+                    onSelect={() => handleSelect(inputValue.trim())}
+                    className="text-primary"
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    เพิ่ม "{inputValue.trim()}"
+                  </CommandItem>
+                )}
               {filtered.map((option) => (
                 <CommandItem
                   key={option}
