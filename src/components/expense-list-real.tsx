@@ -57,15 +57,34 @@ interface Expense {
   wht_amount?: number | null;
   wht_rate?: number | null;
 }
+// Build a fuzzy ILIKE pattern from a person/company name so that
+// "นาย พรเทพ ตันเสียงสม" also matches "พรเทพ ตันเสียงสม" / "พรเทพ  ตันเสียงสม" etc.
+const TITLE_WORDS = ["นาย", "นาง", "นางสาว", "น.ส.", "คุณ", "ครู", "mr", "mrs", "ms", "miss"];
+export function buildNamePattern(name: string): string {
+  const cleaned = name.replace(/[,%]/g, " ");
+  const tokens = cleaned
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t && !TITLE_WORDS.includes(t.toLowerCase()));
+  if (tokens.length === 0) return `%${cleaned.trim()}%`;
+  return `%${tokens.join("%")}%`;
+}
 
 // Query functions — fetch limited window for performance
-const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number; sortField?: 'expense_date' | 'created_at'; ascending?: boolean }): Promise<{ rows: Expense[]; total: number }> => {
+const fetchExpensesWindow = async (params: {
+  months: number;
+  limit: number;
+  offset: number;
+  sortField?: 'expense_date' | 'created_at';
+  ascending?: boolean;
+  search?: string;
+  payee?: string;
+}): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
     .from('expenses')
     .select('*', { count: 'exact' })
-    .order(sortField, { ascending: params.ascending ?? false })
-    .range(params.offset, params.offset + params.limit - 1);
+    .order(sortField, { ascending: params.ascending ?? false });
 
   if (params.months > 0) {
     const from = new Date();
@@ -77,10 +96,62 @@ const fetchExpensesWindow = async (params: { months: number; limit: number; offs
       q = q.gte('expense_date', from.toISOString().split('T')[0]);
     }
   }
+
+  // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group)
+  if (params.payee) {
+    const pat = buildNamePattern(params.payee);
+    q = q.or(
+      [`receiver.ilike.${pat}`, `merchant.ilike.${pat}`, `sender.ilike.${pat}`, `payee_group.ilike.${pat}`].join(',')
+    );
+  }
+
+  // Server-side free-text search
+  const term = (params.search || "").trim().replace(/[,%]/g, " ");
+  if (term) {
+    const pat = `%${term}%`;
+    q = q.or(
+      [
+        `description.ilike.${pat}`,
+        `merchant.ilike.${pat}`,
+        `receiver.ilike.${pat}`,
+        `sender.ilike.${pat}`,
+        `payee_group.ilike.${pat}`,
+        `event_name.ilike.${pat}`,
+        `category.ilike.${pat}`,
+        `subcategory.ilike.${pat}`,
+      ].join(',')
+    );
+  }
+
+  q = q.range(params.offset, params.offset + params.limit - 1);
+
   const { data, error, count } = await q;
   if (error) throw error;
   return { rows: data || [], total: count || 0 };
 };
+
+// Distinct payee names (receiver/merchant) pulled straight from DB so the
+// dropdown isn't limited to the currently loaded page.
+const fetchPayeeNames = async (): Promise<{ receivers: string[]; senders: string[] }> => {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('receiver, merchant, sender')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (error) throw error;
+  const receivers = new Set<string>();
+  const senders = new Set<string>();
+  (data || []).forEach((r: any) => {
+    if (r.receiver?.trim()) receivers.add(r.receiver.trim());
+    else if (r.merchant?.trim()) receivers.add(r.merchant.trim());
+    if (r.sender?.trim()) senders.add(r.sender.trim());
+  });
+  return {
+    receivers: Array.from(receivers).sort((a, b) => a.localeCompare(b, 'th')),
+    senders: Array.from(senders).sort((a, b) => a.localeCompare(b, 'th')),
+  };
+};
+
 
 
 const fetchEventNamesList = async (): Promise<string[]> => {
@@ -177,18 +248,30 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState<number>(1);
 
-  // Reset to page 1 when window/size changes
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy]);
+  // Debounced search term for server-side query
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Reset to page 1 when window/size/filters change
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceiver]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
   const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
+  // When searching/filtering by payee, widen the window to all history
+  const isNameFiltering = !!debouncedSearch || filterReceiver !== "all";
+  const effectiveMonths = isNameFiltering ? 0 : windowMonths;
+  const serverPayee = filterReceiver !== "all" ? filterReceiver : undefined;
+
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', windowMonths, pageSize, page, sortField, sortAscending],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayee ?? ''],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payee: serverPayee }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
@@ -199,6 +282,13 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     queryKey: ['event-registry-names'],
     queryFn: fetchEventNamesList,
   });
+
+  const { data: payeeNames } = useQuery({
+    queryKey: ['expense-payee-names'],
+    queryFn: fetchPayeeNames,
+    staleTime: 5 * 60 * 1000,
+  });
+
 
   // Realtime subscription → invalidate queries
   useEffect(() => {
@@ -282,8 +372,20 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     return Array.from(existing).sort();
   }, [expenses]);
 
-  const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
-  const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
+  const uniqueSenders = useMemo(() => {
+    const set = new Set<string>([...(payeeNames?.senders ?? [])]);
+    expenses.forEach(e => { if (e.sender?.trim()) set.add(e.sender.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [expenses, payeeNames]);
+  const uniqueReceivers = useMemo(() => {
+    const set = new Set<string>([...(payeeNames?.receivers ?? [])]);
+    expenses.forEach(e => {
+      const name = e.receiver?.trim() || e.merchant?.trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [expenses, payeeNames]);
+
 
   const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   const uniqueMonths = useMemo(() => {
@@ -345,21 +447,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       filtered = filtered.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && !e.settled_batch_id);
     }
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(e =>
-        e.description?.toLowerCase().includes(term) ||
-        e.project_tag?.toLowerCase().includes(term) ||
-        e.merchant?.toLowerCase().includes(term) ||
-        e.receiver?.toLowerCase().includes(term) ||
-        e.payee_group?.toLowerCase().includes(term)
-      );
-    }
+    // Free-text search + payee filter are applied server-side (whole history)
     if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
     if (filterGroup !== "all") filtered = filtered.filter(e => e.category_group === filterGroup);
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
-    if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+
     if (filterMonth !== "all") {
       filtered = filtered.filter(e => {
         if (!e.expense_date) return false;
@@ -715,13 +808,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterReceiver} onValueChange={setFilterReceiver}>
-          <SelectTrigger><SelectValue placeholder="ผู้รับ" /></SelectTrigger>
-          <SelectContent className="bg-background">
-            <SelectItem value="all">ทุกผู้รับ</SelectItem>
-            {uniqueReceivers.map(r => <SelectItem key={r!} value={r!}>{r}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1">
+          <Combobox
+            options={uniqueReceivers}
+            value={filterReceiver === "all" ? "" : filterReceiver}
+            onValueChange={(v) => setFilterReceiver(v ? v : "all")}
+            placeholder="ผู้รับ (พิมพ์ค้นหาได้)"
+            emptyText="ไม่พบชื่อผู้รับ"
+            className="flex-1"
+          />
+          {filterReceiver !== "all" && (
+            <Button variant="ghost" size="icon" onClick={() => setFilterReceiver("all")} title="ล้างตัวกรองผู้รับ">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <Select value={filterMonth} onValueChange={setFilterMonth}>
           <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
