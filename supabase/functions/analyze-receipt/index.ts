@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { parseSlipDateRaw } from "../_shared/slip-date.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -95,7 +97,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - **Refund/คืนเงิน**: เป็น Contra-revenue (หักกลบรายได้) → transaction_direction = INCOME, subcategory = Refund เสมอ ห้ามใส่เป็น EXPENSE
 
 ## ข้อมูลที่ต้องดึง:
-- amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
+- amount, date_raw (ข้อความวันที่ดิบ), date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 
 ## 👤 ผู้โอน / ผู้รับโอน (สำคัญมาก!)
 สลิปโอนเงินไทย (K PLUS, SCB, KTB, BBL ฯลฯ) วางข้อมูลเป็น 2 ฝั่ง:
@@ -142,6 +144,7 @@ const TOOL_SCHEMA = {
       properties: {
         amount: { type: ["number", "null"] },
         date: { type: ["string", "null"] },
+        date_raw: { type: ["string", "null"], description: "ข้อความวันที่บนสลิปแบบดิบ ห้ามแปลง" },
         time: { type: ["string", "null"] },
         description: { type: ["string", "null"] },
         merchant: { type: ["string", "null"] },
@@ -160,7 +163,7 @@ const TOOL_SCHEMA = {
         days_worked: { type: ["number", "null"] },
         event_name: { type: ["string", "null"] },
       },
-      required: ["amount", "date", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
+      required: ["amount", "date", "date_raw", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
       additionalProperties: false
     }
   }
@@ -316,55 +319,30 @@ serve(async (req) => {
       throw new Error("Could not extract data from receipt");
     }
 
-    // Year validation: fix OCR year misreads (only for non-bulk uploads)
-    // Bulk uploads may contain historical slips (2024, 2025) which are legitimate
-    if (extractedData.date && source !== 'bulk') {
-      const currentYear = new Date().getFullYear();
-      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (match) {
-        const ocrYear = parseInt(match[1], 10);
-        const ocrDay = parseInt(match[3], 10);
-        // Detect DD/YY swap in both directions:
-        //  - past:   "23/04/26" misread as 2023-04-26  → 2026-04-23
-        //  - future: "27/01/26" misread as 2027-01-26  → 2026-01-27
-        if ((ocrYear < currentYear - 1 || ocrYear > currentYear) && ocrDay >= 20 && ocrDay <= 31) {
-          const candidateYear = 2000 + ocrDay;
-          const candidateDay = ocrYear % 100;
-          if (candidateYear !== ocrYear && candidateYear >= 2015 && candidateYear <= currentYear + 1 && candidateDay >= 1 && candidateDay <= 31) {
-            const fixed = `${candidateYear}-${match[2]}-${String(candidateDay).padStart(2, '0')}`;
-            console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
-            extractedData.date = fixed;
-            extractedData.needs_review = true;
-            if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-              extractedData.confidence_score = 60;
-            }
-          }
-        } else if (ocrYear > currentYear + 1) {
-          console.warn(`OCR year in the future: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
-          extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
-          extractedData.needs_review = true;
-          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-            extractedData.confidence_score = 60;
-          }
-        } else if (ocrYear < currentYear - 1) {
-          // Historical slip: keep the date but flag for review instead of forcing the current year
-          extractedData.needs_review = true;
-        }
+    // ── Date handling: raw text is authoritative, parsed deterministically ──
+    // สลิปไทยเรียง วัน-เดือน-ปี เสมอ — ห้ามเดา ถ้าแปลงไม่ได้ให้ติดธงรอตรวจ
+    const rawDate: string | null = typeof extractedData.date_raw === 'string' && extractedData.date_raw.trim()
+      ? extractedData.date_raw.trim()
+      : null;
+    extractedData.date_raw = rawDate;
+
+    const parsed = parseSlipDateRaw(rawDate);
+    if (parsed) {
+      if (parsed !== extractedData.date) {
+        console.warn(`Date normalized from raw "${rawDate}": ${extractedData.date} → ${parsed}`);
+        extractedData.needs_review = true;
       }
-    }
-    // For bulk uploads: still flag far-future dates as suspicious
-    if (extractedData.date && source === 'bulk') {
-      const currentYear = new Date().getFullYear();
-      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (match) {
-        const ocrYear = parseInt(match[1], 10);
-        if (ocrYear > currentYear + 1) {
-          extractedData.needs_review = true;
-          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-            extractedData.confidence_score = 60;
-          }
-        }
+      extractedData.date = parsed;
+    } else if (!extractedData.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(extractedData.date))) {
+      // Unreadable date — never guess
+      extractedData.date = null;
+      extractedData.needs_review = true;
+      if (extractedData.confidence_score == null || extractedData.confidence_score > 60) {
+        extractedData.confidence_score = 60;
       }
+    } else {
+      // Raw text missing but AI produced a date → accept, but ask a human to confirm
+      extractedData.needs_review = true;
     }
 
     return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
