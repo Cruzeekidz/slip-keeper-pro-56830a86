@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
 import { encode as encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts";
+import { parseSlipDateRaw } from "../_shared/slip-date.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -311,21 +312,16 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - เงินเข้า/ค่าสมัคร/สปอนเซอร์ → transaction_direction = INCOME
 
 ## ข้อมูลที่ต้องดึง:
-amount, date (YYYY-MM-DD), time, description, merchant, sender, receiver, transaction_id,
+amount, date_raw (ข้อความวันที่ดิบบนสลิป ห้ามแปลง), date (YYYY-MM-DD), time, description, merchant, sender, receiver, transaction_id,
 transaction_type, category_group, project_tag, subcategory, transaction_direction,
 confidence_score (0-100), staff_name, days_worked, event_name
 
 ## 📅 กฎการอ่านวันที่ (สำคัญที่สุด — ห้ามผิด)
-สลิปโอนเงินธนาคารไทยเรียงลำดับ **วัน → เดือน → ปี** เสมอ
-- ตัวเลข "ตัวหน้าสุด" คือ **วันที่** เสมอ **ห้าม**ตีความเป็นปีเด็ดขาด
-- ตัวเลขชุดสุดท้ายคือปี ถ้าเป็น 2 หลัก ให้บวก 2000 (26 → 2026, 25 → 2025) ห้ามคิดเป็น พ.ศ.
-- ถ้าปีเป็น 4 หลักและอยู่ช่วง 2560–2580 = พ.ศ. ให้ลบ 543
-ตัวอย่าง:
-- "27/01/26" → 2026-01-27 (ไม่ใช่ 2027-01-26)
-- "23/04/26" → 2026-04-23
-- "6 Jun 26" → 2026-06-06
-- "15 ธ.ค. 68" → 2025-12-15
-ถ้าไม่แน่ใจวันที่ → confidence_score < 70
+1. **date_raw** = ข้อความวันที่บนสลิปแบบดิบ ๆ ห้ามแปลง ห้ามจัดรูปแบบ เช่น "23/04/26", "1 ก.พ. 67", "26 ส.ค. 2569" ถ้าอ่านไม่เจอ = null
+2. สลิปไทยเรียง **วัน → เดือน → ปี** เสมอ เลขกลุ่มแรกคือ **วันที่** ห้ามตีความเป็นปีเด็ดขาด
+3. ปี 2 หลัก: มากกว่าเลขสองหลักท้ายของปี ค.ศ. ปัจจุบัน = พ.ศ. (ลบ 543) ถ้าน้อยกว่าหรือเท่ากัน = ค.ศ.
+   (ปีนี้ 2026 → "68" = 2025, "26" = 2026, "24" = 2024) · ปี 4 หลัก ≥ 2500 → ลบ 543
+4. **ห้ามเดา** ถ้าอ่านวันที่ไม่ชัด → date = null, confidence_score < 70
 
 **สำคัญ**: ถ้าหาไม่พบให้ใส่ null, confidence < 75 ถ้าไม่แน่ใจ
 **Memo มักให้ข้อมูลที่แม่นยำกว่าสลิป ให้ใช้ memo เป็นหลัก**`;
@@ -340,6 +336,7 @@ const TOOL_SCHEMA = {
       properties: {
         amount: { type: ["number", "null"] },
         date: { type: ["string", "null"] },
+        date_raw: { type: ["string", "null"] },
         time: { type: ["string", "null"] },
         description: { type: ["string", "null"] },
         merchant: { type: ["string", "null"] },
@@ -356,7 +353,7 @@ const TOOL_SCHEMA = {
         days_worked: { type: ["number", "null"] },
         event_name: { type: ["string", "null"] },
       },
-      required: ["amount", "date", "description", "transaction_type", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
+      required: ["amount", "date", "date_raw", "description", "transaction_type", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
       additionalProperties: false
     }
   }
@@ -1220,25 +1217,22 @@ serve(async (req) => {
 
         // 5. Move file to organized path: line/{userId}/{category}/{YYYY}/{MM}/
         const category = extractedData?.transaction_type || "PERSONAL";
-        // Year sanity check: detect DD/YY swap (e.g. "23/04/26" misread as 2023-04-26 when current year is 2026)
-        if (extractedData?.date && typeof extractedData.date === 'string') {
-          const m = (extractedData.date as string).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-          if (m) {
-            const cy = new Date().getFullYear();
-            const oy = parseInt(m[1], 10);
-            const od = parseInt(m[3], 10);
-            // If extracted year is far in the past OR in the future, but day looks like a recent year suffix → swap
-            if ((oy < cy - 1 || oy > cy) && od >= 20 && od <= 31) {
-              const candidateYear = 2000 + od;
-              const candidateDay = oy % 100;
-              if (candidateYear !== oy && candidateYear >= 2015 && candidateYear <= cy + 1 && candidateDay >= 1 && candidateDay <= 31) {
-                const fixed = `${candidateYear}-${m[2]}-${String(candidateDay).padStart(2, '0')}`;
-                console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
-                extractedData.date = fixed;
-                (extractedData as any).needs_review = true;
-              }
-            }
+        // Date: raw slip text is authoritative, parsed deterministically (ห้ามเดา)
+        const rawDate: string | null = typeof extractedData?.date_raw === 'string' && extractedData.date_raw.trim()
+          ? String(extractedData.date_raw).trim()
+          : null;
+        const parsedDate = parseSlipDateRaw(rawDate);
+        if (parsedDate) {
+          if (parsedDate !== extractedData.date) {
+            console.warn(`Date normalized from raw "${rawDate}": ${extractedData.date} → ${parsedDate}`);
+            (extractedData as any).needs_review = true;
           }
+          extractedData.date = parsedDate;
+        } else if (!extractedData?.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(extractedData.date))) {
+          extractedData.date = null;
+          (extractedData as any).needs_review = true;
+        } else {
+          (extractedData as any).needs_review = true;
         }
         const expDate = extractedData?.date || new Date().toISOString().split('T')[0];
         const [year, month] = expDate.split('-');
@@ -1304,6 +1298,7 @@ serve(async (req) => {
         const expenseData: Record<string, unknown> = {
           amount: extractedData?.amount || 0,
           expense_date: expDate,
+          ocr_date_raw: rawDate,
           expense_time: cleanTime,
           category: typeLabel,
           subcategory: extractedData?.subcategory || null,
@@ -1317,7 +1312,7 @@ serve(async (req) => {
           project_tag: normalizedProjectTag,
           transaction_direction: extractedData?.transaction_direction || 'EXPENSE',
           confidence_score: extractedData?.confidence_score || null,
-          needs_review: (extractedData?.confidence_score || 0) < 75,
+          needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date,
           receipt_url: storagePath,
           staff_name: extractedData?.staff_name || null,
           days_worked: extractedData?.days_worked || null,
