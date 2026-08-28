@@ -57,15 +57,34 @@ interface Expense {
   wht_amount?: number | null;
   wht_rate?: number | null;
 }
+// Build a fuzzy ILIKE pattern from a person/company name so that
+// "นาย พรเทพ ตันเสียงสม" also matches "พรเทพ ตันเสียงสม" / "พรเทพ  ตันเสียงสม" etc.
+const TITLE_WORDS = ["นาย", "นาง", "นางสาว", "น.ส.", "คุณ", "ครู", "mr", "mrs", "ms", "miss"];
+export function buildNamePattern(name: string): string {
+  const cleaned = name.replace(/[,%]/g, " ");
+  const tokens = cleaned
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t && !TITLE_WORDS.includes(t.toLowerCase()));
+  if (tokens.length === 0) return `%${cleaned.trim()}%`;
+  return `%${tokens.join("%")}%`;
+}
 
 // Query functions — fetch limited window for performance
-const fetchExpensesWindow = async (params: { months: number; limit: number; offset: number; sortField?: 'expense_date' | 'created_at'; ascending?: boolean }): Promise<{ rows: Expense[]; total: number }> => {
+const fetchExpensesWindow = async (params: {
+  months: number;
+  limit: number;
+  offset: number;
+  sortField?: 'expense_date' | 'created_at';
+  ascending?: boolean;
+  search?: string;
+  payee?: string;
+}): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
     .from('expenses')
     .select('*', { count: 'exact' })
-    .order(sortField, { ascending: params.ascending ?? false })
-    .range(params.offset, params.offset + params.limit - 1);
+    .order(sortField, { ascending: params.ascending ?? false });
 
   if (params.months > 0) {
     const from = new Date();
@@ -77,10 +96,62 @@ const fetchExpensesWindow = async (params: { months: number; limit: number; offs
       q = q.gte('expense_date', from.toISOString().split('T')[0]);
     }
   }
+
+  // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group)
+  if (params.payee) {
+    const pat = buildNamePattern(params.payee);
+    q = q.or(
+      [`receiver.ilike.${pat}`, `merchant.ilike.${pat}`, `sender.ilike.${pat}`, `payee_group.ilike.${pat}`].join(',')
+    );
+  }
+
+  // Server-side free-text search
+  const term = (params.search || "").trim().replace(/[,%]/g, " ");
+  if (term) {
+    const pat = `%${term}%`;
+    q = q.or(
+      [
+        `description.ilike.${pat}`,
+        `merchant.ilike.${pat}`,
+        `receiver.ilike.${pat}`,
+        `sender.ilike.${pat}`,
+        `payee_group.ilike.${pat}`,
+        `event_name.ilike.${pat}`,
+        `category.ilike.${pat}`,
+        `subcategory.ilike.${pat}`,
+      ].join(',')
+    );
+  }
+
+  q = q.range(params.offset, params.offset + params.limit - 1);
+
   const { data, error, count } = await q;
   if (error) throw error;
   return { rows: data || [], total: count || 0 };
 };
+
+// Distinct payee names (receiver/merchant) pulled straight from DB so the
+// dropdown isn't limited to the currently loaded page.
+const fetchPayeeNames = async (): Promise<{ receivers: string[]; senders: string[] }> => {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('receiver, merchant, sender')
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (error) throw error;
+  const receivers = new Set<string>();
+  const senders = new Set<string>();
+  (data || []).forEach((r: any) => {
+    if (r.receiver?.trim()) receivers.add(r.receiver.trim());
+    else if (r.merchant?.trim()) receivers.add(r.merchant.trim());
+    if (r.sender?.trim()) senders.add(r.sender.trim());
+  });
+  return {
+    receivers: Array.from(receivers).sort((a, b) => a.localeCompare(b, 'th')),
+    senders: Array.from(senders).sort((a, b) => a.localeCompare(b, 'th')),
+  };
+};
+
 
 
 const fetchEventNamesList = async (): Promise<string[]> => {
