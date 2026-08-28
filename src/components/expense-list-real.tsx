@@ -248,18 +248,30 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [pageSize, setPageSize] = useState<number>(100);
   const [page, setPage] = useState<number>(1);
 
-  // Reset to page 1 when window/size changes
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy]);
+  // Debounced search term for server-side query
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 350);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  // Reset to page 1 when window/size/filters change
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceiver]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
   const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
+  // When searching/filtering by payee, widen the window to all history
+  const isNameFiltering = !!debouncedSearch || filterReceiver !== "all";
+  const effectiveMonths = isNameFiltering ? 0 : windowMonths;
+  const serverPayee = filterReceiver !== "all" ? filterReceiver : undefined;
+
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', windowMonths, pageSize, page, sortField, sortAscending],
-    queryFn: () => fetchExpensesWindow({ months: windowMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayee ?? ''],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payee: serverPayee }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
@@ -270,6 +282,13 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     queryKey: ['event-registry-names'],
     queryFn: fetchEventNamesList,
   });
+
+  const { data: payeeNames } = useQuery({
+    queryKey: ['expense-payee-names'],
+    queryFn: fetchPayeeNames,
+    staleTime: 5 * 60 * 1000,
+  });
+
 
   // Realtime subscription → invalidate queries
   useEffect(() => {
