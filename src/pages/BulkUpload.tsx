@@ -250,6 +250,8 @@ export default function BulkUpload() {
       let projectTag: string | null = null, subcategory: string | null = null;
       let staffName: string | null = null, eventName: string | null = null;
       let memoText: string | null = null;
+      let ocrDateRaw: string | null = null;
+      let needsDateReview = false;
 
       const isPDF = fileObj.file.type === 'application/pdf';
 
@@ -349,7 +351,7 @@ export default function BulkUpload() {
           memoText = d.memo_text || null;
       }
 
-      const isLowConfidence = confidence != null && confidence < 75;
+      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview;
       const category = transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType || 'ไม่ระบุ';
 
       const { data, error: insertError } = await supabase.from('expenses').insert({
