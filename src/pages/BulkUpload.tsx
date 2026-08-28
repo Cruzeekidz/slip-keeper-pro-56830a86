@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { EventTagPicker } from "@/components/event-tag-picker";
+import { isUnknownTag, EventTagOption } from "@/lib/event-tags";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,6 +27,8 @@ const RATE_LIMIT_WAIT = 10000;
 
 export default function BulkUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [batchTag, setBatchTag] = useState("");
+  const [batchEventName, setBatchEventName] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewRows, setPreviewRows] = useState<CSVRow[]>([]);
@@ -351,7 +355,13 @@ export default function BulkUpload() {
           memoText = d.memo_text || null;
       }
 
-      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview;
+      // Batch-level event selection wins over anything OCR guessed
+      if (batchTag) {
+        projectTag = batchTag;
+        eventName = isUnknownTag(batchTag) ? null : batchEventName;
+      }
+
+      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview || isUnknownTag(batchTag);
       const category = transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType || 'ไม่ระบุ';
 
       const { data, error: insertError } = await supabase.from('expenses').insert({
@@ -387,6 +397,7 @@ export default function BulkUpload() {
 
   const uploadAll = async () => {
     if (!user) { toast({ title: "กรุณาเข้าสู่ระบบ", variant: "destructive" }); return; }
+    if (!batchTag) { toast({ title: "กรุณาเลือกงาน / อีเวนท์ ก่อนอัพโหลด", variant: "destructive" }); return; }
 
     setUploading(true);
     setProcessedCount(0);
@@ -522,6 +533,18 @@ export default function BulkUpload() {
           </div>
         </Card>
 
+        {/* Batch event selection */}
+        <Card className="p-5">
+          <Label className="mb-2 block">งาน / อีเวนท์ ของสลิปชุดนี้ <span className="text-destructive">*</span></Label>
+          <EventTagPicker
+            value={batchTag}
+            onValueChange={(tag, opt) => { setBatchTag(tag); setBatchEventName(opt?.name ?? null); }}
+          />
+          <p className="text-xs text-muted-foreground mt-2">
+            เลือกจากรายการงานจริง (ดึงมาจากระบบรับสมัคร) ถ้ายังไม่รู้ให้เลือก "ยังไม่รู้" แล้วรายการจะไปอยู่หน้ารอตรวจ
+          </p>
+        </Card>
+
         {/* Receipt Upload Section */}
         <div>
           <h2 className="text-xl font-semibold mb-4">หรืออัพโหลดใบเสร็จ</h2>
@@ -613,7 +636,7 @@ export default function BulkUpload() {
                   </Button>
                 )}
                 {!uploading && pendingCount > 0 && (
-                  <Button onClick={uploadAll} disabled={uploading}>
+                  <Button onClick={uploadAll} disabled={uploading || !batchTag}>
                     อัพโหลดทั้งหมด ({pendingCount})
                   </Button>
                 )}
