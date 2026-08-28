@@ -26,11 +26,16 @@ serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     let owner: string | null = null;
-    if (token === serviceKey) {
-      // Scheduled run (pg_cron): owner passed explicitly
+    if (token === serviceKey || token === anonKey) {
+      // Scheduled run (pg_cron): owner passed explicitly and must be an admin
       owner = body?.owner || null;
       if (!owner) return json({ error: "owner required for scheduled run" }, 400);
+      const svc = createClient(supabaseUrl, serviceKey);
+      const { data: isAdmin } = await svc.rpc("has_role", { _user_id: owner, _role: "admin" });
+      const { data: isSuper } = await svc.rpc("has_role", { _user_id: owner, _role: "super_admin" });
+      if (!isAdmin && !isSuper) return json({ error: "owner must be an admin" }, 403);
     } else {
       const anon = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
       const { data: claims, error } = await anon.auth.getClaims(token);
