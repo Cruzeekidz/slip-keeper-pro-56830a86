@@ -602,11 +602,14 @@ export type Database = {
           amount_input_mode: string
           category: string
           category_group: string | null
+          category_group_backup: string | null
           confidence_score: number | null
           created_at: string
+          date_flag_reason: string | null
           days_worked: number | null
           description: string | null
           event_name: string | null
+          event_name_backup: string | null
           expense_date: string
           expense_time: string | null
           id: string
@@ -615,9 +618,11 @@ export type Database = {
           merchant: string | null
           needs_review: boolean | null
           non_duplicate_pairs: string[] | null
+          ocr_date_raw: string | null
           payee_group: string | null
           project: string | null
           project_tag: string | null
+          project_tag_backup: string | null
           receipt_url: string | null
           receiver: string | null
           receiver_account_name: string | null
@@ -645,11 +650,14 @@ export type Database = {
           amount_input_mode?: string
           category: string
           category_group?: string | null
+          category_group_backup?: string | null
           confidence_score?: number | null
           created_at?: string
+          date_flag_reason?: string | null
           days_worked?: number | null
           description?: string | null
           event_name?: string | null
+          event_name_backup?: string | null
           expense_date: string
           expense_time?: string | null
           id?: string
@@ -658,9 +666,11 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
+          ocr_date_raw?: string | null
           payee_group?: string | null
           project?: string | null
           project_tag?: string | null
+          project_tag_backup?: string | null
           receipt_url?: string | null
           receiver?: string | null
           receiver_account_name?: string | null
@@ -688,11 +698,14 @@ export type Database = {
           amount_input_mode?: string
           category?: string
           category_group?: string | null
+          category_group_backup?: string | null
           confidence_score?: number | null
           created_at?: string
+          date_flag_reason?: string | null
           days_worked?: number | null
           description?: string | null
           event_name?: string | null
+          event_name_backup?: string | null
           expense_date?: string
           expense_time?: string | null
           id?: string
@@ -701,9 +714,11 @@ export type Database = {
           merchant?: string | null
           needs_review?: boolean | null
           non_duplicate_pairs?: string[] | null
+          ocr_date_raw?: string | null
           payee_group?: string | null
           project?: string | null
           project_tag?: string | null
+          project_tag_backup?: string | null
           receipt_url?: string | null
           receiver?: string | null
           receiver_account_name?: string | null
