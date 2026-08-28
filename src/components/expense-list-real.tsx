@@ -808,13 +808,22 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filterReceiver} onValueChange={setFilterReceiver}>
-          <SelectTrigger><SelectValue placeholder="ผู้รับ" /></SelectTrigger>
-          <SelectContent className="bg-background">
-            <SelectItem value="all">ทุกผู้รับ</SelectItem>
-            {uniqueReceivers.map(r => <SelectItem key={r!} value={r!}>{r}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-1">
+          <Combobox
+            options={uniqueReceivers}
+            value={filterReceiver === "all" ? "" : filterReceiver}
+            onValueChange={(v) => setFilterReceiver(v ? v : "all")}
+            placeholder="ผู้รับ (พิมพ์ค้นหาได้)"
+            emptyText="ไม่พบชื่อผู้รับ"
+            className="flex-1"
+          />
+          {filterReceiver !== "all" && (
+            <Button variant="ghost" size="icon" onClick={() => setFilterReceiver("all")} title="ล้างตัวกรองผู้รับ">
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
+
         <Select value={filterMonth} onValueChange={setFilterMonth}>
           <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
