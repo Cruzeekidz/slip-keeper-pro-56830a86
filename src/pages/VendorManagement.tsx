@@ -489,19 +489,32 @@ const VendorManagement = () => {
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEditVendor(v)} title="แก้ไขข้อมูลคู่ค้า">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           {(v as any).line_user_id && (
-                            <LineChatButton
-                              lineUserId={(v as any).line_user_id}
-                              recipientName={v.company_name}
-                              size="icon"
-                              variant="ghost"
-                              iconOnly
-                            />
+                            <>
+                              <LineChatButton
+                                lineUserId={(v as any).line_user_id}
+                                recipientName={v.company_name}
+                                size="icon"
+                                variant="ghost"
+                                iconOnly
+                              />
+                              <Button variant="ghost" size="icon" onClick={() => unlinkVendorLine(v)} title="ยกเลิกการเชื่อม LINE">
+                                <Unlink className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </>
                           )}
                           {!(v as any).line_user_id && (
-                            <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์เชื่อม LINE">
-                              <Link2 className="h-4 w-4 text-primary" />
-                            </Button>
+                            <>
+                              <Button variant="ghost" size="icon" onClick={() => setLinkVendor(v)} title="เชื่อม LINE เอง (เลือกจากผู้ใช้ที่ทักเข้ามา)">
+                                <Link2 className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์ให้คู่ค้าเชื่อมเอง">
+                                <Copy className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </>
                           )}
                           {v.tax_doc_url && (
                             <Button variant="ghost" size="icon" onClick={() => viewFile(v.tax_doc_url!)}>
