@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+import { parseSlipDateRaw } from "../_shared/slip-date.ts";
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -95,7 +97,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - **Refund/คืนเงิน**: เป็น Contra-revenue (หักกลบรายได้) → transaction_direction = INCOME, subcategory = Refund เสมอ ห้ามใส่เป็น EXPENSE
 
 ## ข้อมูลที่ต้องดึง:
-- amount, date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
+- amount, date_raw (ข้อความวันที่ดิบ), date (YYYY-MM-DD ค.ศ.), time, description, merchant, sender, receiver, transaction_id
 
 ## 👤 ผู้โอน / ผู้รับโอน (สำคัญมาก!)
 สลิปโอนเงินไทย (K PLUS, SCB, KTB, BBL ฯลฯ) วางข้อมูลเป็น 2 ฝั่ง:
@@ -108,22 +110,17 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 3. ยกเว้นกรณี transaction_direction = INCOME (เงินเข้าบัญชีเรา) → merchant = ผู้โอน (ฝั่งซ้าย)
 4. ถ้าอ่านชื่อฝั่งใดไม่ชัด ให้ใส่ null และลด confidence_score
 
-## 📅 รูปแบบวันที่ในสลิปไทย (สำคัญมาก!)
-สลิปธนาคารไทยใช้รูปแบบ **dd/mm/yy** หรือ **d MMM yy** (ปี 2 หลักเป็น ค.ศ. ไม่ใช่ พ.ศ.)
-ตัวอย่าง:
-- "6 Jun 26" / "06/06/26" → 2026-06-06 (วันที่ 6, เดือน 6, ปี 2026)
-- "23/04/26" → 2026-04-23 (วันที่ 23, เดือน 4, ปี 2026)
-- "15 ธ.ค. 25" → 2025-12-15
-- "01/01/25" → 2025-01-01
+## 📅 วันที่ในสลิป (สำคัญมาก!)
+1. **date_raw** = ข้อความวันที่ที่เห็นบนสลิป **แบบดิบ ๆ ห้ามแปลง ห้ามจัดรูปแบบ ห้ามเติมปี**
+   เช่น "23/04/26", "1 ก.พ. 67", "26 ส.ค. 2569", "6 Jun 26" — ถ้าอ่านไม่เจอให้เป็น null
+2. **date** = วันที่แปลงเป็น YYYY-MM-DD (ค.ศ.) โดยยึดกฎ **สลิปไทยเรียง วัน-เดือน-ปี เสมอ**
+   - เลขกลุ่มแรกคือ **วัน** เด็ดขาด ห้ามตีความเป็นปี (ยกเว้นเขียนปีมาเต็ม 4 หลักไว้ข้างหน้า)
+   - ปี 2 หลัก: ถ้ามากกว่าเลขสองหลักท้ายของปี ค.ศ. ปัจจุบัน = พ.ศ. (ลบ 543) ถ้าน้อยกว่าหรือเท่ากัน = ค.ศ.
+     (ปีนี้ 2026 → "68" = 2025, "26" = 2026, "24" = 2024)
+   - ปี 4 หลัก ≥ 2500 → ลบ 543
+   - เดือนภาษาไทย/อังกฤษ (ม.ค. ก.พ. Jan Feb) แปลงตามชื่อ วันคือเลขที่อยู่**หน้า**ชื่อเดือน
+3. **ห้ามเดา** ถ้าอ่านวันที่ไม่ชัด ให้ date = null และใส่ date_raw เท่าที่อ่านได้ พร้อม confidence_score ต่ำ (<70)
 
-**กฎสำคัญ**:
-1. **ตัวเลขตัวหน้าสุดคือ "วันที่" เสมอ ห้ามตีความเป็นปีเด็ดขาด** ลำดับคือ วัน → เดือน → ปี
-   เช่น "27/01/26" = 2026-01-27 (ห้ามอ่านเป็น 2027-01-26)
-2. ตัวเลขชุด "สุดท้าย" คือปี ถ้าเป็น 2 หลักให้บวก 2000 (26 → 2026, 25 → 2025) — **ห้ามตีความเป็น พ.ศ.**
-   ถ้าปีเป็น 4 หลักและอยู่ช่วง 2560–2580 = พ.ศ. ให้ลบ 543
-3. ห้ามใช้รูปแบบอเมริกัน (เดือน/วัน/ปี) เด็ดขาด
-4. ถ้าเห็นเดือนเป็นชื่อ (Jan, Feb, Jun, ม.ค., มิ.ย.) → ใช้เลขเดือนตามนั้น
-5. ถ้าไม่แน่ใจวันที่ → ใส่ confidence_score ต่ำ (<70) และ needs_review = true
 - transaction_type: TRANSFER / BUSINESS / PERSONAL
 - category_group: EVENT / PROGRAM / VENUE / ENTITY_KUKANANG / ENTITY_BCC_NEXT / GENERAL (เฉพาะ BUSINESS) หรือ null
 - project_tag: **ต้องเลือกจากรายการอีเวนท์ที่ให้ไว้เท่านั้น** หรือ null
@@ -147,6 +144,7 @@ const TOOL_SCHEMA = {
       properties: {
         amount: { type: ["number", "null"] },
         date: { type: ["string", "null"] },
+        date_raw: { type: ["string", "null"], description: "ข้อความวันที่บนสลิปแบบดิบ ห้ามแปลง" },
         time: { type: ["string", "null"] },
         description: { type: ["string", "null"] },
         merchant: { type: ["string", "null"] },
@@ -165,7 +163,7 @@ const TOOL_SCHEMA = {
         days_worked: { type: ["number", "null"] },
         event_name: { type: ["string", "null"] },
       },
-      required: ["amount", "date", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
+      required: ["amount", "date", "date_raw", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
       additionalProperties: false
     }
   }
@@ -321,55 +319,30 @@ serve(async (req) => {
       throw new Error("Could not extract data from receipt");
     }
 
-    // Year validation: fix OCR year misreads (only for non-bulk uploads)
-    // Bulk uploads may contain historical slips (2024, 2025) which are legitimate
-    if (extractedData.date && source !== 'bulk') {
-      const currentYear = new Date().getFullYear();
-      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (match) {
-        const ocrYear = parseInt(match[1], 10);
-        const ocrDay = parseInt(match[3], 10);
-        // Detect DD/YY swap in both directions:
-        //  - past:   "23/04/26" misread as 2023-04-26  → 2026-04-23
-        //  - future: "27/01/26" misread as 2027-01-26  → 2026-01-27
-        if ((ocrYear < currentYear - 1 || ocrYear > currentYear) && ocrDay >= 20 && ocrDay <= 31) {
-          const candidateYear = 2000 + ocrDay;
-          const candidateDay = ocrYear % 100;
-          if (candidateYear !== ocrYear && candidateYear >= 2015 && candidateYear <= currentYear + 1 && candidateDay >= 1 && candidateDay <= 31) {
-            const fixed = `${candidateYear}-${match[2]}-${String(candidateDay).padStart(2, '0')}`;
-            console.warn(`Date swap detected: ${extractedData.date} → ${fixed}`);
-            extractedData.date = fixed;
-            extractedData.needs_review = true;
-            if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-              extractedData.confidence_score = 60;
-            }
-          }
-        } else if (ocrYear > currentYear + 1) {
-          console.warn(`OCR year in the future: read ${ocrYear}, current ${currentYear}. Correcting to ${currentYear}.`);
-          extractedData.date = `${currentYear}-${match[2]}-${match[3]}`;
-          extractedData.needs_review = true;
-          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-            extractedData.confidence_score = 60;
-          }
-        } else if (ocrYear < currentYear - 1) {
-          // Historical slip: keep the date but flag for review instead of forcing the current year
-          extractedData.needs_review = true;
-        }
+    // ── Date handling: raw text is authoritative, parsed deterministically ──
+    // สลิปไทยเรียง วัน-เดือน-ปี เสมอ — ห้ามเดา ถ้าแปลงไม่ได้ให้ติดธงรอตรวจ
+    const rawDate: string | null = typeof extractedData.date_raw === 'string' && extractedData.date_raw.trim()
+      ? extractedData.date_raw.trim()
+      : null;
+    extractedData.date_raw = rawDate;
+
+    const parsed = parseSlipDateRaw(rawDate);
+    if (parsed) {
+      if (parsed !== extractedData.date) {
+        console.warn(`Date normalized from raw "${rawDate}": ${extractedData.date} → ${parsed}`);
+        extractedData.needs_review = true;
       }
-    }
-    // For bulk uploads: still flag far-future dates as suspicious
-    if (extractedData.date && source === 'bulk') {
-      const currentYear = new Date().getFullYear();
-      const match = extractedData.date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-      if (match) {
-        const ocrYear = parseInt(match[1], 10);
-        if (ocrYear > currentYear + 1) {
-          extractedData.needs_review = true;
-          if (extractedData.confidence_score && extractedData.confidence_score > 60) {
-            extractedData.confidence_score = 60;
-          }
-        }
+      extractedData.date = parsed;
+    } else if (!extractedData.date || !/^\d{4}-\d{2}-\d{2}$/.test(String(extractedData.date))) {
+      // Unreadable date — never guess
+      extractedData.date = null;
+      extractedData.needs_review = true;
+      if (extractedData.confidence_score == null || extractedData.confidence_score > 60) {
+        extractedData.confidence_score = 60;
       }
+    } else {
+      // Raw text missing but AI produced a date → accept, but ask a human to confirm
+      extractedData.needs_review = true;
     }
 
     return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });

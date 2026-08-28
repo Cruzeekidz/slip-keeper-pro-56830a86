@@ -33,6 +33,8 @@ interface ReviewItem {
   project_tag: string | null;
   event_name: string | null;
   memo_text: string | null;
+  ocr_date_raw: string | null;
+  date_flag_reason: string | null;
 }
 
 interface EventOption {
@@ -102,7 +104,7 @@ export default function ReviewQueue() {
     setLoading(true);
     const { data } = await supabase
       .from('expenses')
-      .select('id, amount, expense_date, description, merchant, receiver, receipt_url, confidence_score, transaction_type, category_group, subcategory, project_tag, event_name, memo_text')
+      .select('id, amount, expense_date, description, merchant, receiver, receipt_url, confidence_score, transaction_type, category_group, subcategory, project_tag, event_name, memo_text, ocr_date_raw, date_flag_reason')
       .eq('user_id', user.id)
       .eq('needs_review', true)
       .order('expense_date', { ascending: false });
@@ -307,7 +309,16 @@ export default function ReviewQueue() {
 
     const category = transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType;
 
+    // ถ้ายืนยันวันที่ที่ไม่ตรงกับวันในข้อความดิบ ต้องล้างข้อความดิบ ไม่งั้น trigger จะติดธงซ้ำ
+    const finalDate = expenseDate || current.expense_date;
+    const rawDay = current.ocr_date_raw
+      ? parseInt((/^[^0-9]*(\d{1,2})[^0-9]/.exec(current.ocr_date_raw)?.[1] ?? ''), 10)
+      : NaN;
+    const rawConflicts = !Number.isNaN(rawDay) && !!finalDate
+      && parseInt(finalDate.slice(8, 10), 10) !== rawDay;
+
     const { error } = await supabase.from('expenses').update({
+      ...(rawConflicts ? { ocr_date_raw: null } : {}),
       transaction_type: transactionType,
       category_group: categoryGroup || null,
       category,
@@ -315,7 +326,7 @@ export default function ReviewQueue() {
       project_tag: projectTag || null,
       event_name: eventName || null,
       amount: parseFloat(amount),
-      expense_date: expenseDate || current.expense_date,
+      expense_date: finalDate,
       merchant: merchant.trim() || null,
       receiver: receiver.trim() || null,
       needs_review: false,
@@ -629,6 +640,20 @@ export default function ReviewQueue() {
                   <div className="space-y-2">
                     <Label>วันที่</Label>
                     <Input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)} />
+                    {(current.date_flag_reason || current.ocr_date_raw) && (
+                      <div className="mt-1 space-y-0.5 text-xs">
+                        {current.date_flag_reason && (
+                          <p className="text-warning flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3 shrink-0" /> {current.date_flag_reason}
+                          </p>
+                        )}
+                        {current.ocr_date_raw && (
+                          <p className="text-muted-foreground">
+                            ข้อความบนสลิป: <span className="font-mono">{current.ocr_date_raw}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
