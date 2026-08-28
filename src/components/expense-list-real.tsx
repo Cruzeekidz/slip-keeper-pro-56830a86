@@ -280,14 +280,14 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
   // When searching/filtering by payee, widen the window to all history
-  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0;
+  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all";
   const effectiveMonths = isNameFiltering ? 0 : windowMonths;
   const serverPayees = filterReceivers.length > 0 ? filterReceivers : undefined;
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? []],
-    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
