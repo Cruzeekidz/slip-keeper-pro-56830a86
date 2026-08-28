@@ -177,6 +177,105 @@ const VendorManagement = () => {
     });
   };
 
+  // ---- Edit vendor ----
+  const [editVendor, setEditVendor] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [savingVendor, setSavingVendor] = useState(false);
+
+  const openEditVendor = (v: any) => {
+    setEditVendor(v);
+    setEditForm({
+      company_name: v.company_name || "",
+      vendor_type: v.vendor_type || "individual",
+      tax_id: v.tax_id || "",
+      contact_name: v.contact_name || "",
+      phone: v.phone || "",
+      email: v.email || "",
+      address: v.address || "",
+      bank_name: v.bank_name || "",
+      bank_account: v.bank_account || "",
+    });
+  };
+
+  const saveVendor = async () => {
+    if (!editVendor) return;
+    if (!editForm.company_name?.trim()) {
+      toast({ title: "กรุณากรอกชื่อคู่ค้า", variant: "destructive" });
+      return;
+    }
+    setSavingVendor(true);
+    const { error } = await supabase
+      .from("vendor_profiles")
+      .update({
+        company_name: editForm.company_name.trim(),
+        vendor_type: editForm.vendor_type,
+        tax_id: editForm.tax_id?.trim() || null,
+        contact_name: editForm.contact_name?.trim() || null,
+        phone: editForm.phone?.trim() || null,
+        email: editForm.email?.trim() || null,
+        address: editForm.address?.trim() || null,
+        bank_name: editForm.bank_name?.trim() || null,
+        bank_account: editForm.bank_account?.trim() || null,
+      })
+      .eq("id", editVendor.id);
+    setSavingVendor(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "บันทึกข้อมูลคู่ค้าแล้ว" });
+    setEditVendor(null);
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+  // ---- Manual LINE linking ----
+  const [linkVendor, setLinkVendor] = useState<any | null>(null);
+  const [lineSearch, setLineSearch] = useState("");
+  const { data: lineUsers = [] } = useQuery({
+    queryKey: ["line-user-roles-for-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("line_user_roles")
+        .select("line_user_id, display_name, role, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!user,
+  });
+
+  const takenLineIds = new Set(
+    vendors.map((v: any) => v.line_user_id).filter(Boolean) as string[]
+  );
+
+  const linkVendorToLine = async (lineUserId: string) => {
+    if (!linkVendor) return;
+    const { error } = await supabase
+      .from("vendor_profiles")
+      .update({ line_user_id: lineUserId })
+      .eq("id", linkVendor.id);
+    if (error) {
+      toast({ title: "เชื่อมไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "เชื่อม LINE สำเร็จ", description: `${linkVendor.company_name} ↔ LINE` });
+    setLinkVendor(null);
+    setLineSearch("");
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+  const unlinkVendorLine = async (v: any) => {
+    const { error } = await supabase.from("vendor_profiles").update({ line_user_id: null }).eq("id", v.id);
+    if (error) {
+      toast({ title: "ยกเลิกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ยกเลิกการเชื่อม LINE แล้ว" });
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+
+
   // Files may live in either `documents` or `receipts` bucket depending on
   // upload source (admin attach -> documents, LINE bot / portal -> receipts).
   // Try documents first, fall back to receipts.
