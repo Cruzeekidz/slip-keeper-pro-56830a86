@@ -22,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder, Wallet, Upload, Image as ImageIcon, X, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Building2, FileText, Eye, Copy, CheckCircle, Search, Trash2, Link2, AlertCircle, Receipt, FileCheck, Download, Folder, Wallet, Upload, Image as ImageIcon, X, AlertTriangle, Pencil, Unlink } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { buildUploadPath } from "@/lib/storage-path";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -176,6 +176,105 @@ const VendorManagement = () => {
       description: "ส่งให้คู่ค้าทาง LINE — เปิดผ่าน Rich Menu จะดีที่สุด",
     });
   };
+
+  // ---- Edit vendor ----
+  const [editVendor, setEditVendor] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, string>>({});
+  const [savingVendor, setSavingVendor] = useState(false);
+
+  const openEditVendor = (v: any) => {
+    setEditVendor(v);
+    setEditForm({
+      company_name: v.company_name || "",
+      vendor_type: v.vendor_type || "individual",
+      tax_id: v.tax_id || "",
+      contact_name: v.contact_name || "",
+      phone: v.phone || "",
+      email: v.email || "",
+      address: v.address || "",
+      bank_name: v.bank_name || "",
+      bank_account: v.bank_account || "",
+    });
+  };
+
+  const saveVendor = async () => {
+    if (!editVendor) return;
+    if (!editForm.company_name?.trim()) {
+      toast({ title: "กรุณากรอกชื่อคู่ค้า", variant: "destructive" });
+      return;
+    }
+    setSavingVendor(true);
+    const { error } = await supabase
+      .from("vendor_profiles")
+      .update({
+        company_name: editForm.company_name.trim(),
+        vendor_type: editForm.vendor_type,
+        tax_id: editForm.tax_id?.trim() || null,
+        contact_name: editForm.contact_name?.trim() || null,
+        phone: editForm.phone?.trim() || null,
+        email: editForm.email?.trim() || null,
+        address: editForm.address?.trim() || null,
+        bank_name: editForm.bank_name?.trim() || null,
+        bank_account: editForm.bank_account?.trim() || null,
+      })
+      .eq("id", editVendor.id);
+    setSavingVendor(false);
+    if (error) {
+      toast({ title: "บันทึกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "บันทึกข้อมูลคู่ค้าแล้ว" });
+    setEditVendor(null);
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+  // ---- Manual LINE linking ----
+  const [linkVendor, setLinkVendor] = useState<any | null>(null);
+  const [lineSearch, setLineSearch] = useState("");
+  const { data: lineUsers = [] } = useQuery({
+    queryKey: ["line-user-roles-for-link"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("line_user_roles")
+        .select("line_user_id, display_name, role, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!user,
+  });
+
+  const takenLineIds = new Set(
+    vendors.map((v: any) => v.line_user_id).filter(Boolean) as string[]
+  );
+
+  const linkVendorToLine = async (lineUserId: string) => {
+    if (!linkVendor) return;
+    const { error } = await supabase
+      .from("vendor_profiles")
+      .update({ line_user_id: lineUserId })
+      .eq("id", linkVendor.id);
+    if (error) {
+      toast({ title: "เชื่อมไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "เชื่อม LINE สำเร็จ", description: `${linkVendor.company_name} ↔ LINE` });
+    setLinkVendor(null);
+    setLineSearch("");
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+  const unlinkVendorLine = async (v: any) => {
+    const { error } = await supabase.from("vendor_profiles").update({ line_user_id: null }).eq("id", v.id);
+    if (error) {
+      toast({ title: "ยกเลิกไม่สำเร็จ", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "ยกเลิกการเชื่อม LINE แล้ว" });
+    qc.invalidateQueries({ queryKey: ["vendor-profiles"] });
+  };
+
+
 
   // Files may live in either `documents` or `receipts` bucket depending on
   // upload source (admin attach -> documents, LINE bot / portal -> receipts).
@@ -390,19 +489,32 @@ const VendorManagement = () => {
                           </div>
                         </div>
                         <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => openEditVendor(v)} title="แก้ไขข้อมูลคู่ค้า">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
                           {(v as any).line_user_id && (
-                            <LineChatButton
-                              lineUserId={(v as any).line_user_id}
-                              recipientName={v.company_name}
-                              size="icon"
-                              variant="ghost"
-                              iconOnly
-                            />
+                            <>
+                              <LineChatButton
+                                lineUserId={(v as any).line_user_id}
+                                recipientName={v.company_name}
+                                size="icon"
+                                variant="ghost"
+                                iconOnly
+                              />
+                              <Button variant="ghost" size="icon" onClick={() => unlinkVendorLine(v)} title="ยกเลิกการเชื่อม LINE">
+                                <Unlink className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </>
                           )}
                           {!(v as any).line_user_id && (
-                            <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์เชื่อม LINE">
-                              <Link2 className="h-4 w-4 text-primary" />
-                            </Button>
+                            <>
+                              <Button variant="ghost" size="icon" onClick={() => setLinkVendor(v)} title="เชื่อม LINE เอง (เลือกจากผู้ใช้ที่ทักเข้ามา)">
+                                <Link2 className="h-4 w-4 text-primary" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={copyQuickLinkUrl} title="คัดลอกลิงก์ให้คู่ค้าเชื่อมเอง">
+                                <Copy className="h-4 w-4 text-muted-foreground" />
+                              </Button>
+                            </>
                           )}
                           {v.tax_doc_url && (
                             <Button variant="ghost" size="icon" onClick={() => viewFile(v.tax_doc_url!)}>
@@ -815,6 +927,108 @@ const VendorManagement = () => {
             <Button onClick={handleConfirmPay} disabled={paying}>
               {paying ? "กำลังบันทึก..." : "ยืนยันจ่ายแล้ว"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Edit vendor dialog */}
+      <Dialog open={!!editVendor} onOpenChange={(o) => { if (!o) setEditVendor(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> แก้ไขข้อมูลคู่ค้า</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>ชื่อคู่ค้า / บริษัท *</Label>
+              <Input value={editForm.company_name || ""} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} />
+            </div>
+            <div>
+              <Label>ประเภท</Label>
+              <Select value={editForm.vendor_type} onValueChange={(val) => setEditForm({ ...editForm, vendor_type: val })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="individual">บุคคลธรรมดา</SelectItem>
+                  <SelectItem value="company">นิติบุคคล</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>เลขผู้เสียภาษี</Label>
+                <Input value={editForm.tax_id || ""} onChange={(e) => setEditForm({ ...editForm, tax_id: e.target.value })} />
+              </div>
+              <div>
+                <Label>ผู้ติดต่อ</Label>
+                <Input value={editForm.contact_name || ""} onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })} />
+              </div>
+              <div>
+                <Label>เบอร์โทร</Label>
+                <Input value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+              </div>
+              <div>
+                <Label>อีเมล</Label>
+                <Input value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+              </div>
+              <div>
+                <Label>ธนาคาร</Label>
+                <Input value={editForm.bank_name || ""} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })} />
+              </div>
+              <div>
+                <Label>เลขบัญชี</Label>
+                <Input value={editForm.bank_account || ""} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>ที่อยู่</Label>
+              <Input value={editForm.address || ""} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditVendor(null)}>ยกเลิก</Button>
+            <Button onClick={saveVendor} disabled={savingVendor}>{savingVendor ? "กำลังบันทึก..." : "บันทึก"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual LINE link dialog */}
+      <Dialog open={!!linkVendor} onOpenChange={(o) => { if (!o) { setLinkVendor(null); setLineSearch(""); } }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> เชื่อม LINE ให้ {linkVendor?.company_name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            เลือกจากผู้ใช้ LINE ที่เคยทักเข้ามาที่ LINE OA (ถ้าไม่พบ ให้เขาทักข้อความมา 1 ครั้งก่อน แล้วกดรีเฟรชหน้านี้)
+          </p>
+          <Input placeholder="ค้นหาชื่อ LINE / User ID..." value={lineSearch} onChange={(e) => setLineSearch(e.target.value)} />
+          <div className="space-y-1 max-h-[45vh] overflow-y-auto">
+            {(() => {
+              const list = lineUsers
+                .filter((u: any) => !takenLineIds.has(u.line_user_id))
+                .filter((u: any) => {
+                  const q = lineSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return (u.display_name || "").toLowerCase().includes(q) || u.line_user_id.toLowerCase().includes(q);
+                });
+              if (list.length === 0) {
+                return <p className="text-sm text-muted-foreground text-center py-6">ไม่พบผู้ใช้ LINE ที่ยังไม่เชื่อม</p>;
+              }
+              return list.map((u: any) => (
+                <button
+                  key={u.line_user_id}
+                  type="button"
+                  onClick={() => linkVendorToLine(u.line_user_id)}
+                  className="w-full text-left px-3 py-2 rounded-md hover:bg-muted flex items-center justify-between gap-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium truncate">{u.display_name || "ไม่ทราบชื่อ"}</span>
+                    <span className="block text-xs text-muted-foreground font-mono truncate">{u.line_user_id}</span>
+                  </span>
+                  <Badge variant="outline" className="shrink-0">{u.role}</Badge>
+                </button>
+              ));
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={copyQuickLinkUrl}>คัดลอกลิงก์ให้คู่ค้าเชื่อมเอง</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
