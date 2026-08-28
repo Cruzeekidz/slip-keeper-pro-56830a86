@@ -930,6 +930,108 @@ const VendorManagement = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Edit vendor dialog */}
+      <Dialog open={!!editVendor} onOpenChange={(o) => { if (!o) setEditVendor(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-5 w-5" /> แก้ไขข้อมูลคู่ค้า</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>ชื่อคู่ค้า / บริษัท *</Label>
+              <Input value={editForm.company_name || ""} onChange={(e) => setEditForm({ ...editForm, company_name: e.target.value })} />
+            </div>
+            <div>
+              <Label>ประเภท</Label>
+              <Select value={editForm.vendor_type} onValueChange={(val) => setEditForm({ ...editForm, vendor_type: val })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="individual">บุคคลธรรมดา</SelectItem>
+                  <SelectItem value="company">นิติบุคคล</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>เลขผู้เสียภาษี</Label>
+                <Input value={editForm.tax_id || ""} onChange={(e) => setEditForm({ ...editForm, tax_id: e.target.value })} />
+              </div>
+              <div>
+                <Label>ผู้ติดต่อ</Label>
+                <Input value={editForm.contact_name || ""} onChange={(e) => setEditForm({ ...editForm, contact_name: e.target.value })} />
+              </div>
+              <div>
+                <Label>เบอร์โทร</Label>
+                <Input value={editForm.phone || ""} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+              </div>
+              <div>
+                <Label>อีเมล</Label>
+                <Input value={editForm.email || ""} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
+              </div>
+              <div>
+                <Label>ธนาคาร</Label>
+                <Input value={editForm.bank_name || ""} onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })} />
+              </div>
+              <div>
+                <Label>เลขบัญชี</Label>
+                <Input value={editForm.bank_account || ""} onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>ที่อยู่</Label>
+              <Input value={editForm.address || ""} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditVendor(null)}>ยกเลิก</Button>
+            <Button onClick={saveVendor} disabled={savingVendor}>{savingVendor ? "กำลังบันทึก..." : "บันทึก"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manual LINE link dialog */}
+      <Dialog open={!!linkVendor} onOpenChange={(o) => { if (!o) { setLinkVendor(null); setLineSearch(""); } }}>
+        <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Link2 className="h-5 w-5" /> เชื่อม LINE ให้ {linkVendor?.company_name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            เลือกจากผู้ใช้ LINE ที่เคยทักเข้ามาที่ LINE OA (ถ้าไม่พบ ให้เขาทักข้อความมา 1 ครั้งก่อน แล้วกดรีเฟรชหน้านี้)
+          </p>
+          <Input placeholder="ค้นหาชื่อ LINE / User ID..." value={lineSearch} onChange={(e) => setLineSearch(e.target.value)} />
+          <div className="space-y-1 max-h-[45vh] overflow-y-auto">
+            {(() => {
+              const list = lineUsers
+                .filter((u: any) => !takenLineIds.has(u.line_user_id))
+                .filter((u: any) => {
+                  const q = lineSearch.trim().toLowerCase();
+                  if (!q) return true;
+                  return (u.display_name || "").toLowerCase().includes(q) || u.line_user_id.toLowerCase().includes(q);
+                });
+              if (list.length === 0) {
+                return <p className="text-sm text-muted-foreground text-center py-6">ไม่พบผู้ใช้ LINE ที่ยังไม่เชื่อม</p>;
+              }
+              return list.map((u: any) => (
+                <button
+                  key={u.line_user_id}
+                  type="button"
+                  onClick={() => linkVendorToLine(u.line_user_id)}
+                  className="w-full text-left px-3 py-2 rounded-md hover:bg-muted flex items-center justify-between gap-2"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium truncate">{u.display_name || "ไม่ทราบชื่อ"}</span>
+                    <span className="block text-xs text-muted-foreground font-mono truncate">{u.line_user_id}</span>
+                  </span>
+                  <Badge variant="outline" className="shrink-0">{u.role}</Badge>
+                </button>
+              ));
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={copyQuickLinkUrl}>คัดลอกลิงก์ให้คู่ค้าเชื่อมเอง</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
