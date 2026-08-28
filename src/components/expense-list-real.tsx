@@ -372,8 +372,20 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     return Array.from(existing).sort();
   }, [expenses]);
 
-  const uniqueSenders = useMemo(() => Array.from(new Set(expenses.map(e => e.sender).filter(Boolean))).sort(), [expenses]);
-  const uniqueReceivers = useMemo(() => Array.from(new Set(expenses.map(e => e.receiver).filter(Boolean))).sort(), [expenses]);
+  const uniqueSenders = useMemo(() => {
+    const set = new Set<string>([...(payeeNames?.senders ?? [])]);
+    expenses.forEach(e => { if (e.sender?.trim()) set.add(e.sender.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [expenses, payeeNames]);
+  const uniqueReceivers = useMemo(() => {
+    const set = new Set<string>([...(payeeNames?.receivers ?? [])]);
+    expenses.forEach(e => {
+      const name = e.receiver?.trim() || e.merchant?.trim();
+      if (name) set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [expenses, payeeNames]);
+
 
   const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
   const uniqueMonths = useMemo(() => {
