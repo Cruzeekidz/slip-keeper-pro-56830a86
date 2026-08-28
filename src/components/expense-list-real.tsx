@@ -200,7 +200,8 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   const [filterGroup, setFilterGroup] = useState("all");
   const [filterReview, setFilterReview] = useState("all");
   const [filterSender, setFilterSender] = useState("all");
-  const [filterReceiver, setFilterReceiver] = useState("all");
+  const [filterReceivers, setFilterReceivers] = useState<string[]>([]);
+  const [receiverSearch, setReceiverSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState("all");
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterTag, setFilterTag] = useState("all");
@@ -259,22 +260,17 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
   }, [searchTerm]);
 
   // Reset to page 1 when window/size/filters change
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceiver]);
-
-  // Sorting mode → drives server-side ordering/window
-  const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
-  const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
-  const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
-
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers]);
+...
   // When searching/filtering by payee, widen the window to all history
-  const isNameFiltering = !!debouncedSearch || filterReceiver !== "all";
+  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0;
   const effectiveMonths = isNameFiltering ? 0 : windowMonths;
-  const serverPayee = filterReceiver !== "all" ? filterReceiver : undefined;
+  const serverPayees = filterReceivers.length > 0 ? filterReceivers : undefined;
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayee ?? ''],
-    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payee: serverPayee }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? []],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
@@ -476,7 +472,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 
     });
-  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceiver, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceivers, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {
