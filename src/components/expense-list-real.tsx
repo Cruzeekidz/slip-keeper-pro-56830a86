@@ -261,7 +261,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
 
   // Reset to page 1 when window/size/filters change
   useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers]);
-...
+
+  // Sorting mode → drives server-side ordering/window
+  const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
+  const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
+  const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
+
   // When searching/filtering by payee, widen the window to all history
   const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0;
   const effectiveMonths = isNameFiltering ? 0 : windowMonths;
