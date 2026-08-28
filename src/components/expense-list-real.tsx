@@ -447,21 +447,12 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       filtered = filtered.filter(e => e.category === "ภาษีหัก ณ ที่จ่าย" && !e.settled_batch_id);
     }
 
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(e =>
-        e.description?.toLowerCase().includes(term) ||
-        e.project_tag?.toLowerCase().includes(term) ||
-        e.merchant?.toLowerCase().includes(term) ||
-        e.receiver?.toLowerCase().includes(term) ||
-        e.payee_group?.toLowerCase().includes(term)
-      );
-    }
+    // Free-text search + payee filter are applied server-side (whole history)
     if (filterType !== "all") filtered = filtered.filter(e => e.transaction_type === filterType);
     if (filterGroup !== "all") filtered = filtered.filter(e => e.category_group === filterGroup);
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
-    if (filterReceiver !== "all") filtered = filtered.filter(e => e.receiver === filterReceiver);
+
     if (filterMonth !== "all") {
       filtered = filtered.filter(e => {
         if (!e.expense_date) return false;
