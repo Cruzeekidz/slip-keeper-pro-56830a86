@@ -320,6 +320,8 @@ export default function BulkUpload() {
 
           amount = d.amount || 0;
           expenseDate = d.date || expenseDate;
+          ocrDateRaw = d.date_raw || null;
+          if (!d.date) needsDateReview = true;
           description = d.description || 'รอกรอกข้อมูล';
           merchant = d.merchant || null;
           sender = d.sender || null;
@@ -352,6 +354,7 @@ export default function BulkUpload() {
 
       const { data, error: insertError } = await supabase.from('expenses').insert({
         user_id: user.id, amount, expense_date: expenseDate, expense_time: expenseTime,
+        ocr_date_raw: ocrDateRaw,
         category, subcategory, description, merchant, sender, receiver,
         receipt_url: fileName, transaction_id: transactionId,
         transaction_type: transactionType, category_group: categoryGroup,

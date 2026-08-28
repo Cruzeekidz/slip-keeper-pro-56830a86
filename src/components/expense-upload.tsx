@@ -187,6 +187,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         project: formData.get("project") as string || null,
         description: description || null,
         expense_date: date,
+        ocr_date_raw: extractedData?.date_raw || null,
         receipt_url: receiptUrl,
         transaction_id: extractedData?.transaction_id || null,
         merchant: extractedData?.merchant || null,
