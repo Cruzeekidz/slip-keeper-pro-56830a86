@@ -364,15 +364,17 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
               {showTag && (
                 <div className="space-y-2">
-                  <Label>แท็กโปรเจค</Label>
-                  <Combobox
-                    options={projectTags}
+                  <Label>งาน / อีเวนท์ <span className="text-destructive">*</span></Label>
+                  <EventTagPicker
                     value={projectTag}
-                    onValueChange={setProjectTag}
-                    placeholder="เลือกหรือพิมพ์แท็ก"
+                    onValueChange={(tag) => setProjectTag(tag)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    เลือกจากรายการเท่านั้น ถ้ายังไม่รู้ให้เลือก "ยังไม่รู้" แล้วระบบจะส่งไปหน้ารอตรวจ
+                  </p>
                 </div>
               )}
+
 
               {defaultSubcats.length > 0 && (
                 <div className="space-y-2">
