@@ -78,7 +78,7 @@ const fetchExpensesWindow = async (params: {
   sortField?: 'expense_date' | 'created_at';
   ascending?: boolean;
   search?: string;
-  payee?: string;
+  payees?: string[];
 }): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
@@ -97,12 +97,15 @@ const fetchExpensesWindow = async (params: {
     }
   }
 
-  // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group)
-  if (params.payee) {
-    const pat = buildNamePattern(params.payee);
-    q = q.or(
-      [`receiver.ilike.${pat}`, `merchant.ilike.${pat}`, `sender.ilike.${pat}`, `payee_group.ilike.${pat}`].join(',')
-    );
+  // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group).
+  // Multiple names are OR-ed together.
+  if (params.payees && params.payees.length > 0) {
+    const conds: string[] = [];
+    for (const name of params.payees) {
+      const pat = buildNamePattern(name);
+      conds.push(`receiver.ilike.${pat}`, `merchant.ilike.${pat}`, `sender.ilike.${pat}`, `payee_group.ilike.${pat}`);
+    }
+    q = q.or(conds.join(','));
   }
 
   // Server-side free-text search
