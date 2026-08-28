@@ -51,6 +51,7 @@ const EventManagement = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [events, setEvents] = useState<EventRegistryItem[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -76,6 +77,28 @@ const EventManagement = () => {
       fetchReadyGoEvents();
     }
   }, [user]);
+
+
+  const syncFromReadyGo = async () => {
+    setSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("sync-readygo-events", { body: {} });
+      if (error) throw error;
+      const ev = data?.events || {};
+      toast({
+        title: `ซิงค์สำเร็จ: เพิ่ม ${ev.inserted || 0} · อัปเดต ${ev.updated || 0}`,
+        description: [
+          ev.skipped ? `ข้าม ${ev.skipped} งาน (ไม่มี short_code)` : "",
+          ...(data?.warnings || []).slice(0, 3),
+        ].filter(Boolean).join("\n") || undefined,
+      });
+      await fetchEvents();
+    } catch (e) {
+      toast({ title: "ซิงค์ไม่สำเร็จ", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const fetchEvents = async () => {
     const { data, error } = await supabase
@@ -334,6 +357,25 @@ const EventManagement = () => {
             <span className="text-sm">กำลังโหลดอีเวนท์จาก Ready-go...</span>
           </Card>
         )}
+
+        {/* Sync from ReadyGo */}
+        <Card className="p-4 flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <h2 className="font-semibold">ซิงค์งานจากระบบรับสมัคร (ReadyGo)</h2>
+            <p className="text-xs text-muted-foreground">
+              ดึงข้อมูลทางเดียว ReadyGo → ระบบนี้ (รันอัตโนมัติวันละครั้ง) ไม่ลบงานเก่า และไม่เขียนกลับไปที่ ReadyGo
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={syncFromReadyGo} disabled={syncing}>
+              {syncing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+              Sync ตอนนี้
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/event-tag-mapping')}>
+              <Link2 className="h-4 w-4 mr-1" />จับคู่แท็กเก่า
+            </Button>
+          </div>
+        </Card>
 
         {/* Festival Section */}
         <FestivalManagement userId={user.id} events={events} />
