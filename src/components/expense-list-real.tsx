@@ -813,20 +813,81 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
           </SelectContent>
         </Select>
         <div className="flex items-center gap-1">
-          <Combobox
-            options={uniqueReceivers}
-            value={filterReceiver === "all" ? "" : filterReceiver}
-            onValueChange={(v) => setFilterReceiver(v ? v : "all")}
-            placeholder="ผู้รับ (พิมพ์ค้นหาได้)"
-            emptyText="ไม่พบชื่อผู้รับ"
-            className="flex-1"
-          />
-          {filterReceiver !== "all" && (
-            <Button variant="ghost" size="icon" onClick={() => setFilterReceiver("all")} title="ล้างตัวกรองผู้รับ">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="flex-1 justify-start font-normal">
+                <UserCheck className="h-4 w-4 mr-2 shrink-0" />
+                {filterReceivers.length === 0
+                  ? "ผู้รับ (เลือกได้หลายชื่อ)"
+                  : `ผู้รับ ${filterReceivers.length} ชื่อ`}
+                <ChevronDown className="h-3 w-3 ml-auto shrink-0 opacity-60" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[320px] p-0 bg-popover"
+              align="start"
+              onWheel={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+            >
+              <div className="p-2 border-b">
+                <Input
+                  placeholder="พิมพ์ค้นหาชื่อผู้รับ..."
+                  value={receiverSearch}
+                  onChange={(e) => setReceiverSearch(e.target.value)}
+                />
+              </div>
+              <div className="max-h-64 overflow-y-auto p-1">
+                {receiverSearch.trim() && !uniqueReceivers.some(n => n === receiverSearch.trim()) && (
+                  <button
+                    className="w-full text-left px-2 py-1.5 text-sm rounded hover:bg-accent text-primary"
+                    onClick={() => {
+                      const v = receiverSearch.trim();
+                      if (!filterReceivers.includes(v)) setFilterReceivers(prev => [...prev, v]);
+                      setReceiverSearch("");
+                    }}
+                  >
+                    ➕ กรองด้วย "{receiverSearch.trim()}"
+                  </button>
+                )}
+                {uniqueReceivers
+                  .filter(n => !receiverSearch.trim() || n.toLowerCase().includes(receiverSearch.trim().toLowerCase()))
+                  .map(name => {
+                    const checked = filterReceivers.includes(name);
+                    return (
+                      <button
+                        key={name}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded hover:bg-accent text-left"
+                        onClick={() => setFilterReceivers(prev => checked ? prev.filter(x => x !== name) : [...prev, name])}
+                      >
+                        <Checkbox checked={checked} className="pointer-events-none" />
+                        <span className="truncate">{name}</span>
+                      </button>
+                    );
+                  })}
+                {uniqueReceivers.length === 0 && (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">ไม่พบชื่อผู้รับ</div>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+          {filterReceivers.length > 0 && (
+            <Button variant="ghost" size="icon" onClick={() => setFilterReceivers([])} title="ล้างตัวกรองผู้รับ">
               <X className="h-4 w-4" />
             </Button>
           )}
         </div>
+        {filterReceivers.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {filterReceivers.map(name => (
+              <Badge key={name} variant="secondary" className="gap-1 pr-1">
+                <span className="max-w-[160px] truncate">{name}</span>
+                <button onClick={() => setFilterReceivers(prev => prev.filter(x => x !== name))} title="เอาออก">
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        )}
 
         <Select value={filterMonth} onValueChange={setFilterMonth}>
           <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
@@ -883,9 +944,9 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
             </div>
           </PopoverContent>
         </Popover>
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceiver !== "all" || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceiver("all"); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
