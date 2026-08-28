@@ -1312,7 +1312,7 @@ serve(async (req) => {
           project_tag: normalizedProjectTag,
           transaction_direction: extractedData?.transaction_direction || 'EXPENSE',
           confidence_score: extractedData?.confidence_score || null,
-          needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date,
+          needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date || (extractedData?.category_group === 'EVENT' && !normalizedProjectTag),
           receipt_url: storagePath,
           staff_name: extractedData?.staff_name || null,
           days_worked: extractedData?.days_worked || null,
@@ -2206,15 +2206,38 @@ function looksLikeExpenseText(text: string): boolean {
 }
 
 async function buildEventQuickReply(supabase: any, owner: string) {
+  // Events come from event_registry (synced one-way from ReadyGo). Buttons only — no free typing.
   const { data } = await supabase.from('event_registry')
-    .select('event_name, project_tag')
+    .select('event_name, project_tag, event_date')
     .eq('user_id', owner).eq('is_active', true)
-    .order('updated_at', { ascending: false }).limit(8);
-  const items: Array<{label: string; data: string}> = (data || []).map((e: any) => ({
-    label: `🎪 ${e.event_name}`, data: `[EVENT]${e.project_tag}|${e.event_name}`,
-  }));
-  items.push({ label: '— ไม่ใช่งานอีเวนท์', data: '[EVENT]NONE' });
-  items.push({ label: 'พิมพ์ชื่อเอง', data: '[EVENT]CUSTOM' });
+    .not('project_tag', 'is', null)
+    .order('event_date', { ascending: false, nullsFirst: false })
+    .limit(200);
+
+  const today = Date.now();
+  const before = 60 * 24 * 3600 * 1000;
+  const after = 90 * 24 * 3600 * 1000;
+  const TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+  const near = (data || [])
+    .map((e: any) => {
+      const t = e.event_date ? new Date(e.event_date).getTime() : NaN;
+      return { ...e, diff: Number.isNaN(t) ? Number.POSITIVE_INFINITY : t - today, abs: Number.isNaN(t) ? Number.POSITIVE_INFINITY : Math.abs(t - today) };
+    })
+    .filter((e: any) => e.diff <= after && e.diff >= -before)
+    .sort((a: any, b: any) => a.abs - b.abs)
+    .slice(0, 10);
+
+  const items: Array<{label: string; data: string}> = near.map((e: any) => {
+    const d = e.event_date ? new Date(e.event_date) : null;
+    const dateLabel = d ? ` ${d.getDate()} ${TH[d.getMonth()]}` : '';
+    const label = `🎪 ${e.event_name}${dateLabel}`;
+    return { label: label.slice(0, 20), data: `[EVENT]${e.project_tag}|${e.event_name}` };
+  });
+
+  items.push({ label: 'ส่วนตัว', data: '[EVENT]PERSONAL|ส่วนตัว' });
+  items.push({ label: 'ออฟฟิศทั่วไป', data: '[EVENT]OFFICE|ออฟฟิศทั่วไป' });
+  items.push({ label: 'ยังไม่รู้', data: '[EVENT]UNKNOWN|ยังไม่รู้' });
   return items;
 }
 
@@ -2259,35 +2282,17 @@ async function handleExpenseConvReply(
   if (state.state === 'awaiting_event') {
     if (text.startsWith('[EVENT]')) {
       const val = text.slice(7);
-      if (val === 'CUSTOM') {
-        await setConvState(supabase, lineUserId, state.owner, 'awaiting_event_name', draft);
-        await replyToUser(lineToken, replyToken, '📝 พิมพ์ชื่ออีเวนท์/งาน');
-        return true;
-      }
-      if (val === 'NONE') {
-        draft.event_name = null;
-        draft.project_tag = null;
-      } else {
-        const [tag, name] = val.split('|');
-        draft.project_tag = tag;
-        draft.event_name = name || tag;
-      }
+      const [tag, name] = val.split('|');
+      draft.project_tag = tag;
+      draft.event_name = tag === 'UNKNOWN' ? null : (name || tag);
+      if (tag === 'UNKNOWN') draft.needs_review = true;
     } else {
-      draft.event_name = text;
-      draft.project_tag = `EVT-${text.replace(/\s+/g, '')}`;
+      // Select-only: re-ask with buttons instead of accepting typed names
+      const events = await buildEventQuickReply(supabase, state.owner);
+      await replyWithQuickReply(lineToken, replyToken,
+        '🎪 กรุณาเลือกงานจากปุ่มด้านล่าง (ไม่ต้องพิมพ์ชื่อเอง) ถ้ายังไม่รู้ให้กด "ยังไม่รู้"', events);
+      return true;
     }
-    if (draft.subcategory) {
-      await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
-    } else {
-      await setConvState(supabase, lineUserId, state.owner, 'awaiting_category', draft);
-      await replyWithQuickReply(lineToken, replyToken, '📂 หมวดค่าใช้จ่าย?', getCategoryQuickReply());
-    }
-    return true;
-  }
-
-  if (state.state === 'awaiting_event_name') {
-    draft.event_name = text;
-    draft.project_tag = `EVT-${text.replace(/\s+/g, '')}`;
     if (draft.subcategory) {
       await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
     } else {

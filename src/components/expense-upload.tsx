@@ -19,6 +19,8 @@ import {
 import { buildReceiptPath } from "@/lib/storage-path";
 import { autoRegisterEventTag } from "@/lib/event-registry";
 import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
+import { EventTagPicker } from "@/components/event-tag-picker";
+import { isUnknownTag } from "@/lib/event-tags";
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -75,7 +77,6 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
     if (extractedData) {
       if (extractedData.transaction_type) setTransactionType(extractedData.transaction_type as TransactionType);
       if (extractedData.category_group) setCategoryGroup(extractedData.category_group as CategoryGroup);
-      if (extractedData.project_tag) setProjectTag(extractedData.project_tag);
       if (extractedData.subcategory) setSubcategory(extractedData.subcategory);
     }
   }, [extractedData]);
@@ -155,6 +156,12 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       return;
     }
 
+    const needsTag = transactionType === 'BUSINESS' && shouldShowProjectTag((categoryGroup as CategoryGroup) || null);
+    if (needsTag && !projectTag) {
+      toast({ title: "กรุณาเลือกงาน / อีเวนท์", description: 'ถ้ายังไม่รู้ให้เลือก "ยังไม่รู้"', variant: "destructive" });
+      return;
+    }
+
     try {
       let receiptUrl = null;
       if (files.length > 0) {
@@ -179,7 +186,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         if (existing) { toast({ title: "พบรายการซ้ำ", variant: "destructive" }); return; }
       }
 
-      const isLowConfidence = extractedData?.confidence_score != null && extractedData.confidence_score < 75;
+      const isLowConfidence = (extractedData?.confidence_score != null && extractedData.confidence_score < 75) || isUnknownTag(projectTag);
 
       const { error } = await supabase.from('expenses').insert({
         amount: parseFloat(amount),
@@ -208,7 +215,6 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
       // Remember typed values so they stay in the dropdowns next time
       addCustomOption('subcategory', subcategory);
-      addCustomOption('project_tag', projectTag);
       addCustomOption('payee_group', payeeGroup);
       setExistingSubcategories(prev => (subcategory && !prev.includes(subcategory) ? [...prev, subcategory] : prev));
       setExistingTags(prev => (projectTag && !prev.includes(projectTag) ? [...prev, projectTag] : prev));
@@ -364,15 +370,17 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
 
               {showTag && (
                 <div className="space-y-2">
-                  <Label>แท็กโปรเจค</Label>
-                  <Combobox
-                    options={projectTags}
+                  <Label>งาน / อีเวนท์ <span className="text-destructive">*</span></Label>
+                  <EventTagPicker
                     value={projectTag}
-                    onValueChange={setProjectTag}
-                    placeholder="เลือกหรือพิมพ์แท็ก"
+                    onValueChange={(tag) => setProjectTag(tag)}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    เลือกจากรายการเท่านั้น ถ้ายังไม่รู้ให้เลือก "ยังไม่รู้" แล้วระบบจะส่งไปหน้ารอตรวจ
+                  </p>
                 </div>
               )}
+
 
               {defaultSubcats.length > 0 && (
                 <div className="space-y-2">

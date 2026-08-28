@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.portal-submit]
 verify_jwt = false
+
+[functions.sync-readygo-events]
+verify_jwt = false
