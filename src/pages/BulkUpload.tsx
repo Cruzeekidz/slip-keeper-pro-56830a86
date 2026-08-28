@@ -1,7 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { EventTagPicker } from "@/components/event-tag-picker";
-import { isUnknownTag, EventTagOption } from "@/lib/event-tags";
+import { isUnknownTag } from "@/lib/event-tags";
+import { Label } from "@/components/ui/label";
+
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
