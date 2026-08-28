@@ -31,6 +31,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   const [extractedData, setExtractedData] = useState<{
     amount: number | null;
     date: string | null;
+    date_raw?: string | null;
     description: string | null;
     merchant: string | null;
     sender: string | null;
