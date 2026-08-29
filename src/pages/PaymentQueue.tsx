@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock, Plus } from "lucide-react";
 import AdminVendorBillSheet from "@/components/payment/AdminVendorBillSheet";
+import VendorBillPaySheet from "@/components/payment/VendorBillPaySheet";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -1330,6 +1331,7 @@ const PaymentQueue = () => {
         </AlertDialog>
       </main>
       <AdminVendorBillSheet open={adminBillOpen} onOpenChange={setAdminBillOpen} />
+      <VendorBillPaySheet bill={paySheetBill} onOpenChange={(o) => { if (!o) setPaySheetBill(null); }} />
     </div>
   );
 };
