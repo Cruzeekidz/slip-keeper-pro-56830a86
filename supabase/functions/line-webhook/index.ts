@@ -4,6 +4,7 @@ import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
 import { encode as encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { parseSlipDateRaw } from "../_shared/slip-date.ts";
 import { cleanText, sanitizeExpense } from "../_shared/sanitize.ts";
+import { extractEventCodes, resolveEventCode, eventCodePromptSection } from "../_shared/memo-event-code.ts";
 
 /** entity มาจากทะเบียนงาน (event_registry) เท่านั้น — ห้าม AI เดา */
 async function resolveEntity(
@@ -350,7 +351,7 @@ confidence_score (0-100), staff_name, days_worked, event_name
 4. **ห้ามเดา** ถ้าอ่านวันที่ไม่ชัด → date = null, confidence_score < 70
 
 **สำคัญ**: ถ้าหาไม่พบให้ใส่ null, confidence < 75 ถ้าไม่แน่ใจ
-**Memo มักให้ข้อมูลที่แม่นยำกว่าสลิป ให้ใช้ memo เป็นหลัก**`;
+**Memo มักให้ข้อมูลที่แม่นยำกว่าสลิป ให้ใช้ memo เป็นหลัก**` + eventCodePromptSection();
 
 const TOOL_SCHEMA = {
   type: "function",
@@ -378,8 +379,10 @@ const TOOL_SCHEMA = {
         staff_name: { type: ["string", "null"] },
         days_worked: { type: ["number", "null"] },
         event_name: { type: ["string", "null"] },
+        slip_memo: { type: ["string", "null"], description: "ข้อความในช่องบันทึกช่วยจำบนสลิปแบบดิบ" },
+        event_codes: { type: "array", items: { type: "string" }, description: "รหัสงานที่ขึ้นต้นด้วย @ * # แบบตรงตัว" },
       },
-      required: ["amount", "date", "date_raw", "description", "transaction_type", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
+      required: ["amount", "date", "date_raw", "description", "transaction_type", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name", "slip_memo", "event_codes"],
       additionalProperties: false
     }
   }
@@ -1290,35 +1293,30 @@ serve(async (req) => {
           }
         }
 
-        // 7. Auto-normalize event_name using event_registry
-        let normalizedEventName = extractedData?.event_name || null;
-        let normalizedProjectTag = extractedData?.project_tag || null;
+        // 7. รหัสงานจากช่องบันทึกช่วยจำ (@ / * / #) — จับคู่ตรงทั้งคำ ห้ามเดา
+        let normalizedEventName = cleanText(extractedData?.event_name);
+        let normalizedProjectTag: string | null = null;
+        let eventCodeReason: string | null = null;
 
-        if (normalizedEventName || normalizedProjectTag) {
-          const searchTerm = (normalizedEventName || normalizedProjectTag || '').toLowerCase().replace(/\s+/g, '');
-          
-          const { data: registryEntries } = await supabase
-            .from('event_registry')
-            .select('event_name, project_tag, aliases')
-            .eq('is_active', true);
+        const { data: registryEntries } = await supabase
+          .from('event_registry')
+          .select('event_name, project_tag, aliases')
+          .eq('is_active', true);
 
-          if (registryEntries) {
-            for (const entry of registryEntries) {
-              const nameMatch = entry.event_name.toLowerCase().replace(/\s+/g, '') === searchTerm;
-              const tagMatch = entry.project_tag.toLowerCase().replace(/\s+/g, '') === searchTerm;
-              const aliasMatch = (entry.aliases || []).some(
-                (a: string) => a.toLowerCase().replace(/\s+/g, '') === searchTerm
-              );
-
-              if (nameMatch || tagMatch || aliasMatch) {
-                normalizedEventName = entry.event_name;
-                normalizedProjectTag = entry.project_tag;
-                console.log(`Event normalized: "${searchTerm}" → ${entry.event_name} / ${entry.project_tag}`);
-                break;
-              }
-            }
-          }
+        const memoCodes = extractEventCodes(
+          memo,
+          (extractedData as any)?.slip_memo,
+          ...(((extractedData as any)?.event_codes || []) as string[]).map((c: string) => `@${c}`),
+        );
+        const codeResult = resolveEventCode(memoCodes, (registryEntries as any[]) || []);
+        if (codeResult.tag) {
+          normalizedProjectTag = codeResult.tag;
+          const hit = (registryEntries as any[] | null)?.find((e) => e.project_tag === codeResult.tag);
+          if (hit?.event_name) normalizedEventName = hit.event_name;
+        } else {
+          eventCodeReason = codeResult.reason;
         }
+        console.log('Event code result:', JSON.stringify(codeResult));
 
         // Determine category label from transaction_type
         const typeLabel = category === 'BUSINESS' ? 'ธุรกิจ' : category === 'PERSONAL' ? 'ส่วนตัว' : category === 'TRANSFER' ? 'โอนเงิน' : category;
@@ -1341,7 +1339,7 @@ serve(async (req) => {
           project_tag: cleanText(normalizedProjectTag),
           transaction_direction: extractedData?.transaction_direction || 'EXPENSE',
           confidence_score: extractedData?.confidence_score || null,
-          needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date || (extractedData?.category_group === 'EVENT' && !normalizedProjectTag),
+          needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date || codeResult.needsReview || (extractedData?.category_group === 'EVENT' && !normalizedProjectTag),
           receipt_url: storagePath,
           staff_name: cleanText(extractedData?.staff_name),
           days_worked: extractedData?.days_worked || null,
@@ -1481,17 +1479,21 @@ serve(async (req) => {
         const cat = extractedData?.transaction_type || 'ไม่ระบุ';
         const group = extractedData?.category_group ? ` > ${extractedData.category_group}` : '';
         const sub = extractedData?.subcategory ? ` > ${extractedData.subcategory}` : '';
-        const tag = normalizedProjectTag || extractedData?.project_tag || '';
+        const tag = normalizedProjectTag || '';
         const staff = extractedData?.staff_name || '';
         const days = extractedData?.days_worked ? ` (${extractedData.days_worked} วัน)` : '';
         const eventInfo = normalizedEventName || extractedData?.event_name || '';
         const confidence = extractedData?.confidence_score || 0;
-        const reviewFlag = confidence < 75;
+        const reviewFlag = confidence < 75 || codeResult.needsReview;
 
         const editUrl = `https://slip-keeper-pro.lovable.app/?edit=${insertedExpenseId}`;
 
         // Build Flex Message body contents
         const detailRows: any[] = [
+          ...(eventCodeReason ? [{ type: "box", layout: "baseline", spacing: "sm", contents: [
+            { type: "text", text: "⚠️ รหัสงาน", color: "#aaaaaa", size: "sm", flex: 3 },
+            { type: "text", text: eventCodeReason, wrap: true, size: "sm", flex: 5, color: "#e08b00" },
+          ]}] : []),
           { type: "box", layout: "baseline", spacing: "sm", contents: [
             { type: "text", text: "💰 จำนวนเงิน", color: "#aaaaaa", size: "sm", flex: 3 },
             { type: "text", text: amount, wrap: true, size: "sm", flex: 5, weight: "bold" },

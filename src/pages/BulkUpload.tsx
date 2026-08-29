@@ -262,6 +262,7 @@ export default function BulkUpload() {
       let projectTag: string | null = null, subcategory: string | null = null;
       let staffName: string | null = null, eventName: string | null = null;
       let memoText: string | null = null;
+      let codeNeedsReview = false;
       let ocrDateRaw: string | null = null;
       let needsDateReview = false;
 
@@ -360,7 +361,9 @@ export default function BulkUpload() {
           subcategory = cleanText(d.subcategory);
           staffName = cleanText(d.staff_name);
           eventName = cleanText(d.event_name);
-          memoText = cleanText(d.memo_text);
+          memoText = cleanText(d.memo_text) || cleanText(d.slip_memo);
+          // รหัสงานจากช่องบันทึกช่วยจำ (@ / * / #) — ถ้าไม่ตรงทะเบียนให้ติดธง ห้ามเดา
+          if (d.needs_review === true || d.event_code_reason) codeNeedsReview = true;
       }
 
       // Batch-level event selection wins over anything OCR guessed
@@ -375,7 +378,7 @@ export default function BulkUpload() {
           ? 'PERSONAL'
           : (resolveEntityForTag(projectTag, eventOptions) || DEFAULT_ENTITY);
 
-      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview || isUnknownTag(batchTag) || !projectTag && categoryGroup === 'EVENT';
+      const isLowConfidence = codeNeedsReview || (confidence != null && confidence < 75) || needsDateReview || isUnknownTag(batchTag) || !projectTag && categoryGroup === 'EVENT';
       const category = transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType || 'ไม่ระบุ';
 
       const { data, error: insertError } = await supabase.from('expenses').insert({

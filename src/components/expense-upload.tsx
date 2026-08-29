@@ -88,6 +88,8 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       if (extractedData.transaction_type) setTransactionType(extractedData.transaction_type as TransactionType);
       if (extractedData.category_group) setCategoryGroup(cleanText(extractedData.category_group) as CategoryGroup);
       if (extractedData.subcategory) setSubcategory(cleanText(extractedData.subcategory) || "");
+      // แท็กงานมาจากรหัสในช่องบันทึกช่วยจำที่ตรงทะเบียนแล้วเท่านั้น
+      if (extractedData.project_tag) setProjectTag(cleanText(extractedData.project_tag) || "");
     }
   }, [extractedData]);
 
@@ -205,7 +207,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
         if (existing) { toast({ title: "พบรายการซ้ำ", variant: "destructive" }); return; }
       }
 
-      const isLowConfidence = (extractedData?.confidence_score != null && extractedData.confidence_score < 75) || isUnknownTag(projectTag);
+      const isLowConfidence = (extractedData?.confidence_score != null && extractedData.confidence_score < 75) || isUnknownTag(projectTag) || (extractedData as any)?.needs_review === true;
 
       const { error } = await supabase.from('expenses').insert({
         amount: parseFloat(amount),
@@ -335,6 +337,9 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                 {extractedData.transaction_type && <li>• ประเภท: {extractedData.transaction_type}</li>}
                 {extractedData.category_group && <li>• กลุ่ม: {extractedData.category_group}</li>}
                 {extractedData.project_tag && <li>• แท็ก: {extractedData.project_tag}</li>}
+                {(extractedData as any).event_code_reason && (
+                  <li className="text-warning">• ⚠️ {(extractedData as any).event_code_reason}</li>
+                )}
                 {extractedData.subcategory && <li>• ประเภทย่อย: {extractedData.subcategory}</li>}
               </ul>
             </div>

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 import { parseSlipDateRaw } from "../_shared/slip-date.ts";
+import { extractEventCodes, resolveEventCode, eventCodePromptSection } from "../_shared/memo-event-code.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -132,7 +133,7 @@ Subcategories: Food & Drinks, Health & Wellness, Transport, Family & Kids, Self-
 - event_name: ชื่ออีเวนท์ที่ดึงจาก memo หรือสลิป (null ถ้าไม่มี)
 
 **สำคัญ**: ถ้าหาข้อมูลไม่พบให้ใส่ null, ให้ confidence_score ต่ำ (<75) ถ้าไม่แน่ใจ
-**สำคัญมาก**: Memo/caption มักให้ข้อมูลการจัดหมวดที่แม่นยำกว่าสลิป ให้ใช้ memo เป็นหลัก`;
+**สำคัญมาก**: Memo/caption มักให้ข้อมูลการจัดหมวดที่แม่นยำกว่าสลิป ให้ใช้ memo เป็นหลัก` + eventCodePromptSection();
 
 const TOOL_SCHEMA = {
   type: "function",
@@ -162,8 +163,10 @@ const TOOL_SCHEMA = {
         staff_name: { type: ["string", "null"] },
         days_worked: { type: ["number", "null"] },
         event_name: { type: ["string", "null"] },
+        slip_memo: { type: ["string", "null"], description: "ข้อความในช่องบันทึกช่วยจำบนสลิปแบบดิบ" },
+        event_codes: { type: "array", items: { type: "string" }, description: "รหัสงานที่ขึ้นต้นด้วย @ * # แบบตรงตัว" },
       },
-      required: ["amount", "date", "date_raw", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
+      required: ["slip_memo", "event_codes", "amount", "date", "date_raw", "time", "description", "merchant", "sender", "receiver", "transaction_id", "transaction_type", "category_group", "project_tag", "subcategory", "confidence_score", "transaction_direction", "staff_name", "days_worked", "event_name"],
       additionalProperties: false
     }
   }
@@ -344,6 +347,32 @@ serve(async (req) => {
       // Raw text missing but AI produced a date → accept, but ask a human to confirm
       extractedData.needs_review = true;
     }
+
+    // ── รหัสงานจากช่องบันทึกช่วยจำ (@ / * / #) — จับคู่ตรงทั้งคำ ห้ามเดา ──
+    let registryRows: any[] = [];
+    if (supabase) {
+      const { data: rows } = await supabase
+        .from('event_registry')
+        .select('event_name, project_tag, aliases')
+        .eq('is_active', true);
+      registryRows = rows || [];
+    }
+    const codes = extractEventCodes(
+      memo,
+      extractedData.slip_memo,
+      ...((Array.isArray(extractedData.event_codes) ? extractedData.event_codes : []) as string[]).map((c) => `@${c}`),
+    );
+    const codeResult = resolveEventCode(codes, registryRows);
+    extractedData.event_codes = codeResult.codes;
+    extractedData.event_code_status = codeResult.status;
+    extractedData.event_code_reason = codeResult.reason;
+    // แท็กงานต้องมาจากรหัสที่ตรงทะเบียนเท่านั้น — ห้ามใช้ค่าที่ AI เดา
+    extractedData.project_tag = codeResult.tag;
+    if (codeResult.tag) {
+      const hit = registryRows.find((e) => e.project_tag === codeResult.tag);
+      if (hit?.event_name) extractedData.event_name = hit.event_name;
+    }
+    if (codeResult.needsReview) extractedData.needs_review = true;
 
     return new Response(JSON.stringify({ success: true, data: extractedData }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (error) {
