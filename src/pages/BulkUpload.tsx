@@ -35,6 +35,8 @@ export default function BulkUpload() {
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [batchTag, setBatchTag] = useState("");
   const [batchEventName, setBatchEventName] = useState<string | null>(null);
+  const { options: eventOptions } = useEventOptions();
+
   const [uploading, setUploading] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const [previewRows, setPreviewRows] = useState<CSVRow[]>([]);
