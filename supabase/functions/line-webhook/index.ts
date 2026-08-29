@@ -6,6 +6,7 @@ import { parseSlipDateRaw } from "../_shared/slip-date.ts";
 import { cleanText, sanitizeExpense } from "../_shared/sanitize.ts";
 import { extractEventCodes, resolveEventCode, eventCodePromptSection } from "../_shared/memo-event-code.ts";
 import { resolvePaymentCode } from "../_shared/payment-code.ts";
+import { parseStaffMessage, looksLikeStaffBilling } from "../_shared/staff-billing.ts";
 
 /** entity มาจากทะเบียนงาน (event_registry) เท่านั้น — ห้าม AI เดา */
 async function resolveEntity(
@@ -590,6 +591,10 @@ serve(async (req) => {
               `✅ บันทึกชื่อ "${shopName}" แล้วค่ะ ครั้งต่อไปส่งรูปบิลเข้ามาได้เลย ไม่ต้องพิมพ์อะไรอีก 🙏`);
             continue;
           }
+          if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_staff_')) {
+            const handledStaff = await handleStaffBillingConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
+            if (handledStaff) continue;
+          }
           if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_register_')) {
             const handled = await handleRegistrationConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
             if (handled) continue;
@@ -728,6 +733,21 @@ serve(async (req) => {
           await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
             `📥 รับ${kindLabel}แล้ว${amtText}${descText}\n\n📸 กรุณาแนบรูป${kindLabel}ตามมาภายใน 10 นาที\n(ไม่ต้องระบุชื่ออีเวนท์ — แอดมินจะใส่ตอนอนุมัติ)`);
           continue;
+        }
+
+        // --- แจ้งค่าจ้าง / สำรองจ่าย ด้วยการพิมพ์ (ทีมงาน & ฟรีแลนซ์) ---
+        if (userRole !== 'admin') {
+          const staffProfile = await resolveLineUserProfile(supabase, userId);
+          if (staffProfile && staffProfile.kind === 'staff' && looksLikeStaffBilling(text)) {
+            const started = await startStaffBillingFlow(
+              supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, staffProfile, text);
+            if (started) continue;
+          }
+          // ยังไม่ผูกบัญชี → ส่งลิงก์ผูกบัญชีให้ก่อน
+          if (!staffProfile) {
+            await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getLinkAccountFlex(text));
+            continue;
+          }
         }
 
         // --- Conversational expense entry (linked staff/vendor types expense text) ---
@@ -1660,7 +1680,9 @@ serve(async (req) => {
     };
 
     // Kick off background processing; ACK LINE immediately.
-    const bgPromise = processEvents().catch((e) => console.error("bg process error", e));
+    const bgPromise = processEvents()
+      .then(() => sweepStaffDraftReminders(supabase, LINE_CHANNEL_ACCESS_TOKEN))
+      .catch((e) => console.error("bg process error", e));
     try {
       // @ts-ignore - EdgeRuntime is provided by the Supabase Edge runtime
       if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
@@ -1948,6 +1970,7 @@ async function settleByPaymentCode(
     let voucherId: string | null = null;
     let label = '';
     let bills: any[] = [];
+    let staffInvoices: any[] = [];
 
     if (parsed.status === 'voucher') {
       const { data: voucher } = await supabase
@@ -1965,6 +1988,12 @@ async function settleByPaymentCode(
         .eq('user_id', ownerUserId)
         .eq('voucher_id', voucherId);
       bills = data || [];
+      const { data: sInv } = await supabase
+        .from('staff_invoices')
+        .select('id, receipt_no, invoice_number, gross_amount, wht_amount, net_amount, staff_id, submitted_via_line_user_id, staff_profiles(staff_name, line_user_id)')
+        .eq('user_id', ownerUserId)
+        .eq('voucher_id', voucherId);
+      staffInvoices = sInv || [];
     } else {
       const { data } = await supabase
         .from('vendor_invoices')
@@ -1976,18 +2005,30 @@ async function settleByPaymentCode(
       label = `@${parsed.billNo}`;
     }
 
-    if (!bills.length) return `\n\n⚠️ ${label} ยังไม่มีบิลผูกอยู่ (ไม่ตัดจ่าย)`;
+    if (!bills.length && !staffInvoices.length) return `\n\n⚠️ ${label} ยังไม่มีรายการผูกอยู่ (ไม่ตัดจ่าย)`;
 
     const nowIso = new Date().toISOString();
-    await supabase.from('vendor_invoices').update({
-      status: 'paid',
-      paid_at: nowIso,
-      payment_slip_url: slipUrl,
-      matched_expense_id: expenseId,
-    } as any).in('id', bills.map((b: any) => b.id));
+    if (bills.length) {
+      await supabase.from('vendor_invoices').update({
+        status: 'paid',
+        paid_at: nowIso,
+        payment_slip_url: slipUrl,
+        matched_expense_id: expenseId,
+      } as any).in('id', bills.map((b: any) => b.id));
+    }
+    if (staffInvoices.length) {
+      await supabase.from('staff_invoices').update({
+        status: 'paid',
+        paid_at: nowIso,
+        payment_slip_url: slipUrl,
+        matched_expense_id: expenseId,
+      } as any).in('id', staffInvoices.map((i: any) => i.id));
+    }
 
-    const totalNet = bills.reduce((s: number, b: any) => s + (Number(b.net_amount) || 0), 0);
-    const totalWht = bills.reduce((s: number, b: any) => s + (Number(b.wht_amount) || 0), 0);
+    const totalNet = bills.reduce((s: number, b: any) => s + (Number(b.net_amount) || 0), 0)
+      + staffInvoices.reduce((s: number, i: any) => s + (Number(i.net_amount) || 0), 0);
+    const totalWht = bills.reduce((s: number, b: any) => s + (Number(b.wht_amount) || 0), 0)
+      + staffInvoices.reduce((s: number, i: any) => s + (Number(i.wht_amount) || 0), 0);
 
     if (voucherId) {
       await supabase.from('payment_vouchers').update({
@@ -2002,6 +2043,10 @@ async function settleByPaymentCode(
     const targets = new Set<string>();
     for (const b of bills) {
       const lid = (b as any).vendor_profiles?.line_user_id || (b as any).submitted_via_line_user_id;
+      if (lid) targets.add(lid);
+    }
+    for (const i of staffInvoices) {
+      const lid = (i as any).staff_profiles?.line_user_id || (i as any).submitted_via_line_user_id;
       if (lid) targets.add(lid);
     }
     if (targets.size && lineToken) {
@@ -2135,10 +2180,10 @@ async function getConvState(supabase: any, lineUserId: string) {
   return data;
 }
 
-async function setConvState(supabase: any, lineUserId: string, owner: string, state: string, draft: Record<string, any>) {
+async function setConvState(supabase: any, lineUserId: string, owner: string, state: string, draft: Record<string, any>, ttlMinutes = 10) {
   await supabase.from('line_conversation_state').upsert({
     line_user_id: lineUserId, owner, state, draft_data: draft,
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'line_user_id' });
 }
@@ -2323,6 +2368,26 @@ async function handleRegistrationConvReply(
   }
 
   return false;
+}
+
+function getLinkAccountFlex(rawText: string): Record<string, unknown> {
+  const LIFF_BASE = "https://liff.line.me/2008893199-xaJITz5y";
+  return {
+    type: "flex",
+    altText: "กรุณาผูกบัญชีก่อนแจ้งรายการ",
+    contents: {
+      type: "bubble",
+      body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "lg", contents: [
+        { type: "text", text: "🔗 ผูกบัญชีก่อนนะคะ", weight: "bold", size: "md" },
+        { type: "text", text: "ยังไม่พบบัญชีของคุณในระบบค่ะ กดปุ่มด้านล่างเพื่อผูกบัญชี (ใช้เบอร์โทร/เลขผู้เสียภาษี) แล้วส่งรายการเข้ามาอีกครั้งได้เลยค่ะ", size: "sm", wrap: true, color: "#555555" },
+        { type: "text", text: `📝 ${rawText.slice(0, 120)}`, size: "xs", wrap: true, color: "#999999" },
+      ]},
+      footer: { type: "box", layout: "vertical", paddingAll: "lg", contents: [
+        { type: "button", style: "primary", color: "#1E40AF", height: "sm",
+          action: { type: "uri", label: "🔗 ผูกบัญชี", uri: `${LIFF_BASE}?view=quick-link` } },
+      ]},
+    },
+  };
 }
 
 function getWelcomeFlex(displayName: string | null): Record<string, unknown> {
@@ -2673,3 +2738,397 @@ async function finalizeExpense(
   await clearConvState(supabase, lineUserId);
 }
 
+
+// ============================================================
+// แจ้งค่าจ้าง / สำรองจ่าย ทางไลน์ (ทีมงาน & ฟรีแลนซ์)
+//   แบบ 1 wage_days   : แจ้งวันทำงาน → คิดจาก daily_rate → staff_invoices (หัก ณ ที่จ่าย)
+//   แบบ 2 wage_amount : ค่าจ้างรายครั้ง → staff_invoices (หัก ณ ที่จ่าย)
+//   แบบ 3 advance     : สำรองจ่าย → staff_expense_claims (ห้ามหักภาษี)
+// ต้องทวนก่อนบันทึกทุกครั้ง — ห้ามบันทึกทันทีที่อ่าน
+// ============================================================
+
+const STAFF_WHT_RATE = 3; // ค่าจ้างบุคคลธรรมดา ม.40(2) / 3 เตรส
+const THAI_MONTH_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function thaiDate(iso: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso + 'T00:00:00Z');
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getUTCDate()} ${THAI_MONTH_SHORT[d.getUTCMonth()]} ${d.getUTCFullYear() + 543}`;
+}
+
+const money = (n: number) => Number(n || 0).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** ทะเบียนงานที่กำลังทำอยู่ (−60 / +90 วัน) สำหรับ resolve รหัส @CODE */
+async function resolveStaffEventTag(supabase: any, owner: string, text: string) {
+  const codes = extractEventCodes(text);
+  if (codes.length === 0) return { tag: null as string | null, eventName: null as string | null, status: 'none' as string };
+  const { data: rows } = await supabase.from('event_registry')
+    .select('project_tag, event_name, aliases').eq('user_id', owner).eq('is_active', true);
+  const res = resolveEventCode(codes, rows || []);
+  if (res.status === 'matched' && res.tag) {
+    const hit = (rows || []).find((r: any) => r.project_tag === res.tag);
+    return { tag: res.tag, eventName: hit?.event_name || null, status: 'matched' };
+  }
+  return { tag: null, eventName: null, status: res.status };
+}
+
+function staffKindQuickReply() {
+  return [
+    { label: '💼 ค่าจ้างทำงาน', data: '[SKIND]wage' },
+    { label: '🧾 สำรองจ่าย (เบิกคืน)', data: '[SKIND]advance' },
+    { label: 'ยกเลิก', data: 'ยกเลิก' },
+  ];
+}
+
+/** ข้อความทวนก่อนบันทึก */
+function staffDraftSummary(draft: any): string {
+  const lines: string[] = ['รับแล้วนะคะ ตรวจหน่อยค่ะ'];
+  if (draft.kind === 'advance') {
+    lines.push('🧾 สำรองจ่าย (เบิกคืน · ไม่หักภาษี ณ ที่จ่าย)');
+  } else {
+    lines.push('💼 ค่าจ้างทำงาน (หัก ณ ที่จ่าย ' + STAFF_WHT_RATE + '%)');
+  }
+  if (draft.event_name || draft.project_tag) lines.push(`🎪 งาน ${draft.event_name || draft.project_tag}`);
+  else lines.push('🎪 ยังไม่ระบุงาน (รอตรวจ)');
+  if (draft.description) lines.push(`📝 ${draft.description}`);
+  if (draft.work_start) {
+    lines.push(draft.work_start === draft.work_end
+      ? `📅 ${thaiDate(draft.work_start)}`
+      : `📅 ${thaiDate(draft.work_start)} – ${thaiDate(draft.work_end)}`);
+  }
+  if (draft.kind === 'wage_days') {
+    if (draft.gross_amount != null && draft.daily_rate) {
+      lines.push(`${draft.days} วัน × ฿${money(draft.daily_rate)} = ฿${money(draft.gross_amount)}`);
+      lines.push(`หัก ณ ที่จ่าย ฿${money(draft.wht_amount)} · รับสุทธิ ฿${money(draft.net_amount)}`);
+    } else {
+      lines.push(`${draft.days} วัน · ⚠️ ยังไม่มีค่าแรง/วันในทะเบียน — บันทึกวันไว้ก่อน เจ้าของจะใส่ยอดให้`);
+    }
+  } else if (draft.gross_amount != null) {
+    lines.push(`💰 ฿${money(draft.gross_amount)}`);
+    if (draft.kind !== 'advance') {
+      lines.push(`หัก ณ ที่จ่าย ฿${money(draft.wht_amount)} · รับสุทธิ ฿${money(draft.net_amount)}`);
+    } else {
+      lines.push('ได้คืนเต็มจำนวน (ไม่หักภาษี)');
+    }
+  }
+  lines.push('');
+  lines.push('ถูกต้องไหมคะ? กดปุ่มด้านล่าง');
+  return lines.join('\n');
+}
+
+function computeStaffAmounts(draft: any) {
+  if (draft.kind === 'advance') {
+    draft.wht_amount = 0;
+    draft.net_amount = draft.gross_amount ?? null;
+    return draft;
+  }
+  if (draft.gross_amount == null) {
+    draft.wht_amount = null;
+    draft.net_amount = null;
+    return draft;
+  }
+  const gross = Number(draft.gross_amount);
+  const wht = Math.round(gross * STAFF_WHT_RATE) / 100;
+  draft.wht_amount = wht;
+  draft.net_amount = Math.round((gross - wht) * 100) / 100;
+  return draft;
+}
+
+async function askStaffConfirm(
+  supabase: any, token: string, replyToken: string, lineUserId: string, owner: string, draft: any,
+) {
+  computeStaffAmounts(draft);
+  await setConvState(supabase, lineUserId, owner, 'awaiting_staff_confirm', draft, 24 * 60);
+  await supabase.from('line_pending_billings').delete().eq('line_user_id', lineUserId).in('kind', ['staff_wage', 'staff_advance']);
+  await supabase.from('line_pending_billings').insert({
+    line_user_id: lineUserId,
+    kind: draft.kind === 'advance' ? 'staff_advance' : 'staff_wage',
+    amount: draft.gross_amount ?? null,
+    description: (draft.description || '').slice(0, 300),
+    expires_at: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+  } as any);
+  await replyWithQuickReply(token, replyToken, staffDraftSummary(draft), [
+    { label: '✅ ถูกต้อง', data: '[SOK]' },
+    { label: '✏️ แก้ไข', data: '[SEDIT]' },
+  ]);
+}
+
+/** เริ่มโฟลว์จากข้อความอิสระของทีมงาน */
+async function startStaffBillingFlow(
+  supabase: any, token: string, replyToken: string, lineUserId: string,
+  profile: LineProfile, text: string,
+): Promise<boolean> {
+  const parsed = parseStaffMessage(text);
+  const staff = profile.profile || {};
+  const ev = await resolveStaffEventTag(supabase, profile.owner, text);
+
+  const draft: Record<string, any> = {
+    flow: 'staff_billing',
+    kind: parsed.kind,
+    staff_id: profile.profileId,
+    staff_name: staff.staff_name || profile.displayName || 'ทีมงาน',
+    daily_rate: Number(staff.daily_rate) > 0 ? Number(staff.daily_rate) : null,
+    description: parsed.description || text,
+    work_start: parsed.workStart,
+    work_end: parsed.workEnd,
+    days: parsed.days,
+    gross_amount: parsed.amount,
+    project_tag: ev.tag,
+    event_name: ev.eventName,
+    event_status: ev.status,
+    raw_text: text,
+  };
+
+  // แบบที่ 1: คิดจากค่าแรง/วันในทะเบียน — ถ้าไม่มี ห้ามเดายอด
+  if (draft.kind === 'wage_days') {
+    draft.gross_amount = draft.daily_rate && draft.days ? draft.daily_rate * draft.days : null;
+  }
+
+  // ไม่แน่ใจว่าเป็นแบบไหน → ถามด้วยปุ่ม ห้ามเดา
+  if (draft.kind === 'unknown') {
+    await setConvState(supabase, lineUserId, profile.owner, 'awaiting_staff_kind', draft, 24 * 60);
+    await replyWithQuickReply(token, replyToken,
+      `📝 ${draft.description || text}\n\nรายการนี้เป็นแบบไหนคะ?\n· ค่าจ้างทำงาน = หัก ณ ที่จ่าย\n· สำรองจ่าย = เงินที่ออกไปก่อนแล้วเบิกคืน (ไม่หักภาษี)`,
+      staffKindQuickReply());
+    return true;
+  }
+
+  // ไม่มีรหัสงาน → ถามด้วยปุ่มรายชื่องานที่กำลังทำอยู่ ห้ามเดาจากข้อความ
+  if (!draft.project_tag) {
+    const events = await buildEventQuickReply(supabase, profile.owner);
+    await setConvState(supabase, lineUserId, profile.owner, 'awaiting_staff_event', draft, 24 * 60);
+    const warn = ev.status === 'unknown' ? '⚠️ รหัสงานที่ส่งมาไม่มีในทะเบียน\n'
+      : ev.status === 'ambiguous' ? '⚠️ พบรหัสงานหลายตัว กรุณาเลือกงานเดียว\n' : '';
+    await replyWithQuickReply(token, replyToken, `${warn}🎪 รายการนี้ของงานไหนคะ? (เลือกจากปุ่ม)`, events);
+    return true;
+  }
+
+  await askStaffConfirm(supabase, token, replyToken, lineUserId, profile.owner, draft);
+  return true;
+}
+
+async function handleStaffBillingConvReply(
+  supabase: any, token: string, replyToken: string, lineUserId: string, state: any, text: string,
+): Promise<boolean> {
+  const draft = state.draft_data || {};
+  if (draft.flow !== 'staff_billing') return false;
+  const owner = state.owner;
+
+  if (state.state === 'awaiting_staff_kind') {
+    if (!text.startsWith('[SKIND]')) {
+      await replyWithQuickReply(token, replyToken, 'กรุณาเลือกจากปุ่มด้านล่างค่ะ', staffKindQuickReply());
+      return true;
+    }
+    const pick = text.slice(7);
+    if (pick === 'advance') {
+      draft.kind = 'advance';
+    } else {
+      draft.kind = draft.work_start && draft.gross_amount == null ? 'wage_days' : 'wage_amount';
+      if (draft.kind === 'wage_days') {
+        draft.gross_amount = draft.daily_rate && draft.days ? draft.daily_rate * draft.days : null;
+      }
+    }
+    if (!draft.project_tag) {
+      const events = await buildEventQuickReply(supabase, owner);
+      await setConvState(supabase, lineUserId, owner, 'awaiting_staff_event', draft, 24 * 60);
+      await replyWithQuickReply(token, replyToken, '🎪 รายการนี้ของงานไหนคะ? (เลือกจากปุ่ม)', events);
+      return true;
+    }
+    if (draft.kind !== 'wage_days' && draft.gross_amount == null) {
+      await setConvState(supabase, lineUserId, owner, 'awaiting_staff_amount', draft, 24 * 60);
+      await replyToUser(token, replyToken, '💰 ยอดเงินเท่าไหร่คะ? (พิมพ์ตัวเลข เช่น 3500)');
+      return true;
+    }
+    await askStaffConfirm(supabase, token, replyToken, lineUserId, owner, draft);
+    return true;
+  }
+
+  if (state.state === 'awaiting_staff_event') {
+    if (!text.startsWith('[EVENT]')) {
+      const events = await buildEventQuickReply(supabase, owner);
+      await replyWithQuickReply(token, replyToken,
+        '🎪 กรุณาเลือกงานจากปุ่มด้านล่าง (ไม่ต้องพิมพ์ชื่อเอง) ถ้ายังไม่รู้ให้กด "ยังไม่รู้"', events);
+      return true;
+    }
+    const [tag, name] = text.slice(7).split('|');
+    if (tag === 'UNKNOWN') {
+      draft.project_tag = null;
+      draft.event_name = null;
+      draft.needs_review = true;
+    } else {
+      draft.project_tag = tag;
+      draft.event_name = name || tag;
+    }
+    if (draft.kind !== 'wage_days' && draft.gross_amount == null) {
+      await setConvState(supabase, lineUserId, owner, 'awaiting_staff_amount', draft, 24 * 60);
+      await replyToUser(token, replyToken, '💰 ยอดเงินเท่าไหร่คะ? (พิมพ์ตัวเลข เช่น 3500)');
+      return true;
+    }
+    await askStaffConfirm(supabase, token, replyToken, lineUserId, owner, draft);
+    return true;
+  }
+
+  if (state.state === 'awaiting_staff_amount') {
+    const n = Number((text || '').replace(/[^\d.]/g, ''));
+    if (!Number.isFinite(n) || n <= 0) {
+      await replyToUser(token, replyToken, '❌ ยอดเงินไม่ถูกต้อง กรุณาพิมพ์เป็นตัวเลข เช่น 3500');
+      return true;
+    }
+    draft.gross_amount = n;
+    await askStaffConfirm(supabase, token, replyToken, lineUserId, owner, draft);
+    return true;
+  }
+
+  if (state.state === 'awaiting_staff_confirm') {
+    if (text.startsWith('[SOK]') || /^(ถูกต้อง|ใช่|ยืนยัน|ok)$/i.test(text)) {
+      await finalizeStaffBilling(supabase, token, replyToken, lineUserId, owner, draft);
+      return true;
+    }
+    if (text.startsWith('[SEDIT]') || /^(แก้ไข|แก้|edit)$/i.test(text)) {
+      await setConvState(supabase, lineUserId, owner, 'awaiting_staff_rewrite', draft, 24 * 60);
+      await replyToUser(token, replyToken,
+        '✏️ พิมพ์รายการใหม่ทั้งบรรทัดได้เลยค่ะ\nเช่น "@MRN ทำงาน 20-22 ส.ค." หรือ "@MRN ค่าถ่ายรูป 22 ส.ค. 3500"\nถ้าจะแก้แค่ยอด พิมพ์ตัวเลขยอดใหม่ก็ได้ค่ะ');
+      return true;
+    }
+    await replyWithQuickReply(token, replyToken, staffDraftSummary(draft), [
+      { label: '✅ ถูกต้อง', data: '[SOK]' },
+      { label: '✏️ แก้ไข', data: '[SEDIT]' },
+    ]);
+    return true;
+  }
+
+  if (state.state === 'awaiting_staff_rewrite') {
+    const onlyNumber = /^[\d,\.]+$/.test(text.trim());
+    if (onlyNumber) {
+      const n = Number(text.replace(/[^\d.]/g, ''));
+      if (n > 0) {
+        draft.gross_amount = n;
+        if (draft.kind === 'wage_days') draft.kind = 'wage_amount';
+        await askStaffConfirm(supabase, token, replyToken, lineUserId, owner, draft);
+        return true;
+      }
+    }
+    const staffProfile: LineProfile = {
+      kind: 'staff', owner, displayName: draft.staff_name, profileId: draft.staff_id,
+      profile: { staff_name: draft.staff_name, daily_rate: draft.daily_rate },
+    };
+    await startStaffBillingFlow(supabase, token, replyToken, lineUserId, staffProfile, text);
+    return true;
+  }
+
+  return false;
+}
+
+/** บันทึกจริงหลังยืนยัน + ออกเลขรับ S00xx */
+async function finalizeStaffBilling(
+  supabase: any, token: string, replyToken: string, lineUserId: string, owner: string, draft: any,
+) {
+  computeStaffAmounts(draft);
+  const needsReview = !draft.project_tag || draft.gross_amount == null;
+
+  // ---- แบบที่ 3: สำรองจ่าย → เบิกคืนเต็มจำนวน ห้ามหักภาษี ณ ที่จ่าย ----
+  if (draft.kind === 'advance') {
+    const { error } = await supabase.from('staff_expense_claims').insert({
+      user_id: owner,
+      staff_id: draft.staff_id,
+      category: 'other_expense',
+      description: draft.description || draft.raw_text,
+      amount: draft.gross_amount,
+      expense_date: draft.work_start || new Date().toISOString().split('T')[0],
+      event_name: cleanText(draft.event_name),
+      project_tag: cleanText(draft.project_tag),
+      has_formal_receipt: false,
+      status: 'submitted',
+      wht_amount: 0,
+      wht_rate: 0,
+      source: 'line',
+      line_raw_text: draft.raw_text,
+      line_sender_user_id: lineUserId,
+      notes: draft.project_tag ? null : 'ยังไม่ระบุงาน — รอตรวจ',
+    } as any);
+    await clearConvState(supabase, lineUserId);
+    await supabase.from('line_pending_billings').delete().eq('line_user_id', lineUserId).in('kind', ['staff_wage', 'staff_advance']);
+    if (error) {
+      await replyToUser(token, replyToken, `❌ บันทึกไม่สำเร็จ: ${error.message}`);
+      return;
+    }
+    await replyToUser(token, replyToken,
+      `✅ บันทึกรายการสำรองจ่ายแล้วค่ะ\n💰 ฿${money(draft.gross_amount)} (คืนเต็มจำนวน ไม่หักภาษี)\n📝 ${draft.description}\n⏳ รอตรวจสอบ\n\n📸 ถ้ามีใบเสร็จ ส่งรูปตามมาได้เลยค่ะ`);
+    await notifyAdminEvent(owner, {
+      event_type: 'staff_claim_new', actor_kind: 'staff', actor_name: draft.staff_name,
+      amount: Number(draft.gross_amount) || 0, description: `[สำรองจ่าย] ${draft.description}`,
+    });
+    return;
+  }
+
+  // ---- แบบที่ 1 / 2: ค่าจ้าง → staff_invoices + หัก ณ ที่จ่าย ----
+  const { data: receiptNo } = await supabase.rpc('next_staff_receipt_no');
+  const recNo = receiptNo || `S-${Date.now()}`;
+  const { error } = await supabase.from('staff_invoices').insert({
+    user_id: owner,
+    staff_id: draft.staff_id,
+    invoice_number: recNo,
+    receipt_no: recNo,
+    event_name: cleanText(draft.event_name),
+    days_worked: draft.days ?? null,
+    daily_rate: draft.daily_rate ?? null,
+    gross_amount: draft.gross_amount,
+    wht_rate: draft.gross_amount == null ? STAFF_WHT_RATE : STAFF_WHT_RATE,
+    wht_amount: draft.wht_amount ?? 0,
+    net_amount: draft.net_amount,
+    bonus_amount: 0,
+    status: 'submitted',
+    work_start_date: draft.work_start,
+    work_end_date: draft.work_end,
+    submitted_via: 'line',
+    submitted_via_line_user_id: lineUserId,
+    submitted_at: new Date().toISOString(),
+    work_days_note: draft.raw_text,
+    notes: [
+      draft.project_tag ? `งาน ${draft.project_tag}` : 'ยังไม่ระบุงาน — รอตรวจ',
+      draft.gross_amount == null ? 'ยังไม่มีค่าแรง/วันในทะเบียน — รอเจ้าของใส่ยอด' : null,
+      `[LINE] ${draft.raw_text}`,
+    ].filter(Boolean).join(' | '),
+  } as any);
+
+  await clearConvState(supabase, lineUserId);
+  await supabase.from('line_pending_billings').delete().eq('line_user_id', lineUserId).in('kind', ['staff_wage', 'staff_advance']);
+
+  if (error) {
+    await replyToUser(token, replyToken, `❌ บันทึกไม่สำเร็จ: ${error.message}`);
+    return;
+  }
+
+  const amountLine = draft.gross_amount == null
+    ? '⚠️ ยังไม่มียอด (บันทึกวันทำงานไว้แล้ว รอเจ้าของใส่ค่าแรง)'
+    : `฿${money(draft.gross_amount)} · หัก ณ ที่จ่าย ฿${money(draft.wht_amount)} · รับสุทธิ ฿${money(draft.net_amount)}`;
+  await replyToUser(token, replyToken,
+    `✅ บันทึกแล้วค่ะ เลขที่ ${recNo}\n${amountLine}\n⏳ รอตรวจสอบ${needsReview ? '\n⚠️ มีข้อมูลรอเติมให้ครบ' : ''}`);
+  await notifyAdminEvent(owner, {
+    event_type: 'staff_invoice_new', actor_kind: 'staff', actor_name: draft.staff_name,
+    amount: Number(draft.gross_amount) || 0,
+    description: `${recNo} · ${draft.description || ''}${draft.gross_amount == null ? ' (ยังไม่มียอด)' : ''}`,
+  });
+}
+
+/** เตือนร่างที่ค้างเกิน 12 ชม. หนึ่งครั้ง (ไม่มีการบันทึกอัตโนมัติ) */
+async function sweepStaffDraftReminders(supabase: any, token: string) {
+  try {
+    const cutoff = new Date(Date.now() - 12 * 3600 * 1000).toISOString();
+    const { data: drafts } = await supabase.from('line_pending_billings')
+      .select('id, line_user_id, kind, amount, description, created_at')
+      .in('kind', ['staff_wage', 'staff_advance'])
+      .is('reminded_at', null)
+      .lt('created_at', cutoff)
+      .gt('expires_at', new Date().toISOString())
+      .limit(10);
+    for (const d of drafts || []) {
+      await pushTextToUser(token, d.line_user_id,
+        `⏰ ยังมีรายการที่รอยืนยันค่ะ\n📝 ${d.description || '-'}${d.amount ? `\n💰 ฿${money(Number(d.amount))}` : ''}\n\nพิมพ์ "ถูกต้อง" เพื่อบันทึก หรือ "แก้ไข" เพื่อแก้ (ถ้าไม่ยืนยันภายใน 24 ชม. ระบบจะไม่บันทึกให้ค่ะ)`);
+      await supabase.from('line_pending_billings').update({ reminded_at: new Date().toISOString() } as any).eq('id', d.id);
+    }
+  } catch (e) {
+    console.error('sweepStaffDraftReminders error:', e);
+  }
+}

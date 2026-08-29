@@ -100,6 +100,7 @@ const PaymentQueue = () => {
   const [sending, setSending] = useState<string | null>(null);
   const [adminBillOpen, setAdminBillOpen] = useState(false);
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [selectedStaffInvoiceIds, setSelectedStaffInvoiceIds] = useState<string[]>([]);
   const [paySheetBill, setPaySheetBill] = useState<any | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
@@ -168,20 +169,25 @@ const PaymentQueue = () => {
 
   // รวมหลายบิลเป็นใบสรุปการจ่าย (P00xx) — ใช้ตัดจ่ายทีเดียวด้วย @P00xx
   const createVoucherMutation = useMutation({
-    mutationFn: async (bills: any[]) => {
+    mutationFn: async ({ bills, staffInvoices }: { bills: any[]; staffInvoices: any[] }) => {
       if (!user) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
-      if (!bills.length) throw new Error("ยังไม่ได้เลือกบิล");
+      if (!bills.length && !staffInvoices.length) throw new Error("ยังไม่ได้เลือกรายการ");
       const vendorIds = new Set(bills.map((b) => b.vendor_id).filter(Boolean));
       const { data: no, error: noErr } = await supabase.rpc("next_payment_voucher_no" as any);
       if (noErr) throw noErr;
-      const total = bills.reduce((s, b) => s + (Number(b.amount) || 0), 0);
-      const wht = bills.reduce((s, b) => s + (Number(b.wht_amount) || 0), 0);
+      const billTotal = bills.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+      const billWht = bills.reduce((s, b) => s + (Number(b.wht_amount) || 0), 0);
+      const staffTotal = staffInvoices.reduce((s, i) => s + (Number(i.gross_amount) || 0), 0);
+      const staffWht = staffInvoices.reduce((s, i) => s + (Number(i.wht_amount) || 0), 0);
+      const total = billTotal + staffTotal;
+      const wht = billWht + staffWht;
       const { data: voucher, error } = await supabase
         .from("payment_vouchers")
         .insert({
           user_id: user.id,
           voucher_number: no as unknown as string,
-          vendor_id: vendorIds.size === 1 ? [...vendorIds][0] : null,
+          vendor_id: !staffInvoices.length && vendorIds.size === 1 ? [...vendorIds][0] : null,
+          staff_invoice_id: staffInvoices.length === 1 && !bills.length ? staffInvoices[0].id : null,
           total_amount: total,
           total_wht: wht,
           total_net: total - wht,
@@ -190,71 +196,33 @@ const PaymentQueue = () => {
         .select("id, voucher_number")
         .single();
       if (error) throw error;
-      const { error: linkErr } = await supabase
-        .from("vendor_invoices")
-        .update({ voucher_id: voucher.id, status: "approved" } as any)
-        .in("id", bills.map((b) => b.id));
-      if (linkErr) throw linkErr;
+      if (bills.length) {
+        const { error: linkErr } = await supabase
+          .from("vendor_invoices")
+          .update({ voucher_id: voucher.id, status: "approved" } as any)
+          .in("id", bills.map((b) => b.id));
+        if (linkErr) throw linkErr;
+      }
+      if (staffInvoices.length) {
+        const { error: sErr } = await supabase
+          .from("staff_invoices")
+          .update({ voucher_id: voucher.id, status: "approved" } as any)
+          .in("id", staffInvoices.map((i) => i.id));
+        if (sErr) throw sErr;
+      }
       return voucher;
     },
     onSuccess: (voucher: any) => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
       setSelectedBillIds([]);
+      setSelectedStaffInvoiceIds([]);
       toast({
         title: `✅ สร้างใบสรุปการจ่าย ${voucher.voucher_number}`,
-        description: `ใส่ ${"@" + voucher.voucher_number} ในช่องบันทึกช่วยจำของสลิป แล้วระบบจะตัดจ่ายทุกบิลในใบนี้ให้เอง`,
+        description: `ใส่ ${"@" + voucher.voucher_number} ในช่องบันทึกช่วยจำของสลิป แล้วระบบจะตัดจ่ายทุกรายการในใบนี้ให้เอง`,
       });
     },
     onError: (err: any) => toast({ title: "สร้างใบสรุปไม่สำเร็จ", description: err.message, variant: "destructive" }),
-  });
-
-
-  const attachToFA = useMutation({
-    mutationFn: async (bill: any) => {
-      const items: any[] = [];
-      const targets: Array<{ type: string; id: string | null }> = [
-        { type: "expense-note", id: bill.flowaccount_expense_id },
-        { type: "purchase-tax-invoice", id: bill.flowaccount_bill_id },
-      ];
-      const anyDoc = targets.find(t => t.id);
-      if (!anyDoc) throw new Error("ยังไม่มีเอกสารใน FlowAccount — กด 'ส่งเข้า FA' ก่อน");
-
-      // Attach bill file to every doc that exists
-      if (bill.file_url) {
-        for (const t of targets) if (t.id) items.push({
-          invoice_id: bill.id, document_type: t.type, document_id: String(t.id),
-          bucket: "documents", path: bill.file_url, label: "บิล/ใบวางบิล",
-        });
-      }
-      // Fetch matched expense slip
-      const { data: linked } = await supabase
-        .from("vendor_invoices").select("matched_expense_id").eq("id", bill.id).maybeSingle();
-      if (linked?.matched_expense_id) {
-        const { data: exp } = await supabase
-          .from("expenses").select("receipt_url").eq("id", linked.matched_expense_id).maybeSingle();
-        if (exp?.receipt_url) {
-          for (const t of targets) if (t.id) items.push({
-            invoice_id: bill.id, document_type: t.type, document_id: String(t.id),
-            bucket: "receipts", path: exp.receipt_url, label: "สลิปโอนเงิน",
-          });
-        }
-      }
-      if (!items.length) throw new Error("ไม่พบไฟล์ที่จะแนบ");
-      const { data, error } = await supabase.functions.invoke("flowaccount-attach-file", { body: { items } });
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
-      const failed = (data?.results || []).filter((r: any) => !r.ok);
-      if (data?.success) toast({ title: `✅ แนบไฟล์เข้า FA สำเร็จ (${data.results?.length || 0} ไฟล์)` });
-      else toast({
-        title: `⚠️ แนบบางไฟล์ไม่สำเร็จ (${failed.length}/${data?.results?.length || 0})`,
-        description: failed[0]?.error?.slice(0, 200),
-        variant: "destructive",
-      });
-    },
-    onError: (err: any) => toast({ title: "แนบไฟล์ไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
 
   const openVendorBillFile = async (path: string | null) => {
@@ -621,7 +589,17 @@ const PaymentQueue = () => {
                   <CardContent className="pt-4 space-y-3">
                     {/* Header */}
                     <div className="flex items-start justify-between">
-                      <div>
+                      <div className="flex items-start gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 accent-primary shrink-0"
+                          checked={selectedStaffInvoiceIds.includes(inv.id)}
+                          onChange={(e) => setSelectedStaffInvoiceIds((prev) =>
+                            e.target.checked ? [...prev, inv.id] : prev.filter((x) => x !== inv.id)
+                          )}
+                          aria-label="เลือกค่าจ้างนี้เพื่อรวมเป็นใบสรุปการจ่าย"
+                        />
+                        <div className="min-w-0">
                         <p className="font-medium">
                           {inv.staff_profiles?.staff_name}
                           {inv.staff_profiles?.nickname && (
@@ -636,6 +614,7 @@ const PaymentQueue = () => {
                             <CalendarClock className="h-3 w-3" />ส่งเข้าเมื่อ {formatSubmittedAt(inv.created_at)}
                           </p>
                         )}
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         {inv.matched_expense_id && (
@@ -897,25 +876,29 @@ const PaymentQueue = () => {
               </p>
               <Badge variant="secondary">{filteredVendorBills.length} รายการ</Badge>
             </div>
-            {selectedBillIds.length > 0 && (
+            {(selectedBillIds.length > 0 || selectedStaffInvoiceIds.length > 0) && (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
                 <p className="text-xs">
-                  เลือกไว้ {selectedBillIds.length} ใบ · สุทธิ{" "}
+                  เลือกไว้ {selectedBillIds.length} บิลคู่ค้า + {selectedStaffInvoiceIds.length} ค่าจ้างทีมงาน · สุทธิ{" "}
                   <span className="font-bold">
-                    {filteredVendorBills
+                    {(filteredVendorBills
                       .filter((b: any) => selectedBillIds.includes(b.id))
                       .reduce((s: number, b: any) => s + (Number(b.net_amount || b.amount) || 0), 0)
+                      + pendingInvoices
+                        .filter((i: any) => selectedStaffInvoiceIds.includes(i.id))
+                        .reduce((s: number, i: any) => s + (Number(i.net_amount) || 0), 0))
                       .toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿
                   </span>
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedBillIds([])}>ล้าง</Button>
+                  <Button variant="ghost" size="sm" onClick={() => { setSelectedBillIds([]); setSelectedStaffInvoiceIds([]); }}>ล้าง</Button>
                   <Button
                     size="sm"
                     disabled={createVoucherMutation.isPending}
-                    onClick={() => createVoucherMutation.mutate(
-                      filteredVendorBills.filter((b: any) => selectedBillIds.includes(b.id))
-                    )}
+                    onClick={() => createVoucherMutation.mutate({
+                      bills: filteredVendorBills.filter((b: any) => selectedBillIds.includes(b.id)),
+                      staffInvoices: pendingInvoices.filter((i: any) => selectedStaffInvoiceIds.includes(i.id)),
+                    })}
                   >
                     <Receipt className="h-4 w-4 mr-1" />รวมเป็นใบสรุปการจ่าย (P)
                   </Button>
@@ -1135,19 +1118,6 @@ const PaymentQueue = () => {
                             </div>
                           )}
 
-                          {(b.flowaccount_expense_id || b.flowaccount_bill_id || b.flowaccount_wht_id) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full mt-2"
-                              disabled={attachToFA.isPending}
-                              onClick={() => attachToFA.mutate(b)}
-                              title="แนบบิล + สลิปโอน เข้าเอกสาร FA ทุกใบที่มี"
-                            >
-                              <Upload className="h-3 w-3 mr-1" />
-                              {attachToFA.isPending ? "กำลังแนบ..." : "แนบไฟล์เข้า FA"}
-                            </Button>
-                          )}
                         </div>
 
                         {/* Action buttons */}

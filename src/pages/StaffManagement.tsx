@@ -99,6 +99,39 @@ const StaffManagement = () => {
     });
   };
 
+  // ชวนทีมงานผูก LINE แบบหลายคนพร้อมกัน — คัดลอกข้อความ + ลิงก์ไปวางในแชตกลุ่ม
+  const copyBulkInvite = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      toast({ title: "กรุณาเข้าสู่ระบบใหม่", variant: "destructive" });
+      return;
+    }
+    const url = `${window.location.origin}/portal?view=quick-link&owner=${user.id}`;
+    const targets = selectedStaff.filter((s) => !s.line_user_id);
+    if (targets.length === 0) {
+      toast({ title: "คนที่เลือกผูก LINE ครบแล้วค่ะ" });
+      return;
+    }
+    const needData = targets.filter((s) => !s.bank_account || !s.tax_id);
+    const msg = [
+      "📣 ขอให้ทุกคนผูกบัญชี LINE กับระบบการเงินนะคะ",
+      "",
+      `👉 ${url}`,
+      "",
+      "ขั้นตอน: กดลิงก์ → เข้าด้วย LINE → ใส่เบอร์โทรที่ให้ไว้ → เสร็จ",
+      "ผูกแล้วแจ้งวันทำงาน/ค่าจ้าง/สำรองจ่าย ได้ทางแชตเลยค่ะ",
+      needData.length
+        ? `\n⚠️ คนที่ยังไม่มีเลขบัญชี/เลขบัตร รบกวนส่งมาด้วยค่ะ: ${needData.map((s) => s.nickname || s.staff_name).join(", ")}`
+        : "",
+      `\nรายชื่อที่ยังไม่ผูก: ${targets.map((s) => s.nickname || s.staff_name).join(", ")}`,
+    ].filter(Boolean).join("\n");
+    await navigator.clipboard.writeText(msg);
+    toast({
+      title: `คัดลอกข้อความชวน ${targets.length} คนแล้ว`,
+      description: "วางในแชตกลุ่ม LINE ได้เลยค่ะ",
+    });
+  };
+
   const viewIdCard = async (path: string) => {
     const { data } = await supabase.storage.from("documents").createSignedUrl(path, 3600);
     if (data?.signedUrl) setPreviewUrl(data.signedUrl);
@@ -124,6 +157,9 @@ const StaffManagement = () => {
                 <Badge variant="secondary">เลือก {selectedIds.size} คน</Badge>
                 <Button size="sm" variant="outline" onClick={() => setConvertOpen(true)}>
                   <ArrowRightLeft className="h-4 w-4 mr-1" />แปลงเป็นคู่ค้า
+                </Button>
+                <Button size="sm" variant="outline" onClick={copyBulkInvite}>
+                  <Copy className="h-4 w-4 mr-1" />คัดลอกข้อความชวนผูก LINE
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
                   ล้าง
@@ -252,6 +288,12 @@ const StaffManagement = () => {
                               <Badge variant="default" className="h-5 px-1.5 text-[10px] bg-green-600 hover:bg-green-600">LINE</Badge>
                             ) : (
                               <Badge variant="outline" className="h-5 px-1.5 text-[10px] text-muted-foreground">ยังไม่ผูก LINE</Badge>
+                            )}
+                            {!s.bank_account && (
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-amber-400 text-amber-600">ไม่มีบัญชี</Badge>
+                            )}
+                            {!s.tax_id && (
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px] border-amber-400 text-amber-600">ไม่มีเลขบัตร</Badge>
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground md:hidden truncate">
