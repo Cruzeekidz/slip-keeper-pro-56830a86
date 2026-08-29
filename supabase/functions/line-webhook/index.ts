@@ -1438,9 +1438,19 @@ serve(async (req) => {
 
         console.log("Inserting expense data:", JSON.stringify(expenseData));
 
+        // entity มาจากทะเบียนงาน ไม่ใช่ AI เดา
+        if (effectiveOwner) {
+          expenseData.entity = await resolveEntity(
+            supabase,
+            effectiveOwner,
+            (expenseData.project_tag as string | null) ?? null,
+            (expenseData.transaction_type as string | null) ?? null,
+          );
+        }
+
         const { data: insertData, error: insertError } = await supabase
           .from('expenses')
-          .insert(expenseData)
+          .insert(sanitizeExpense(expenseData))
           .select();
 
         if (insertError) {
