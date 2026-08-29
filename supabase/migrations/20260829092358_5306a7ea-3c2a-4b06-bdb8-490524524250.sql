@@ -1,0 +1,1 @@
+REVOKE ALL ON FUNCTION public.archive_expense_before_delete() FROM PUBLIC, anon, authenticated;
