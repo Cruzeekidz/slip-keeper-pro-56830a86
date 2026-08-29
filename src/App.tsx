@@ -25,6 +25,7 @@ const LineWebhookSettings  = lazy(() => import("./pages/LineWebhookSettings"));
 const EventManagement    = lazy(() => import("./pages/EventManagement"));
 const EventTagMapping    = lazy(() => import("./pages/EventTagMapping"));
 const EventCodes         = lazy(() => import("./pages/EventCodes"));
+const VendorLookup       = lazy(() => import("./pages/VendorLookup"));
 const ForwardManagement  = lazy(() => import("./pages/ForwardManagement"));
 const LineUserRoles      = lazy(() => import("./pages/LineUserRoles"));
 const LinkLine           = lazy(() => import("./pages/LinkLine"));
@@ -99,6 +100,7 @@ const App = () => (
               <Route path="/event-management" element={<EventManagement />} />
               <Route path="/event-tag-mapping" element={<EventTagMapping />} />
               <Route path="/event-codes" element={<EventCodes />} />
+              <Route path="/vendor-lookup" element={<VendorLookup />} />
               <Route path="/forward-management" element={<ForwardManagement />} />
               <Route path="/line-user-roles" element={<LineUserRoles />} />
               <Route path="/link-line" element={<LinkLine />} />
