@@ -404,6 +404,21 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               )}
 
 
+              <div className="space-y-2">
+                <Label>หน่วยธุรกิจ (Entity) <span className="text-destructive">*</span></Label>
+                <Select value={entity} onValueChange={(v) => { setEntity(v as Entity); setEntityTouched(true); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ENTITIES.map(e => (
+                      <SelectItem key={e.value} value={e.value}>
+                        {e.label}{e.isCompany ? '' : ' (ไม่ใช่เงินบริษัท)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">ตั้งอัตโนมัติจากทะเบียนงานที่เลือก แก้ได้ถ้าจำเป็น</p>
+              </div>
+
               {defaultSubcats.length > 0 && (
                 <div className="space-y-2">
                   <Label>ประเภทย่อย</Label>
@@ -412,10 +427,22 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                     value={subcategory}
                     onValueChange={setSubcategory}
                     placeholder="เลือกหรือพิมพ์ประเภทย่อย"
+                    renderLabel={subcategoryLabel}
                   />
                 </div>
               )}
+
+              {QUANTITY_SUBCATEGORIES.includes(subcategory) && (
+                <div className="space-y-2">
+                  <Label>จำนวนชิ้น ({subcategoryLabel(subcategory)})</Label>
+                  <Input type="number" min="0" value={itemQuantity}
+                    onChange={(e) => setItemQuantity(e.target.value)}
+                    placeholder="เช่น 250" />
+                  <p className="text-xs text-muted-foreground">ใช้กระทบยอดกับจำนวนผู้สมัครใน ReadyGo</p>
+                </div>
+              )}
             </div>
+
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
