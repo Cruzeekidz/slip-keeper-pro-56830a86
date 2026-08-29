@@ -5,6 +5,7 @@ import { encode as encodeBase64 } from "https://deno.land/std@0.168.0/encoding/b
 import { parseSlipDateRaw } from "../_shared/slip-date.ts";
 import { cleanText, sanitizeExpense } from "../_shared/sanitize.ts";
 import { extractEventCodes, resolveEventCode, eventCodePromptSection } from "../_shared/memo-event-code.ts";
+import { resolvePaymentCode } from "../_shared/payment-code.ts";
 
 /** entity มาจากทะเบียนงาน (event_registry) เท่านั้น — ห้าม AI เดา */
 async function resolveEntity(
