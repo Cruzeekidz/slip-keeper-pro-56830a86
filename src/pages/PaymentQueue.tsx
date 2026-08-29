@@ -149,76 +149,62 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      // Auto-push to FlowAccount
-      if (action === "approve") {
-        try {
-          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-expense-note", {
-            body: { invoice_id: id },
-          });
-          return { action, faSuccess: !fnErr && (data as any)?.success, faData: data, faError: fnErr?.message };
-        } catch (e: any) {
-          return { action, faSuccess: false, faError: e?.message };
-        }
-      }
-      if (action === "paid") {
-        try {
-          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
-            body: { invoice_id: id, invoice_type: "vendor" },
-          });
-          return { action, faSuccess: !fnErr && data?.success, faData: data, faError: fnErr?.message };
-        } catch (e: any) {
-          return { action, faSuccess: false, faError: e?.message };
-        }
-      }
+      // ยังไม่เชื่อม FlowAccount API — ใช้ลิงก์เปิดเอกสารบน FA เอง
       return { action };
     },
     onSuccess: (result: any) => {
       const action = result?.action;
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      if (action === "paid") {
-        if (result?.faSuccess) {
-          toast({ title: "✅ จ่ายแล้ว + ส่งเข้า FlowAccount สำเร็จ", description: "สร้างใบกำกับซื้อ/หนังสือ WHT บน FA เรียบร้อย" });
-        } else {
-          toast({
-            title: "บันทึกว่าจ่ายแล้ว (⚠️ FA push ล้มเหลว)",
-            description: (result?.faError || "").slice(0, 200) || "กด 'ลองส่ง FA อีกครั้ง' ในการ์ดบิล",
-            variant: "destructive",
-          });
-        }
-      } else if (action === "approve") {
-        if (result?.faSuccess) {
-          toast({ title: "✅ อนุมัติ + ส่ง Expense Note ไป FA สำเร็จ" });
-        } else {
-          toast({
-            title: "อนุมัติแล้ว (⚠️ Expense Note push ล้มเหลว)",
-            description: (result?.faError || "").slice(0, 200) || "กดปุ่ม 'ลองส่ง FA' เพื่อลองใหม่",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({ title: "ปฏิเสธบิลแล้ว" });
-      }
+      toast({
+        title: action === "paid" ? "✅ บันทึกว่าจ่ายแล้ว" : action === "approve" ? "✅ อนุมัติบิลแล้ว" : "ปฏิเสธบิลแล้ว",
+      });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
 
-  const retryFlowAccountPush = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      const { data, error } = await supabase.functions.invoke("flowaccount-push-payment", {
-        body: { invoice_id: invoiceId, invoice_type: "vendor" },
-      });
-      if (error) throw new Error(error.message);
-      return data;
+  // รวมหลายบิลเป็นใบสรุปการจ่าย (P00xx) — ใช้ตัดจ่ายทีเดียวด้วย @P00xx
+  const createVoucherMutation = useMutation({
+    mutationFn: async (bills: any[]) => {
+      if (!user) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+      if (!bills.length) throw new Error("ยังไม่ได้เลือกบิล");
+      const vendorIds = new Set(bills.map((b) => b.vendor_id).filter(Boolean));
+      const { data: no, error: noErr } = await supabase.rpc("next_payment_voucher_no" as any);
+      if (noErr) throw noErr;
+      const total = bills.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+      const wht = bills.reduce((s, b) => s + (Number(b.wht_amount) || 0), 0);
+      const { data: voucher, error } = await supabase
+        .from("payment_vouchers")
+        .insert({
+          user_id: user.id,
+          voucher_number: no as unknown as string,
+          vendor_id: vendorIds.size === 1 ? [...vendorIds][0] : null,
+          total_amount: total,
+          total_wht: wht,
+          total_net: total - wht,
+          status: "open",
+        } as any)
+        .select("id, voucher_number")
+        .single();
+      if (error) throw error;
+      const { error: linkErr } = await supabase
+        .from("vendor_invoices")
+        .update({ voucher_id: voucher.id, status: "approved" } as any)
+        .in("id", bills.map((b) => b.id));
+      if (linkErr) throw linkErr;
+      return voucher;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (voucher: any) => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      if (data?.success) toast({ title: "✅ ส่งเข้า FlowAccount สำเร็จ" });
-      else toast({ title: "⚠️ ส่งไม่สำเร็จ", description: (data?.errors || []).join(" | ").slice(0, 200), variant: "destructive" });
+      setSelectedBillIds([]);
+      toast({
+        title: `✅ สร้างใบสรุปการจ่าย ${voucher.voucher_number}`,
+        description: `ใส่ ${"@" + voucher.voucher_number} ในช่องบันทึกช่วยจำของสลิป แล้วระบบจะตัดจ่ายทุกบิลในใบนี้ให้เอง`,
+      });
     },
-    onError: (err: any) => toast({ title: "เรียก function ไม่สำเร็จ", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "สร้างใบสรุปไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
+
 
   const attachToFA = useMutation({
     mutationFn: async (bill: any) => {
