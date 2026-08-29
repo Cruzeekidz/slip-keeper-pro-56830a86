@@ -2280,17 +2280,34 @@ async function buildEventQuickReply(supabase: any, owner: string) {
   return items;
 }
 
+// หมวดค่าใช้จ่ายชุดเดียวกับ ReadyGo — ปุ่มเท่านั้น ไม่รับพิมพ์เอง
+const LINE_SUBCATEGORY_CHOICES: Array<{label: string; value: string}> = [
+  { label: 'ทีมงาน/ค่าแรง', value: 'staff' },
+  { label: 'ฟรีแลนซ์', value: 'freelance' },
+  { label: 'ค่าพิธีกร MC', value: 'mc_fee' },
+  { label: 'เดินทาง/ขนส่ง', value: 'transport' },
+  { label: 'อาหาร/น้ำ', value: 'food' },
+  { label: 'งานพิมพ์', value: 'printing' },
+  { label: 'เช่าสถานที่', value: 'venue_rental' },
+  { label: 'อุปกรณ์', value: 'equipment' },
+  { label: 'ถ้วยรางวัล', value: 'trophy' },
+  { label: 'เหรียญรางวัล', value: 'medal' },
+  { label: 'Race Kit', value: 'race_kit' },
+  { label: 'ของแจก', value: 'giveaway' },
+  { label: 'โฆษณา', value: 'advertising' },
+];
+
 function getCategoryQuickReply(): Array<{label: string; data: string}> {
-  return [
-    { label: 'Transport เดินทาง', data: '[CAT]Transport' },
-    { label: 'Food อาหาร/น้ำ', data: '[CAT]Food' },
-    { label: 'Printing พิมพ์/ป้าย', data: '[CAT]Printing' },
-    { label: 'Venue สถานที่', data: '[CAT]Venue' },
-    { label: 'Equipment อุปกรณ์', data: '[CAT]Equipment' },
-    { label: 'Prizes รางวัล', data: '[CAT]Prizes' },
-    { label: 'Marketing', data: '[CAT]Marketing' },
-    { label: 'Other อื่นๆ', data: '[CAT]Other' },
-  ];
+  return LINE_SUBCATEGORY_CHOICES.slice(0, 13).map((c) => ({
+    label: c.label.slice(0, 20),
+    data: `[CAT]${c.value}`,
+  }));
+}
+
+function normalizeLineSubcategory(value: string): string | null {
+  const v = (value || '').trim();
+  const hit = LINE_SUBCATEGORY_CHOICES.find((c) => c.value === v || c.label === v);
+  return hit ? hit.value : null;
 }
 
 async function startExpenseConversation(
@@ -2300,8 +2317,8 @@ async function startExpenseConversation(
   const draft: Record<string, any> = {
     amount: parsed.amount,
     description: parsed.description || rawText,
-    subcategory: parsed.subcategory_hint || null,
-    event_name: parsed.event_hint || null,
+    subcategory: normalizeLineSubcategory(cleanText(parsed.subcategory_hint) || ''),
+    event_name: cleanText(parsed.event_hint),
     project_tag: null,
     raw_text: rawText,
   };
@@ -2342,8 +2359,14 @@ async function handleExpenseConvReply(
   }
 
   if (state.state === 'awaiting_category') {
-    let cat = text;
-    if (text.startsWith('[CAT]')) cat = text.slice(5);
+    const raw = text.startsWith('[CAT]') ? text.slice(5) : text;
+    const cat = normalizeLineSubcategory(raw);
+    if (!cat) {
+      // Select-only: หมวดต้องมาจากปุ่มเท่านั้น
+      await replyWithQuickReply(lineToken, replyToken,
+        '📂 กรุณาเลือกหมวดค่าใช้จ่ายจากปุ่มด้านล่าง (ไม่ต้องพิมพ์เอง)', getCategoryQuickReply());
+      return true;
+    }
     draft.subcategory = cat;
     await finalizeExpense(supabase, lineToken, replyToken, lineUserId, state.owner, draft);
     return true;
@@ -2366,9 +2389,9 @@ async function finalizeExpense(
       expense_date: new Date().toISOString().split('T')[0],
       amount: draft.amount,
       description: draft.description,
-      category: draft.subcategory || 'อื่นๆ',
-      event_name: draft.event_name,
-      project_tag: draft.project_tag,
+      category: cleanText(draft.subcategory) || 'other_expense',
+      event_name: cleanText(draft.event_name),
+      project_tag: cleanText(draft.project_tag),
       status: 'submitted',
       notes: `[LINE] ${draft.raw_text}`,
     } as any);
