@@ -85,7 +85,7 @@ export default function RaceKitReport() {
     <div className="min-h-screen bg-background">
       <div className="max-w-[1600px] mx-auto p-4 space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/admin-tools")}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/admin")}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">

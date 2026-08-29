@@ -40,6 +40,8 @@ const AdminTools = () => {
       items: [
         { label: "รายงานธุรกรรม", icon: BarChart3, onClick: () => navigate("/transaction-report") },
         { label: "รายงานภาษีหัก ณ ที่จ่าย", icon: FileText, onClick: () => navigate("/wht-report") },
+        { label: "รายงานตามหน่วยธุรกิจ (ไม่ใช่เม้งซิน)", icon: BarChart3, onClick: () => navigate("/entity-report") },
+        { label: "กระทบยอด Race Kit vs ผู้สมัคร", icon: BarChart3, onClick: () => navigate("/race-kit-report") },
         { label: "ใบเบิกเงินทดรองจ่าย", icon: Wallet, onClick: () => navigate("/cash-advance") },
         { label: "บันทึกค่าใช้จ่ายเงินสด", icon: Banknote, onClick: () => navigate("/cash-expense") },
         { label: "คลังสลิป", icon: FolderOpen, onClick: () => navigate("/receipt-archive") },

@@ -48,6 +48,8 @@ const CashAdvance        = lazy(() => import("./pages/CashAdvance"));
 const ReanalyzeFailed    = lazy(() => import("./pages/ReanalyzeFailed"));
 const CashExpense        = lazy(() => import("./pages/CashExpense"));
 const AdminTools         = lazy(() => import("./pages/AdminTools"));
+const EntityReport       = lazy(() => import("./pages/EntityReport"));
+const RaceKitReport      = lazy(() => import("./pages/RaceKitReport"));
 const EventAnalysisPage  = lazy(() => import("./pages/EventAnalysisPage"));
 const ReimbursementSummary = lazy(() => import("./pages/ReimbursementSummary"));
 const FixSwappedDates    = lazy(() => import("./pages/FixSwappedDates"));
@@ -121,6 +123,8 @@ const App = () => (
               <Route path="/reconcile-amounts" element={<ReconcileAmounts />} />
               <Route path="/cash-expense" element={<CashExpense />} />
               <Route path="/admin" element={<AdminTools />} />
+              <Route path="/entity-report" element={<EntityReport />} />
+              <Route path="/race-kit-report" element={<RaceKitReport />} />
               <Route path="/event-analysis" element={<EventAnalysisPage />} />
               <Route path="/reimbursement-summary" element={<ReimbursementSummary />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
