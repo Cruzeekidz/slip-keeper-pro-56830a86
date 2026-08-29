@@ -939,7 +939,7 @@ serve(async (req) => {
           }
         }
 
-        // ===== A. Check pending billing (highest priority — billing/receipt flow) =====
+        // ===== A. Vendor bill intake — ส่งรูปได้ทันที ไม่ต้องลงทะเบียนก่อน =====
         const { data: pendingBilling } = await supabase
           .from('line_pending_billings')
           .select('id, kind, amount, description')
@@ -949,11 +949,11 @@ serve(async (req) => {
           .limit(1)
           .maybeSingle();
 
-        if (pendingBilling) {
-          // Find owner (admin user_id) — first try mapping (linked staff/admin),
-          // then fallback to vendor_profiles / staff_profiles by line_user_id
+        // คนนอก (ไม่ใช่แอดมิน) ส่งรูปเข้ามา = ส่งบิล เสมอ
+        if (pendingBilling || userRole !== 'admin') {
           let ownerUserId: string | null = null;
           let submitterDisplayName: string | null = roleData?.display_name || null;
+          let linkedVendorId: string | null = null;
 
           const { data: mapping } = await supabase
             .from('line_user_mappings')
@@ -964,42 +964,42 @@ serve(async (req) => {
           if (mapping?.supabase_user_id) {
             ownerUserId = mapping.supabase_user_id;
             submitterDisplayName = mapping.display_name || submitterDisplayName;
-          } else {
-            const { data: vendor } = await supabase
-              .from('vendor_profiles')
-              .select('user_id, company_name, contact_name')
-              .eq('line_user_id', userId)
-              .maybeSingle();
-            if (vendor) {
-              ownerUserId = vendor.user_id;
-              submitterDisplayName = vendor.company_name || vendor.contact_name || submitterDisplayName;
-            } else {
-              const { data: staff } = await supabase
-                .from('staff_profiles')
-                .select('user_id, staff_name')
-                .eq('line_user_id', userId)
-                .maybeSingle();
-              if (staff) {
-                ownerUserId = staff.user_id;
-                submitterDisplayName = staff.staff_name || submitterDisplayName;
-              }
-            }
           }
 
+          const { data: vendor } = await supabase
+            .from('vendor_profiles')
+            .select('id, user_id, company_name, contact_name')
+            .eq('line_user_id', userId)
+            .maybeSingle();
+          if (vendor) {
+            linkedVendorId = vendor.id;
+            ownerUserId = ownerUserId || vendor.user_id;
+            submitterDisplayName = vendor.company_name || vendor.contact_name || submitterDisplayName;
+          }
           if (!ownerUserId) {
-            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
-              `❌ ยังไม่ได้ลงทะเบียนเป็นทีมงาน/คู่ค้า\nกรุณากดเมนู "ลงทะเบียน" จาก Rich Menu ก่อน`);
+            const { data: staff } = await supabase
+              .from('staff_profiles')
+              .select('user_id, staff_name')
+              .eq('line_user_id', userId)
+              .maybeSingle();
+            if (staff) {
+              ownerUserId = staff.user_id;
+              submitterDisplayName = staff.staff_name || submitterDisplayName;
+            }
+          }
+          // ไม่รู้จักคนส่ง — ยังรับบิลเข้ากองรอตรวจของเจ้าของระบบ (ห้ามบังคับลงทะเบียน)
+          if (!ownerUserId) ownerUserId = await getDefaultOwner(supabase);
+          if (!ownerUserId) {
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId, '❌ ระบบยังไม่พร้อมรับบิล กรุณาติดต่อแอดมิน');
             continue;
           }
 
-          // Download image from LINE
+          // Download from LINE
           const contentResponse = await fetch(
             `https://api-data.line.me/v2/bot/message/${messageId}/content`,
             { headers: { Authorization: `Bearer ${LINE_CHANNEL_ACCESS_TOKEN}` } }
           );
-          if (!contentResponse.ok) {
-            throw new Error(`Failed to download content: ${contentResponse.status}`);
-          }
+          if (!contentResponse.ok) throw new Error(`Failed to download content: ${contentResponse.status}`);
           const billingBytes = new Uint8Array(await contentResponse.arrayBuffer());
           const billingExt = isPDF ? 'pdf' : 'jpg';
           const billingContentType = isPDF ? 'application/pdf' : 'image/jpeg';
@@ -1017,22 +1017,69 @@ serve(async (req) => {
             continue;
           }
 
-          // Create vendor_invoice (pending status, no event yet — admin will fill)
-          const { error: invErr } = await supabase.from('vendor_invoices').insert({
+          // OCR ข้อเท็จจริงจากบิล (ยอด · เลขที่บิล · วันที่ · ชื่อร้าน · เลขผู้เสียภาษี)
+          // ห้ามเดา project_tag / อีเวนท์ — เจ้าของใส่เองตอนอนุมัติ
+          let billFacts: Record<string, unknown> | null = null;
+          try {
+            const LK = Deno.env.get("LOVABLE_API_KEY");
+            if (LK) {
+              const { data: signedBill } = await supabase.storage
+                .from('receipts').createSignedUrl(billingPath, 300);
+              if (signedBill?.signedUrl) billFacts = await ocrVendorBill(signedBill.signedUrl, LK, isPDF);
+            }
+          } catch (ocrErr) {
+            console.error('Bill OCR error:', ocrErr);
+          }
+
+          const billAmount = Number(billFacts?.amount) || pendingBilling?.amount || 0;
+          const billTaxId = typeof billFacts?.tax_id === 'string' ? billFacts.tax_id.replace(/\D/g, '') : '';
+          const billVendorName = cleanText(billFacts?.vendor_name);
+          const billDateRaw = typeof billFacts?.date_raw === 'string' ? billFacts.date_raw : null;
+          const billDate = parseSlipDateRaw(billDateRaw) || now.toISOString().split('T')[0];
+
+          // ยังไม่ผูกคู่ค้า — ลองจับด้วยเลขผู้เสียภาษีจากบิล (ตรงเป๊ะเท่านั้น)
+          if (!linkedVendorId && billTaxId.length === 13) {
+            const { data: byTax } = await supabase
+              .from('vendor_profiles')
+              .select('id, company_name')
+              .eq('user_id', ownerUserId)
+              .eq('tax_id', billTaxId)
+              .maybeSingle();
+            if (byTax) {
+              linkedVendorId = byTax.id;
+              await supabase.from('vendor_profiles').update({ line_user_id: userId } as any).eq('id', byTax.id);
+              submitterDisplayName = byTax.company_name || submitterDisplayName;
+            }
+          }
+
+          // ออกเลขรับบิลทันที (sequence — ไม่ซ้ำ ไม่ย้อนกลับ)
+          let receiptNo: string | null = null;
+          const { data: rn } = await supabase.rpc('next_vendor_receipt_no');
+          if (typeof rn === 'string') receiptNo = rn;
+
+          const { data: insertedBill, error: invErr } = await supabase.from('vendor_invoices').insert({
             user_id: ownerUserId,
-            document_type: pendingBilling.kind === 'billing' ? 'invoice' : 'receipt',
-            amount: pendingBilling.amount || 0,
-            net_amount: pendingBilling.amount || 0,
-            description: pendingBilling.description || null,
+            vendor_id: linkedVendorId,
+            receipt_no: receiptNo,
+            document_type: pendingBilling?.kind === 'receipt' ? 'receipt' : 'invoice',
+            invoice_number: cleanText(billFacts?.invoice_number),
+            amount: billAmount,
+            vat_amount: Number(billFacts?.vat_amount) || 0,
+            wht_amount: 0,
+            wht_rate: 0,
+            net_amount: billAmount,
+            description: cleanText(billFacts?.description) || pendingBilling?.description || null,
             file_url: billingPath,
-            invoice_date: now.toISOString().split('T')[0],
+            invoice_date: billDate,
             status: 'pending',
-            notes: `[LINE] จาก ${submitterDisplayName || userId}`,
+            notes: `[LINE] จาก ${submitterDisplayName || billVendorName || userId}`,
+            tax_id: billTaxId.length === 13 ? billTaxId : null,
+            source: 'line',
             submitted_via_line_user_id: userId,
-            submitted_via_line_display_name: submitterDisplayName,
+            submitted_via_line_display_name: submitterDisplayName || billVendorName,
             link_type: 'vendor',
-            is_formal: pendingBilling.kind === 'billing',
-          } as any);
+            is_formal: !!billFacts?.is_formal,
+          } as any).select('id').single();
 
           if (invErr) {
             console.error("Vendor invoice insert error:", invErr);
@@ -1041,33 +1088,32 @@ serve(async (req) => {
             continue;
           }
 
-          // Clean up pending
-          await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
+          if (pendingBilling) await supabase.from('line_pending_billings').delete().eq('id', pendingBilling.id);
 
-          // Notify admin via LINE
           await notifyAdminEvent(ownerUserId, {
             event_type: 'vendor_bill_new',
             actor_kind: 'vendor',
-            actor_name: submitterDisplayName || 'คู่ค้า',
-            amount: pendingBilling.amount || 0,
-            description: pendingBilling.description || undefined,
+            actor_name: submitterDisplayName || billVendorName || 'คู่ค้า',
+            amount: billAmount,
+            description: `${receiptNo || ''} ${cleanText(billFacts?.description) || ''}`.trim() || undefined,
           });
 
-          const kindLabel = pendingBilling.kind === 'billing' ? 'ใบวางบิล' : 'ใบเสร็จ';
-          const amtText = pendingBilling.amount
-            ? `\n💰 ${pendingBilling.amount.toLocaleString()} บาท`
-            : '';
+          const amtText = billAmount ? `฿${billAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : 'ยังอ่านยอดไม่ได้';
+          const shopText = billVendorName ? ` · ร้าน ${billVendorName}` : '';
           await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
-            `✅ ส่ง${kindLabel}สำเร็จ!${amtText}\n📝 ${pendingBilling.description || '-'}\n\n⏳ รอแอดมินตรวจสอบและเลือกอีเวนท์`);
+            `✅ รับบิลแล้ว เลขที่ ${receiptNo || '-'} · ${amtText}${shopText} · รอตรวจสอบครับ 🙏`);
+
+          // ยังไม่รู้ว่าใครส่ง — ถามชื่อร้านครั้งเดียว แล้วผูกไลน์ไว้เลย
+          if (!linkedVendorId) {
+            await setConvState(supabase, userId, ownerUserId, 'awaiting_vendor_shop_name', {
+              invoice_id: insertedBill?.id || null,
+            });
+            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
+              `ขอทราบชื่อร้าน / ชื่อบริษัทของคุณครั้งเดียวนะคะ (พิมพ์ตอบกลับได้เลย) ครั้งต่อไปส่งบิลได้ทันทีไม่ต้องตอบอีก`);
+          }
           continue;
         }
 
-        // ===== B. Default flow: slip analysis (admin only) =====
-        if (userRole !== 'admin') {
-          await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
-            `📷 รับรูปแล้ว แต่ไม่มีข้อความ "วางบิล" หรือ "ใบเสร็จ" นำหน้า\n\n💡 พิมพ์ "help" เพื่อดูวิธีส่งใบวางบิล/ใบเสร็จ`);
-          continue;
-        }
 
         // No "received slip" acknowledgement — only the final OCR summary is pushed back.
 
