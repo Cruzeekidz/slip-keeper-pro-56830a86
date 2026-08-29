@@ -1507,9 +1507,21 @@ serve(async (req) => {
 
         const insertedExpenseId = insertData?.[0]?.id || null;
 
-        // 7a. Auto-Match Payment: check if this slip matches a pending staff/vendor invoice
+        // 7a. ตัดจ่ายบิลคู่ค้าด้วยรหัสในช่องบันทึกช่วยจำ (@B0042 / @P0007) — ตรงเป๊ะเท่านั้น
         let autoMatchMsg = '';
-        if (effectiveOwner && extractedData?.amount) {
+        if (effectiveOwner) {
+          autoMatchMsg = await settleByPaymentCode(
+            supabase,
+            effectiveOwner,
+            [memo, extractedData?.memo_text as string | undefined, extractedData?.description as string | undefined],
+            storagePath,
+            insertedExpenseId,
+            LINE_CHANNEL_ACCESS_TOKEN,
+          );
+        }
+
+        // 7b. Auto-Match Payment (ทีมงาน): ยังใช้ยอด/ชื่อได้ตามเดิม
+        if (!autoMatchMsg && effectiveOwner && extractedData?.amount) {
           autoMatchMsg = await autoMatchPayment(
             supabase,
             effectiveOwner,
@@ -1520,6 +1532,7 @@ serve(async (req) => {
             userId
           );
         }
+
 
         // 8. Reply to user with rich Flex Message
         const amount = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : 'ไม่ทราบจำนวน';
