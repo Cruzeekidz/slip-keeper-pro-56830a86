@@ -103,16 +103,15 @@ export function parseWorkDates(text: string, today = new Date()): DateHit | null
     const d2 = t[2] ? Number(t[2]) : d1;
     const monthToken = t[3];
     const m = monthFromThai(monthToken);
-    const y = normalizeYear(t[t.length - 1] as string | undefined, ty);
+    const yearToken = t[t.length - 1] as string | undefined;
+    const y = normalizeYear(yearToken, ty);
     if (m) {
       const year = y ?? (m > tm + 1 ? ty - 1 : ty);
+      // ถ้าเลขท้ายไม่ใช่ปีที่เป็นไปได้ (เช่น 3500 = ยอดเงิน) ต้องไม่กินเข้ามาในช่วงวันที่
+      let raw = t[0].trim();
+      if (yearToken && y === null) raw = raw.slice(0, raw.lastIndexOf(yearToken)).trim();
       if (isValidDay(year, m, d1) && isValidDay(year, m, d2) && d2 >= d1) {
-        return {
-          start: iso(year, m, d1),
-          end: iso(year, m, d2),
-          days: d2 - d1 + 1,
-          raw: t[0].trim(),
-        };
+        return { start: iso(year, m, d1), end: iso(year, m, d2), days: d2 - d1 + 1, raw };
       }
     }
   }
@@ -160,7 +159,7 @@ function buildDescription(text: string, dateRaw: string | null, amount: number |
     s = s.replace(new RegExp(`\\b${amount}(?:\\.0+)?\\b`), " ");
     s = s.replace(new RegExp(amount.toLocaleString("en-US").replace(/,/g, "\\,")), " ");
   }
-  return s.replace(/\s{2,}/g, " ").replace(/[บาท฿]\s*$/, "").trim();
+  return s.replace(/\s*(?:บาท|฿|baht)\s*/gi, " ").replace(/\s{2,}/g, " ").trim();
 }
 
 export function parseStaffMessage(text: string, today = new Date()): StaffMessageDraft {
