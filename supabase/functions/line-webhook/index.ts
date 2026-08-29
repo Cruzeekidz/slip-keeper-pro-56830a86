@@ -1970,6 +1970,7 @@ async function settleByPaymentCode(
     let voucherId: string | null = null;
     let label = '';
     let bills: any[] = [];
+    let staffInvoices: any[] = [];
 
     if (parsed.status === 'voucher') {
       const { data: voucher } = await supabase
@@ -1987,6 +1988,12 @@ async function settleByPaymentCode(
         .eq('user_id', ownerUserId)
         .eq('voucher_id', voucherId);
       bills = data || [];
+      const { data: sInv } = await supabase
+        .from('staff_invoices')
+        .select('id, receipt_no, invoice_number, gross_amount, wht_amount, net_amount, staff_id, submitted_via_line_user_id, staff_profiles(staff_name, line_user_id)')
+        .eq('user_id', ownerUserId)
+        .eq('voucher_id', voucherId);
+      staffInvoices = sInv || [];
     } else {
       const { data } = await supabase
         .from('vendor_invoices')
@@ -1998,18 +2005,30 @@ async function settleByPaymentCode(
       label = `@${parsed.billNo}`;
     }
 
-    if (!bills.length) return `\n\n⚠️ ${label} ยังไม่มีบิลผูกอยู่ (ไม่ตัดจ่าย)`;
+    if (!bills.length && !staffInvoices.length) return `\n\n⚠️ ${label} ยังไม่มีรายการผูกอยู่ (ไม่ตัดจ่าย)`;
 
     const nowIso = new Date().toISOString();
-    await supabase.from('vendor_invoices').update({
-      status: 'paid',
-      paid_at: nowIso,
-      payment_slip_url: slipUrl,
-      matched_expense_id: expenseId,
-    } as any).in('id', bills.map((b: any) => b.id));
+    if (bills.length) {
+      await supabase.from('vendor_invoices').update({
+        status: 'paid',
+        paid_at: nowIso,
+        payment_slip_url: slipUrl,
+        matched_expense_id: expenseId,
+      } as any).in('id', bills.map((b: any) => b.id));
+    }
+    if (staffInvoices.length) {
+      await supabase.from('staff_invoices').update({
+        status: 'paid',
+        paid_at: nowIso,
+        payment_slip_url: slipUrl,
+        matched_expense_id: expenseId,
+      } as any).in('id', staffInvoices.map((i: any) => i.id));
+    }
 
-    const totalNet = bills.reduce((s: number, b: any) => s + (Number(b.net_amount) || 0), 0);
-    const totalWht = bills.reduce((s: number, b: any) => s + (Number(b.wht_amount) || 0), 0);
+    const totalNet = bills.reduce((s: number, b: any) => s + (Number(b.net_amount) || 0), 0)
+      + staffInvoices.reduce((s: number, i: any) => s + (Number(i.net_amount) || 0), 0);
+    const totalWht = bills.reduce((s: number, b: any) => s + (Number(b.wht_amount) || 0), 0)
+      + staffInvoices.reduce((s: number, i: any) => s + (Number(i.wht_amount) || 0), 0);
 
     if (voucherId) {
       await supabase.from('payment_vouchers').update({
@@ -2024,6 +2043,10 @@ async function settleByPaymentCode(
     const targets = new Set<string>();
     for (const b of bills) {
       const lid = (b as any).vendor_profiles?.line_user_id || (b as any).submitted_via_line_user_id;
+      if (lid) targets.add(lid);
+    }
+    for (const i of staffInvoices) {
+      const lid = (i as any).staff_profiles?.line_user_id || (i as any).submitted_via_line_user_id;
       if (lid) targets.add(lid);
     }
     if (targets.size && lineToken) {
