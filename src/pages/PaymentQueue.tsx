@@ -896,6 +896,31 @@ const PaymentQueue = () => {
               </p>
               <Badge variant="secondary">{filteredVendorBills.length} รายการ</Badge>
             </div>
+            {selectedBillIds.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <p className="text-xs">
+                  เลือกไว้ {selectedBillIds.length} ใบ · สุทธิ{" "}
+                  <span className="font-bold">
+                    {filteredVendorBills
+                      .filter((b: any) => selectedBillIds.includes(b.id))
+                      .reduce((s: number, b: any) => s + (Number(b.net_amount || b.amount) || 0), 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedBillIds([])}>ล้าง</Button>
+                  <Button
+                    size="sm"
+                    disabled={createVoucherMutation.isPending}
+                    onClick={() => createVoucherMutation.mutate(
+                      filteredVendorBills.filter((b: any) => selectedBillIds.includes(b.id))
+                    )}
+                  >
+                    <Receipt className="h-4 w-4 mr-1" />รวมเป็นใบสรุปการจ่าย (P)
+                  </Button>
+                </div>
+              </div>
+            )}
             {filteredVendorBills.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
             ) : (
