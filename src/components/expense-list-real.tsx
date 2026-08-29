@@ -200,7 +200,8 @@ function matchesEntity(e: Expense, entity: EntityFilter): boolean {
   return true;
 }
 
-export function ExpenseListReal({ editId }: { editId?: string | null }) {
+export function ExpenseListReal({ editId, initialFilter }: { editId?: string | null; initialFilter?: string | null }) {
+  const [noTagOnly, setNoTagOnly] = useState(initialFilter === 'notag');
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
@@ -479,6 +480,10 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
     }
     if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
     if (filterTag !== "all") filtered = filtered.filter(e => e.project_tag === filterTag);
+    if (noTagOnly) {
+      const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      filtered = filtered.filter(e => e.transaction_type === 'BUSINESS' && !e.project_tag && new Date(e.expense_date) >= cutoff);
+    }
     if (dateFrom) filtered = filtered.filter(e => new Date(e.expense_date) >= dateFrom);
     if (dateTo) filtered = filtered.filter(e => new Date(e.expense_date) <= dateTo);
 
@@ -489,7 +494,7 @@ export function ExpenseListReal({ editId }: { editId?: string | null }) {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
 
     });
-  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceivers, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy]);
+  }, [expenses, entityFilter, cashCreditTab, searchTerm, filterType, filterGroup, filterReview, filterSender, filterReceivers, filterMonth, filterEvent, filterTag, dateFrom, dateTo, sortBy, noTagOnly]);
 
   // Auto-open edit dialog when editId is provided
   useEffect(() => {

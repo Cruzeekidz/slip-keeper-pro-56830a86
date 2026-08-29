@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Users } from "lucide-react";
 import { StatsReal } from "@/components/stats-real";
+import { PendingTasksBar } from "@/components/pending-tasks-bar";
 import { StorageStats } from "@/components/storage-stats";
 import { BulkDeleteReceipts } from "@/components/bulk-delete-receipts";
 import { CategoryChart } from "@/components/category-chart";
@@ -51,6 +52,7 @@ const Dashboard = () => {
       </header>
 
       <main className="max-w-[1600px] mx-auto p-6 space-y-8">
+        <PendingTasksBar />
         <StatsReal />
         <div>
           <Button variant="outline" onClick={() => navigate("/reimbursement-summary")}>

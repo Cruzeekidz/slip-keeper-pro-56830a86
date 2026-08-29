@@ -1109,6 +1109,30 @@ export type Database = {
           },
         ]
       }
+      recurring_payees: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          receiver_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          receiver_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          receiver_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       staff_expense_claims: {
         Row: {
           amount: number
@@ -1925,6 +1949,26 @@ export type Database = {
       }
     }
     Functions: {
+      delete_expenses_with_reason: {
+        Args: { p_ids: string[]; p_reason: string }
+        Returns: number
+      }
+      find_duplicate_groups: {
+        Args: {
+          p_days?: number
+          p_hide_recurring?: boolean
+          p_limit?: number
+          p_mode?: string
+          p_offset?: number
+        }
+        Returns: {
+          group_key: string
+          items: Json
+          reason: string
+          total_groups: number
+        }[]
+      }
+      get_pending_counts: { Args: never; Returns: Json }
       get_staff_public_info: {
         Args: { p_staff_id: string }
         Returns: {

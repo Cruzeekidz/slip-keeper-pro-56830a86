@@ -83,10 +83,12 @@ export default function DeletedHistory() {
 
   const restoreExpense = async (deletedExpense: DeletedExpense) => {
     try {
-      // Insert back into expenses table
+      // Insert back into expenses table (keep every classification field)
+      const d = deletedExpense as any;
       const { error: insertError } = await supabase
         .from('expenses')
         .insert({
+          id: deletedExpense.original_expense_id,
           amount: deletedExpense.amount,
           category: deletedExpense.category,
           subcategory: deletedExpense.subcategory,
@@ -99,6 +101,18 @@ export default function DeletedHistory() {
           receiver: deletedExpense.receiver,
           transaction_id: deletedExpense.transaction_id,
           receipt_url: deletedExpense.receipt_url,
+          transaction_type: d.transaction_type,
+          category_group: d.category_group,
+          project_tag: d.project_tag,
+          transaction_direction: d.transaction_direction ?? 'OUT',
+          payee_group: d.payee_group,
+          staff_name: d.staff_name,
+          days_worked: d.days_worked,
+          event_name: d.event_name,
+          memo_text: d.memo_text,
+          is_cash: d.is_cash ?? false,
+          confidence_score: d.confidence_score,
+          needs_review: d.needs_review ?? false,
           user_id: user?.id,
         });
 
