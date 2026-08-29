@@ -91,11 +91,26 @@ serve(async (req) => {
         is_active: ev.event_status === "active",
       };
 
-      const existing = byReadygoId.get(ev.id) || byTag.get(payload.project_tag);
+      // Match by readygo_event_id FIRST — that is the stable identity.
+      // Only fall back to tag matching for legacy rows never linked to ReadyGo.
+      const matchedById = byReadygoId.get(ev.id);
+      const existing = matchedById || byTag.get(payload.project_tag);
+
       if (existing) {
+        const updatePayload: Record<string, unknown> = { ...payload };
+        // short_code changed in ReadyGo → move the old tag into aliases, never create a new row
+        if (matchedById && matchedById.project_tag && matchedById.project_tag !== payload.project_tag) {
+          const oldTag = String(matchedById.project_tag).trim();
+          const currentAliases: string[] = Array.isArray(matchedById.aliases) ? matchedById.aliases : [];
+          const placeholders = ["null", "none", "undefined", "unknown", "n/a", "-", ""];
+          if (oldTag && !placeholders.includes(oldTag.toLowerCase()) && !currentAliases.includes(oldTag)) {
+            updatePayload.aliases = [...currentAliases, oldTag];
+          }
+          warnings.push(`เปลี่ยนรหัสงาน: ${oldTag} → ${payload.project_tag} (เก็บรหัสเก่าไว้ใน aliases)`);
+        }
         const { error } = await admin
           .from("event_registry")
-          .update(payload)
+          .update(updatePayload)
           .eq("id", existing.id);
         if (error) warnings.push(`อัปเดตไม่สำเร็จ ${payload.project_tag}: ${error.message}`);
         else updated++;
@@ -106,6 +121,7 @@ serve(async (req) => {
         if (error) warnings.push(`เพิ่มไม่สำเร็จ ${payload.project_tag}: ${error.message}`);
         else inserted++;
       }
+
     }
 
     // ---- 2. festival_events → event_groups -------------------------------

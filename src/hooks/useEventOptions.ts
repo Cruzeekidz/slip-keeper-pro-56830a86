@@ -15,9 +15,10 @@ export function useEventOptions() {
     (async () => {
       const { data } = await supabase
         .from("event_registry")
-        .select("event_name, project_tag, event_date, is_active")
+        .select("event_name, project_tag, event_date, is_active, entity")
         .order("event_date", { ascending: false, nullsFirst: false })
         .limit(2000);
+
       if (cancelled) return;
       setOptions([...buildEventOptions((data as any[]) || []), ...FIXED_TAG_OPTIONS]);
       setLoading(false);

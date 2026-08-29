@@ -15,12 +15,17 @@ import {
   TransactionType, CategoryGroup, TransactionDirection,
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
+  subcategoryLabel, QUANTITY_SUBCATEGORIES,
 } from "@/lib/category-constants";
 import { buildReceiptPath } from "@/lib/storage-path";
 import { autoRegisterEventTag } from "@/lib/event-registry";
 import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
 import { EventTagPicker } from "@/components/event-tag-picker";
-import { isUnknownTag } from "@/lib/event-tags";
+import { isUnknownTag, resolveEntityForTag } from "@/lib/event-tags";
+import { useEventOptions } from "@/hooks/useEventOptions";
+import { ENTITIES, Entity, DEFAULT_ENTITY } from "@/lib/entity";
+import { cleanText } from "@/lib/sanitize";
+
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -57,7 +62,12 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   const [subcategory, setSubcategory] = useState("");
   const [transactionDirection, setTransactionDirection] = useState<TransactionDirection>("EXPENSE");
   const [payeeGroup, setPayeeGroup] = useState("");
+  const [entity, setEntity] = useState<Entity>(DEFAULT_ENTITY);
+  const [entityTouched, setEntityTouched] = useState(false);
+  const [itemQuantity, setItemQuantity] = useState("");
+  const { options: eventOptions } = useEventOptions();
   const { toast } = useToast();
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,10 +86,19 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   useEffect(() => {
     if (extractedData) {
       if (extractedData.transaction_type) setTransactionType(extractedData.transaction_type as TransactionType);
-      if (extractedData.category_group) setCategoryGroup(extractedData.category_group as CategoryGroup);
-      if (extractedData.subcategory) setSubcategory(extractedData.subcategory);
+      if (extractedData.category_group) setCategoryGroup(cleanText(extractedData.category_group) as CategoryGroup);
+      if (extractedData.subcategory) setSubcategory(cleanText(extractedData.subcategory) || "");
     }
   }, [extractedData]);
+
+  // entity มาจากทะเบียนงาน (event_registry) หรือประเภทรายการ — ไม่ใช่ AI เดา
+  useEffect(() => {
+    if (entityTouched) return;
+    if (transactionType === 'PERSONAL') { setEntity('PERSONAL'); return; }
+    const resolved = resolveEntityForTag(projectTag, eventOptions);
+    setEntity((resolved as Entity) || DEFAULT_ENTITY);
+  }, [projectTag, transactionType, eventOptions, entityTouched]);
+
 
   const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, transactionDirection);
   const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
@@ -191,25 +210,28 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
       const { error } = await supabase.from('expenses').insert({
         amount: parseFloat(amount),
         category: transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType,
-        subcategory: subcategory || null,
-        project: formData.get("project") as string || null,
-        description: description || null,
+        subcategory: cleanText(subcategory),
+        project: cleanText(formData.get("project")),
+        description: cleanText(description),
         expense_date: date,
-        ocr_date_raw: extractedData?.date_raw || null,
+        ocr_date_raw: cleanText(extractedData?.date_raw),
         receipt_url: receiptUrl,
-        transaction_id: extractedData?.transaction_id || null,
-        merchant: extractedData?.merchant || null,
-        sender: extractedData?.sender || null,
-        receiver: extractedData?.receiver || null,
+        transaction_id: cleanText(extractedData?.transaction_id),
+        merchant: cleanText(extractedData?.merchant),
+        sender: cleanText(extractedData?.sender),
+        receiver: cleanText(extractedData?.receiver),
         user_id: (await supabase.auth.getUser()).data.user?.id,
         transaction_type: transactionType,
-        category_group: categoryGroup || null,
-        project_tag: projectTag || null,
+        category_group: cleanText(categoryGroup),
+        project_tag: cleanText(projectTag),
+        entity: entity,
+        item_quantity: itemQuantity ? parseInt(itemQuantity, 10) : null,
         confidence_score: extractedData?.confidence_score || null,
-        needs_review: isLowConfidence,
+        needs_review: isLowConfidence || !cleanText(projectTag) && categoryGroup === 'EVENT',
         transaction_direction: transactionDirection,
-        payee_group: payeeGroup || null,
+        payee_group: cleanText(payeeGroup),
       });
+
 
       if (error) { toast({ title: "ไม่สามารถบันทึกข้อมูลได้", variant: "destructive" }); return; }
 
@@ -382,6 +404,21 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
               )}
 
 
+              <div className="space-y-2">
+                <Label>หน่วยธุรกิจ (Entity) <span className="text-destructive">*</span></Label>
+                <Select value={entity} onValueChange={(v) => { setEntity(v as Entity); setEntityTouched(true); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ENTITIES.map(e => (
+                      <SelectItem key={e.value} value={e.value}>
+                        {e.label}{e.isCompany ? '' : ' (ไม่ใช่เงินบริษัท)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">ตั้งอัตโนมัติจากทะเบียนงานที่เลือก แก้ได้ถ้าจำเป็น</p>
+              </div>
+
               {defaultSubcats.length > 0 && (
                 <div className="space-y-2">
                   <Label>ประเภทย่อย</Label>
@@ -391,9 +428,21 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                     onValueChange={setSubcategory}
                     placeholder="เลือกหรือพิมพ์ประเภทย่อย"
                   />
+
+                </div>
+              )}
+
+              {QUANTITY_SUBCATEGORIES.includes(subcategory) && (
+                <div className="space-y-2">
+                  <Label>จำนวนชิ้น ({subcategoryLabel(subcategory)})</Label>
+                  <Input type="number" min="0" value={itemQuantity}
+                    onChange={(e) => setItemQuantity(e.target.value)}
+                    placeholder="เช่น 250" />
+                  <p className="text-xs text-muted-foreground">ใช้กระทบยอดกับจำนวนผู้สมัครใน ReadyGo</p>
                 </div>
               )}
             </div>
+
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
