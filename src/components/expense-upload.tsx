@@ -427,7 +427,7 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
                     value={subcategory}
                     onValueChange={setSubcategory}
                     placeholder="เลือกหรือพิมพ์ประเภทย่อย"
-                    renderLabel={subcategoryLabel}
+                    />
                   />
                 </div>
               )}
