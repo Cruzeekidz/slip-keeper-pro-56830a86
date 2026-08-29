@@ -52,6 +52,7 @@ const AdminTools = () => {
       title: "🔍 ตรวจสอบ & แก้ไขข้อมูล",
       color: "text-emerald-400",
       items: [
+        { label: "⭐ รายการรอตรวจ (Review Queue)", icon: ClipboardCheck, onClick: () => navigate("/review-queue") },
         { label: "ประวัติการลบ", icon: History, onClick: () => navigate("/deleted-history") },
         { label: "ตรวจสอบรายการซ้ำ", icon: AlertTriangle, onClick: () => navigate("/duplicate-checker") },
         { label: "แก้วันที่อัตโนมัติ (DD/YY สลับ)", icon: CalendarClock, onClick: () => navigate("/fix-swapped-dates") },
