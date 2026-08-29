@@ -69,6 +69,7 @@ const AdminTools = () => {
         { label: "จัดการข้อมูลหลัก", icon: Settings, onClick: () => navigate("/master-data") },
         { label: "จัดการกลุ่มผู้รับเงิน", icon: Settings, onClick: () => navigate("/payee-groups") },
         { label: "จัดการอีเวนท์", icon: Settings, onClick: () => navigate("/event-management") },
+        { label: "รหัสงานที่ใช้ได้ตอนนี้ (@CODE)", icon: Tags, onClick: () => navigate("/event-codes") },
         { label: "บัญชีธนาคาร", icon: Database, onClick: () => navigate("/bank-accounts") },
         { label: "Forward สลิป", icon: Send, onClick: () => navigate("/forward-management") },
         { label: "แปลงข้อมูล (Migration)", icon: Database, onClick: () => navigate("/data-migration") },
