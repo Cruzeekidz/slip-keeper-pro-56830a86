@@ -86,10 +86,19 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   useEffect(() => {
     if (extractedData) {
       if (extractedData.transaction_type) setTransactionType(extractedData.transaction_type as TransactionType);
-      if (extractedData.category_group) setCategoryGroup(extractedData.category_group as CategoryGroup);
-      if (extractedData.subcategory) setSubcategory(extractedData.subcategory);
+      if (extractedData.category_group) setCategoryGroup(cleanText(extractedData.category_group) as CategoryGroup);
+      if (extractedData.subcategory) setSubcategory(cleanText(extractedData.subcategory) || "");
     }
   }, [extractedData]);
+
+  // entity มาจากทะเบียนงาน (event_registry) หรือประเภทรายการ — ไม่ใช่ AI เดา
+  useEffect(() => {
+    if (entityTouched) return;
+    if (transactionType === 'PERSONAL') { setEntity('PERSONAL'); return; }
+    const resolved = resolveEntityForTag(projectTag, eventOptions);
+    setEntity((resolved as Entity) || DEFAULT_ENTITY);
+  }, [projectTag, transactionType, eventOptions, entityTouched]);
+
 
   const defaultSubcats = getSubcategoriesForType(transactionType || null, categoryGroup || null, transactionDirection);
   const allSubcategories = [...new Set([...defaultSubcats, ...existingSubcategories])];
