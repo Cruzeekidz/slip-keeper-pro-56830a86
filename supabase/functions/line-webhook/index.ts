@@ -6,6 +6,7 @@ import { parseSlipDateRaw } from "../_shared/slip-date.ts";
 import { cleanText, sanitizeExpense } from "../_shared/sanitize.ts";
 import { extractEventCodes, resolveEventCode, eventCodePromptSection } from "../_shared/memo-event-code.ts";
 import { resolvePaymentCode } from "../_shared/payment-code.ts";
+import { parseStaffMessage, looksLikeStaffBilling } from "../_shared/staff-billing.ts";
 
 /** entity มาจากทะเบียนงาน (event_registry) เท่านั้น — ห้าม AI เดา */
 async function resolveEntity(
@@ -590,6 +591,10 @@ serve(async (req) => {
               `✅ บันทึกชื่อ "${shopName}" แล้วค่ะ ครั้งต่อไปส่งรูปบิลเข้ามาได้เลย ไม่ต้องพิมพ์อะไรอีก 🙏`);
             continue;
           }
+          if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_staff_')) {
+            const handledStaff = await handleStaffBillingConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
+            if (handledStaff) continue;
+          }
           if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_register_')) {
             const handled = await handleRegistrationConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
             if (handled) continue;
@@ -728,6 +733,21 @@ serve(async (req) => {
           await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
             `📥 รับ${kindLabel}แล้ว${amtText}${descText}\n\n📸 กรุณาแนบรูป${kindLabel}ตามมาภายใน 10 นาที\n(ไม่ต้องระบุชื่ออีเวนท์ — แอดมินจะใส่ตอนอนุมัติ)`);
           continue;
+        }
+
+        // --- แจ้งค่าจ้าง / สำรองจ่าย ด้วยการพิมพ์ (ทีมงาน & ฟรีแลนซ์) ---
+        if (userRole !== 'admin') {
+          const staffProfile = await resolveLineUserProfile(supabase, userId);
+          if (staffProfile && staffProfile.kind === 'staff' && looksLikeStaffBilling(text)) {
+            const started = await startStaffBillingFlow(
+              supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, staffProfile, text);
+            if (started) continue;
+          }
+          // ยังไม่ผูกบัญชี → ส่งลิงก์ผูกบัญชีให้ก่อน
+          if (!staffProfile) {
+            await replyFlexToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, getLinkAccountFlex(text));
+            continue;
+          }
         }
 
         // --- Conversational expense entry (linked staff/vendor types expense text) ---
@@ -3059,7 +3079,7 @@ async function sweepStaffDraftReminders(supabase: any, token: string) {
       .gt('expires_at', new Date().toISOString())
       .limit(10);
     for (const d of drafts || []) {
-      await pushToUser(token, d.line_user_id,
+      await pushTextToUser(token, d.line_user_id,
         `⏰ ยังมีรายการที่รอยืนยันค่ะ\n📝 ${d.description || '-'}${d.amount ? `\n💰 ฿${money(Number(d.amount))}` : ''}\n\nพิมพ์ "ถูกต้อง" เพื่อบันทึก หรือ "แก้ไข" เพื่อแก้ (ถ้าไม่ยืนยันภายใน 24 ชม. ระบบจะไม่บันทึกให้ค่ะ)`);
       await supabase.from('line_pending_billings').update({ reminded_at: new Date().toISOString() } as any).eq('id', d.id);
     }
