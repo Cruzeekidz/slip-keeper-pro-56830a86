@@ -209,54 +209,6 @@ const PaymentQueue = () => {
   });
 
 
-  const attachToFA = useMutation({
-    mutationFn: async (bill: any) => {
-      const items: any[] = [];
-      const targets: Array<{ type: string; id: string | null }> = [
-        { type: "expense-note", id: bill.flowaccount_expense_id },
-        { type: "purchase-tax-invoice", id: bill.flowaccount_bill_id },
-      ];
-      const anyDoc = targets.find(t => t.id);
-      if (!anyDoc) throw new Error("ยังไม่มีเอกสารใน FlowAccount — กด 'ส่งเข้า FA' ก่อน");
-
-      // Attach bill file to every doc that exists
-      if (bill.file_url) {
-        for (const t of targets) if (t.id) items.push({
-          invoice_id: bill.id, document_type: t.type, document_id: String(t.id),
-          bucket: "documents", path: bill.file_url, label: "บิล/ใบวางบิล",
-        });
-      }
-      // Fetch matched expense slip
-      const { data: linked } = await supabase
-        .from("vendor_invoices").select("matched_expense_id").eq("id", bill.id).maybeSingle();
-      if (linked?.matched_expense_id) {
-        const { data: exp } = await supabase
-          .from("expenses").select("receipt_url").eq("id", linked.matched_expense_id).maybeSingle();
-        if (exp?.receipt_url) {
-          for (const t of targets) if (t.id) items.push({
-            invoice_id: bill.id, document_type: t.type, document_id: String(t.id),
-            bucket: "receipts", path: exp.receipt_url, label: "สลิปโอนเงิน",
-          });
-        }
-      }
-      if (!items.length) throw new Error("ไม่พบไฟล์ที่จะแนบ");
-      const { data, error } = await supabase.functions.invoke("flowaccount-attach-file", { body: { items } });
-      if (error) throw new Error(error.message);
-      return data;
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
-      const failed = (data?.results || []).filter((r: any) => !r.ok);
-      if (data?.success) toast({ title: `✅ แนบไฟล์เข้า FA สำเร็จ (${data.results?.length || 0} ไฟล์)` });
-      else toast({
-        title: `⚠️ แนบบางไฟล์ไม่สำเร็จ (${failed.length}/${data?.results?.length || 0})`,
-        description: failed[0]?.error?.slice(0, 200),
-        variant: "destructive",
-      });
-    },
-    onError: (err: any) => toast({ title: "แนบไฟล์ไม่สำเร็จ", description: err.message, variant: "destructive" }),
-  });
-
   const openVendorBillFile = async (path: string | null) => {
     if (!path) return;
     // Open blank window synchronously to preserve user gesture (avoid popup blocker)
@@ -1135,19 +1087,6 @@ const PaymentQueue = () => {
                             </div>
                           )}
 
-                          {(b.flowaccount_expense_id || b.flowaccount_bill_id || b.flowaccount_wht_id) && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full mt-2"
-                              disabled={attachToFA.isPending}
-                              onClick={() => attachToFA.mutate(b)}
-                              title="แนบบิล + สลิปโอน เข้าเอกสาร FA ทุกใบที่มี"
-                            >
-                              <Upload className="h-3 w-3 mr-1" />
-                              {attachToFA.isPending ? "กำลังแนบ..." : "แนบไฟล์เข้า FA"}
-                            </Button>
-                          )}
                         </div>
 
                         {/* Action buttons */}
