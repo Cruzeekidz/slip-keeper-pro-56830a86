@@ -571,6 +571,25 @@ serve(async (req) => {
           continue;
         }
         if (convState && !/^(help|วิธีใช้|menu|เมนู|คู่มือ)$/i.test(text)) {
+          if (convState.state === 'awaiting_vendor_shop_name') {
+            const shopName = text.slice(0, 120);
+            const { data: newVendor } = await supabase.from('vendor_profiles').insert({
+              user_id: convState.owner,
+              vendor_type: 'company',
+              company_name: shopName,
+              line_user_id: userId,
+              is_active: true,
+            } as any).select('id').single();
+            if (newVendor?.id && convState.draft_data?.invoice_id) {
+              await supabase.from('vendor_invoices')
+                .update({ vendor_id: newVendor.id, submitted_via_line_display_name: shopName } as any)
+                .eq('id', convState.draft_data.invoice_id);
+            }
+            await clearConvState(supabase, userId);
+            await replyToUser(LINE_CHANNEL_ACCESS_TOKEN, event.replyToken,
+              `✅ บันทึกชื่อ "${shopName}" แล้วค่ะ ครั้งต่อไปส่งรูปบิลเข้ามาได้เลย ไม่ต้องพิมพ์อะไรอีก 🙏`);
+            continue;
+          }
           if (typeof convState.state === 'string' && convState.state.startsWith('awaiting_register_')) {
             const handled = await handleRegistrationConvReply(supabase, LINE_CHANNEL_ACCESS_TOKEN, event.replyToken, userId, convState, text);
             if (handled) continue;
