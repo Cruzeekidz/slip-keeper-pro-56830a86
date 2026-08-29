@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, Download, LogOut, Upload, Settings, Menu, LayoutDashboard, DollarSign, CreditCard, Building2, ClipboardCheck, Calendar, Wrench, TrendingUp, BarChart3 } from "lucide-react";
 import { ExpenseUpload } from "@/components/expense-upload";
 import { MonthlyQuickStats } from "@/components/monthly-quick-stats";
+import { PendingTasksBar } from "@/components/pending-tasks-bar";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +26,7 @@ const Index = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
+  const listFilter = searchParams.get('filter');
   const { toast } = useToast();
 
   const exportToCSV = async () => {
@@ -234,9 +236,10 @@ const Index = () => {
       </header>
 
       <main className="max-w-[1600px] mx-auto p-6 space-y-6">
+        <PendingTasksBar />
         <MonthlyQuickStats />
         <Suspense fallback={<div className="min-h-[60vh] flex items-center justify-center text-sm text-muted-foreground">กำลังโหลดรายการ…</div>}>
-          <ExpenseListReal editId={editId} />
+          <ExpenseListReal editId={editId} initialFilter={listFilter} />
         </Suspense>
       </main>
     </div>
