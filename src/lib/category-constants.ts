@@ -32,35 +32,58 @@ export const TRANSFER_SUBCATEGORIES = [
   'ผ่อนชำระ',
 ];
 
-export const EVENT_EXPENSE_SUBCATEGORIES = [
-  'Staff', 'Printing', 'Venue', 'Prizes', 'Transport', 'Marketing', 'Refund', 'Other',
-];
+// ===== Subcategory vocabulary (ตรงกับ ReadyGo) =====
+// ใช้กับรายจ่ายฝั่งธุรกิจทุกกลุ่ม (EVENT / PROGRAM / VENUE / GENERAL)
+export const READYGO_EXPENSE_SUBCATEGORIES = [
+  'trophy', 'medal', 'giveaway', 'race_kit', 'freelance', 'staff', 'mc_fee',
+  'transport', 'food', 'printing', 'venue_rental', 'advertising', 'insurance',
+  'equipment', 'other_expense',
+] as const;
+
+export type ExpenseSubcategory = typeof READYGO_EXPENSE_SUBCATEGORIES[number];
+
+export const SUBCATEGORY_LABELS: Record<string, string> = {
+  trophy: 'ถ้วยรางวัล',
+  medal: 'เหรียญรางวัล',
+  giveaway: 'ของแจก/ของที่ระลึก',
+  race_kit: 'Race Kit (ป้ายเบอร์/เสื้อ)',
+  freelance: 'ฟรีแลนซ์/จ้างภายนอก',
+  staff: 'ทีมงาน/ค่าแรง',
+  mc_fee: 'ค่าพิธีกร (MC)',
+  transport: 'ขนส่ง/เดินทาง',
+  food: 'อาหารและเครื่องดื่ม',
+  printing: 'งานพิมพ์',
+  venue_rental: 'ค่าเช่าสถานที่',
+  advertising: 'โฆษณา/การตลาด',
+  insurance: 'ประกันภัย',
+  equipment: 'อุปกรณ์',
+  other_expense: 'อื่น ๆ',
+};
+
+export function subcategoryLabel(value?: string | null): string {
+  if (!value) return '-';
+  return SUBCATEGORY_LABELS[value] || value;
+}
+
+/** หมวดย่อยที่ต้องระบุจำนวนชิ้น เพื่อกระทบยอดกับจำนวนผู้สมัคร ReadyGo */
+export const QUANTITY_SUBCATEGORIES = ['race_kit', 'medal', 'trophy', 'giveaway'];
+
+export const EVENT_EXPENSE_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
 
 export const EVENT_INCOME_SUBCATEGORIES = [
   'Registration', 'Sponsorship', 'Product Sales', 'Other Income',
 ];
 
-export const PROGRAM_SUBCATEGORIES = [
-  'Staff', 'Equipment', 'Venue', 'Other',
-];
+export const PROGRAM_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
 
-export const VENUE_SUBCATEGORIES = [
-  'Stock (น้ำ/ไอติม)', 'Maintenance', 'Utilities', 'Other',
-];
+export const VENUE_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
 
-export const GENERAL_SUBCATEGORIES = [
-  'Salary', 'Marketing & Ads', 'Accounting', 'Consulting', 'Vehicle',
-  'Software & Subscription', 'Legal', 'Logistics', 'Investment', 'Utilities', 'Other',
-];
+export const GENERAL_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
 
-export const ENTITY_SUBCATEGORIES = [
-  'ค่าจ้างครู', 'ค่าเช่าสถานที่', 'ค่าอุปกรณ์', 'ค่ายิงแอด',
-  'Staff', 'Venue', 'Equipment', 'Marketing', 'Utilities', 'Other',
-];
+export const ENTITY_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
 
-export const BCC_NEXT_SUBCATEGORIES = [
-  'Staff', 'Venue', 'Equipment', 'Marketing', 'Printing', 'Prizes', 'Transport', 'Utilities', 'Other',
-];
+export const BCC_NEXT_SUBCATEGORIES = [...READYGO_EXPENSE_SUBCATEGORIES];
+
 
 export const DEFAULT_BCC_NEXT_TAGS = [
   'BCCNEXT-PecaBridge', 'BCCNEXT-EngineerX25-T1', 'BCCNEXT-EngineerX25-T2', 'BCCNEXT-PlayBox2026',

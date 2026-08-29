@@ -15,12 +15,17 @@ import {
   TransactionType, CategoryGroup, TransactionDirection,
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
   getSubcategoriesForType, getDefaultProjectTags, showProjectTag as shouldShowProjectTag,
+  subcategoryLabel, QUANTITY_SUBCATEGORIES,
 } from "@/lib/category-constants";
 import { buildReceiptPath } from "@/lib/storage-path";
 import { autoRegisterEventTag } from "@/lib/event-registry";
 import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
 import { EventTagPicker } from "@/components/event-tag-picker";
-import { isUnknownTag } from "@/lib/event-tags";
+import { isUnknownTag, resolveEntityForTag } from "@/lib/event-tags";
+import { useEventOptions } from "@/hooks/useEventOptions";
+import { ENTITIES, Entity, DEFAULT_ENTITY } from "@/lib/entity";
+import { cleanText } from "@/lib/sanitize";
+
 
 interface ExpenseUploadProps {
   onClose: () => void;
@@ -57,7 +62,12 @@ export function ExpenseUpload({ onClose }: ExpenseUploadProps) {
   const [subcategory, setSubcategory] = useState("");
   const [transactionDirection, setTransactionDirection] = useState<TransactionDirection>("EXPENSE");
   const [payeeGroup, setPayeeGroup] = useState("");
+  const [entity, setEntity] = useState<Entity>(DEFAULT_ENTITY);
+  const [entityTouched, setEntityTouched] = useState(false);
+  const [itemQuantity, setItemQuantity] = useState("");
+  const { options: eventOptions } = useEventOptions();
   const { toast } = useToast();
+
 
   useEffect(() => {
     const fetchData = async () => {

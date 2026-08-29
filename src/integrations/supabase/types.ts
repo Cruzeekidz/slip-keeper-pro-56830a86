@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.17"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -493,6 +493,7 @@ export type Database = {
         Row: {
           aliases: string[]
           created_at: string
+          entity: string
           event_date: string | null
           event_name: string
           id: string
@@ -504,6 +505,7 @@ export type Database = {
         Insert: {
           aliases?: string[]
           created_at?: string
+          entity?: string
           event_date?: string | null
           event_name: string
           id?: string
@@ -515,6 +517,7 @@ export type Database = {
         Update: {
           aliases?: string[]
           created_at?: string
+          entity?: string
           event_date?: string | null
           event_name?: string
           id?: string
@@ -608,12 +611,14 @@ export type Database = {
           date_flag_reason: string | null
           days_worked: number | null
           description: string | null
+          entity: string | null
           event_name: string | null
           event_name_backup: string | null
           expense_date: string
           expense_time: string | null
           id: string
           is_cash: boolean
+          item_quantity: number | null
           memo_text: string | null
           merchant: string | null
           needs_review: boolean | null
@@ -635,6 +640,7 @@ export type Database = {
           settled_batch_id: string | null
           staff_name: string | null
           subcategory: string | null
+          subcategory_backup: string | null
           transaction_direction: string
           transaction_id: string | null
           transaction_type: string | null
@@ -656,12 +662,14 @@ export type Database = {
           date_flag_reason?: string | null
           days_worked?: number | null
           description?: string | null
+          entity?: string | null
           event_name?: string | null
           event_name_backup?: string | null
           expense_date: string
           expense_time?: string | null
           id?: string
           is_cash?: boolean
+          item_quantity?: number | null
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
@@ -683,6 +691,7 @@ export type Database = {
           settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
+          subcategory_backup?: string | null
           transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null
@@ -704,12 +713,14 @@ export type Database = {
           date_flag_reason?: string | null
           days_worked?: number | null
           description?: string | null
+          entity?: string | null
           event_name?: string | null
           event_name_backup?: string | null
           expense_date?: string
           expense_time?: string | null
           id?: string
           is_cash?: boolean
+          item_quantity?: number | null
           memo_text?: string | null
           merchant?: string | null
           needs_review?: boolean | null
@@ -731,6 +742,7 @@ export type Database = {
           settled_batch_id?: string | null
           staff_name?: string | null
           subcategory?: string | null
+          subcategory_backup?: string | null
           transaction_direction?: string
           transaction_id?: string | null
           transaction_type?: string | null

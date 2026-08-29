@@ -12,15 +12,18 @@ export interface EventTagOption {
   tag: string;
   name: string;
   date: string | null;
+  /** หน่วยธุรกิจที่มาจากทะเบียน (ไม่ใช่ AI เดา) */
+  entity?: string | null;
   fixed?: boolean;
   inWindow?: boolean;
 }
 
 export const FIXED_TAG_OPTIONS: EventTagOption[] = [
-  { tag: FIXED_TAGS.PERSONAL, name: "ส่วนตัว", date: null, fixed: true, inWindow: true },
-  { tag: FIXED_TAGS.OFFICE, name: "ออฟฟิศทั่วไป", date: null, fixed: true, inWindow: true },
-  { tag: FIXED_TAGS.UNKNOWN, name: "ยังไม่รู้", date: null, fixed: true, inWindow: true },
+  { tag: FIXED_TAGS.PERSONAL, name: "ส่วนตัว", date: null, entity: "PERSONAL", fixed: true, inWindow: true },
+  { tag: FIXED_TAGS.OFFICE, name: "ออฟฟิศทั่วไป", date: null, entity: "MENGXIN", fixed: true, inWindow: true },
+  { tag: FIXED_TAGS.UNKNOWN, name: "ยังไม่รู้", date: null, entity: null, fixed: true, inWindow: true },
 ];
+
 
 /** "ยังไม่รู้" always sends the slip to the review queue. */
 export function isUnknownTag(tag?: string | null): boolean {
@@ -47,7 +50,7 @@ export function eventOptionLabel(o: EventTagOption): string {
 
 /** Registry rows → options: active + within −60/+90 days first, nearest date first. */
 export function buildEventOptions(
-  rows: Array<{ event_name: string; project_tag: string; event_date: string | null; is_active: boolean }>,
+  rows: Array<{ event_name: string; project_tag: string; event_date: string | null; is_active: boolean; entity?: string | null }>,
   now: Date = new Date(),
 ): EventTagOption[] {
   const today = now.getTime();
@@ -65,6 +68,7 @@ export function buildEventOptions(
         tag: r.project_tag,
         name: r.event_name || r.project_tag,
         date: r.event_date,
+        entity: r.entity ?? null,
         inWindow,
         _abs: Math.abs(diff),
       };
@@ -73,3 +77,21 @@ export function buildEventOptions(
   mapped.sort((a, b) => a._abs - b._abs);
   return mapped.map(({ _abs, ...o }) => o);
 }
+
+/** entity ของแท็กที่เลือก: ใช้ค่าจากทะเบียนก่อน ถ้าไม่มีจึงอนุมานจาก prefix ที่ระบบกำหนด */
+export function resolveEntityForTag(
+  tag: string | null | undefined,
+  options: EventTagOption[],
+): string | null {
+  if (!tag) return null;
+  const hit = options.find((o) => o.tag === tag);
+  if (hit?.entity) return hit.entity;
+  const t = tag.trim().toUpperCase();
+  if (t.startsWith("BCCNEXT-")) return "EDUCATION";
+  if (t.startsWith("KUKAN-")) return "KUKANANG";
+  if (t.startsWith("PROG-")) return "ACADEMY";
+  if (t === "PERSONAL") return "PERSONAL";
+  if (t === "OFFICE" || t.startsWith("EVT-")) return "MENGXIN";
+  return null;
+}
+
