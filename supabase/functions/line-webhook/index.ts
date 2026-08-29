@@ -1899,45 +1899,184 @@ async function autoMatchPayment(
       }
     }
 
-    // --- Vendor Invoice matching ---
-    if (!matchMsg && receiver) {
-      const { data: pendingVendor } = await supabase
-        .from('vendor_invoices')
-        .select('id, net_amount, vendor_profiles(company_name)')
-        .eq('user_id', ownerUserId)
-        .in('status', ['pending', 'approved'])
-        .is('payment_slip_url', null);
-
-      if (pendingVendor && pendingVendor.length > 0) {
-        const matches = pendingVendor.filter((inv: any) => {
-          const invNet = Number(inv.net_amount);
-          if (Math.abs(invNet - slipAmount) > tolerance) return false;
-
-          const companyName = (inv.vendor_profiles?.company_name || '').toLowerCase();
-          return companyName && (companyName.includes(receiver) || receiver.includes(companyName));
-        });
-
-        if (matches.length === 1) {
-          const matched = matches[0];
-          await supabase.from('vendor_invoices').update({
-            status: 'paid',
-            paid_at: new Date().toISOString(),
-            payment_slip_url: slipUrl,
-            matched_expense_id: expenseId,
-          } as any).eq('id', matched.id);
-
-          const matchedName = (matched as any).vendor_profiles?.company_name || 'คู่ค้า';
-          matchMsg = `\n\n✅ จับคู่การจ่ายเงินอัตโนมัติ: ${matchedName} — ${slipAmount.toLocaleString()} บาท`;
-          console.log(`Auto-matched vendor invoice ${matched.id} with expense ${expenseId}`);
-        }
-      }
-    }
+    // --- บิลคู่ค้า: ไม่จับคู่ด้วยยอดเงินหรือชื่อ ---
+    // ตัดจ่ายด้วยรหัส @B0042 / @P0007 ในช่องบันทึกช่วยจำเท่านั้น (settleByPaymentCode)
   } catch (err) {
     console.error('Auto-match error:', err);
   }
 
   return matchMsg;
 }
+
+// ============================================================
+// ตัดจ่ายบิลคู่ค้า/ใบสรุปการจ่าย ด้วยรหัสในช่องบันทึกช่วยจำ
+//   @B0042 = บิลใบเดียว · @P0007 = ทุกบิลในใบสรุปการจ่าย
+//   ตรงทั้งคำเท่านั้น · ไม่ตรง/เจอหลายรหัส → ไม่ตัด ให้คนเลือก
+// ============================================================
+async function settleByPaymentCode(
+  supabase: ReturnType<typeof createClient>,
+  ownerUserId: string,
+  texts: Array<string | null | undefined>,
+  slipUrl: string,
+  expenseId: string | null,
+  lineToken: string,
+): Promise<string> {
+  const parsed = resolvePaymentCode(...texts);
+  if (parsed.status === 'none') return '';
+  if (parsed.status === 'ambiguous') return `\n\n⚠️ ${parsed.reason}`;
+
+  try {
+    let voucherId: string | null = null;
+    let label = '';
+    let bills: any[] = [];
+
+    if (parsed.status === 'voucher') {
+      const { data: voucher } = await supabase
+        .from('payment_vouchers')
+        .select('id, voucher_number')
+        .eq('user_id', ownerUserId)
+        .eq('voucher_number', parsed.voucherNo)
+        .maybeSingle();
+      if (!voucher) return `\n\n⚠️ ไม่พบใบสรุปการจ่าย @${parsed.voucherNo} ในระบบ (ไม่ตัดจ่าย)`;
+      voucherId = (voucher as any).id;
+      label = `@${parsed.voucherNo}`;
+      const { data } = await supabase
+        .from('vendor_invoices')
+        .select('id, receipt_no, amount, wht_amount, net_amount, vendor_id, submitted_via_line_user_id, vendor_profiles(company_name, line_user_id)')
+        .eq('user_id', ownerUserId)
+        .eq('voucher_id', voucherId);
+      bills = data || [];
+    } else {
+      const { data } = await supabase
+        .from('vendor_invoices')
+        .select('id, receipt_no, amount, wht_amount, net_amount, vendor_id, submitted_via_line_user_id, vendor_profiles(company_name, line_user_id)')
+        .eq('user_id', ownerUserId)
+        .eq('receipt_no', parsed.billNo);
+      bills = data || [];
+      if (!bills.length) return `\n\n⚠️ ไม่พบบิลเลขที่ @${parsed.billNo} ในระบบ (ไม่ตัดจ่าย)`;
+      label = `@${parsed.billNo}`;
+    }
+
+    if (!bills.length) return `\n\n⚠️ ${label} ยังไม่มีบิลผูกอยู่ (ไม่ตัดจ่าย)`;
+
+    const nowIso = new Date().toISOString();
+    await supabase.from('vendor_invoices').update({
+      status: 'paid',
+      paid_at: nowIso,
+      payment_slip_url: slipUrl,
+      matched_expense_id: expenseId,
+    } as any).in('id', bills.map((b: any) => b.id));
+
+    const totalNet = bills.reduce((s: number, b: any) => s + (Number(b.net_amount) || 0), 0);
+    const totalWht = bills.reduce((s: number, b: any) => s + (Number(b.wht_amount) || 0), 0);
+
+    if (voucherId) {
+      await supabase.from('payment_vouchers').update({
+        status: 'paid',
+        paid_date: nowIso.split('T')[0],
+        payment_slip_url: slipUrl,
+        matched_expense_id: expenseId,
+      } as any).eq('id', voucherId);
+    }
+
+    // ส่งสลิปกลับให้คู่ค้าทางไลน์
+    const targets = new Set<string>();
+    for (const b of bills) {
+      const lid = (b as any).vendor_profiles?.line_user_id || (b as any).submitted_via_line_user_id;
+      if (lid) targets.add(lid);
+    }
+    if (targets.size && lineToken) {
+      let slipImageUrl: string | null = null;
+      try {
+        const { data: signed } = await supabase.storage.from('receipts').createSignedUrl(slipUrl, 86400);
+        slipImageUrl = signed?.signedUrl || null;
+      } catch (_e) { /* ignore */ }
+      const whtLine = totalWht > 0
+        ? `\nหัก ณ ที่จ่าย ${totalWht.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท (หนังสือรับรองจะส่งตามให้ค่ะ)`
+        : '';
+      for (const lid of targets) {
+        const messages: Array<Record<string, unknown>> = [];
+        if (slipImageUrl && !slipUrl.toLowerCase().endsWith('.pdf')) {
+          messages.push({ type: 'image', originalContentUrl: slipImageUrl, previewImageUrl: slipImageUrl });
+        }
+        messages.push({
+          type: 'text',
+          text: `โอนเงินเรียบร้อยค่ะ 💰 ${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท\nอ้างอิง ${label}${whtLine}\nขอบคุณมากค่ะ 🙏`,
+        });
+        try { await pushMessage(lineToken, lid, messages as any); } catch (_e) { /* ignore */ }
+      }
+    }
+
+    return `\n\n✅ ตัดจ่ายด้วยรหัส ${label} · ${bills.length} ใบ · สุทธิ ${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท`;
+  } catch (err) {
+    console.error('settleByPaymentCode error:', err);
+    return '';
+  }
+}
+
+// ============================================================
+// OCR บิลคู่ค้า — อ่านเฉพาะข้อเท็จจริงบนเอกสาร ห้ามเดา project/event
+// ============================================================
+async function ocrVendorBill(fileUrl: string, apiKey: string, isPDF = false): Promise<Record<string, unknown> | null> {
+  if (isPDF) return null;
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        {
+          role: "system",
+          content: [
+            "อ่านเอกสารวางบิล/ใบเสร็จ/ใบกำกับภาษีของไทย และคืนเฉพาะข้อเท็จจริงที่เห็นบนเอกสาร",
+            "ห้ามเดาโครงการ อีเวนท์ หมวดหมู่ หรือข้อมูลที่ไม่ปรากฏ — ไม่เห็นให้เป็น null",
+            "วันที่: สลิป/บิลไทยเรียงวัน-เดือน-ปี ให้คืนข้อความดิบใน date_raw ตามที่พิมพ์บนเอกสาร ห้ามจัดรูปแบบใหม่",
+            "amount = ยอดรวมสุทธิที่ต้องชำระตามเอกสาร (ก่อนหัก ณ ที่จ่าย)",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "อ่านบิลนี้" },
+            { type: "image_url", image_url: { url: fileUrl } },
+          ],
+        },
+      ],
+      tools: [{
+        type: "function",
+        function: {
+          name: "save_bill",
+          description: "บันทึกข้อเท็จจริงจากบิล",
+          parameters: {
+            type: "object",
+            properties: {
+              amount: { type: ["number", "null"] },
+              vat_amount: { type: ["number", "null"] },
+              invoice_number: { type: ["string", "null"] },
+              date_raw: { type: ["string", "null"] },
+              vendor_name: { type: ["string", "null"] },
+              tax_id: { type: ["string", "null"] },
+              description: { type: ["string", "null"] },
+              is_formal: { type: ["boolean", "null"], description: "เป็นใบกำกับภาษี/ใบเสร็จที่ถูกต้องตามกฎหมายหรือไม่" },
+            },
+            required: ["amount"],
+            additionalProperties: false,
+          },
+        },
+      }],
+      tool_choice: { type: "function", function: { name: "save_bill" } },
+    }),
+  });
+  if (!res.ok) {
+    console.error('ocrVendorBill failed:', res.status, (await res.text()).slice(0, 300));
+    return null;
+  }
+  const json = await res.json();
+  const args = json?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+  if (!args) return null;
+  try { return JSON.parse(args); } catch { return null; }
+}
+
 
 // ============================================================
 // Helpers: profile resolution, conversation state, welcome flex,
