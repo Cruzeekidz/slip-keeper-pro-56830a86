@@ -1680,7 +1680,9 @@ serve(async (req) => {
     };
 
     // Kick off background processing; ACK LINE immediately.
-    const bgPromise = processEvents().catch((e) => console.error("bg process error", e));
+    const bgPromise = processEvents()
+      .then(() => sweepStaffDraftReminders(supabase, LINE_CHANNEL_ACCESS_TOKEN))
+      .catch((e) => console.error("bg process error", e));
     try {
       // @ts-ignore - EdgeRuntime is provided by the Supabase Edge runtime
       if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
@@ -2343,6 +2345,26 @@ async function handleRegistrationConvReply(
   }
 
   return false;
+}
+
+function getLinkAccountFlex(rawText: string): Record<string, unknown> {
+  const LIFF_BASE = "https://liff.line.me/2008893199-xaJITz5y";
+  return {
+    type: "flex",
+    altText: "กรุณาผูกบัญชีก่อนแจ้งรายการ",
+    contents: {
+      type: "bubble",
+      body: { type: "box", layout: "vertical", spacing: "md", paddingAll: "lg", contents: [
+        { type: "text", text: "🔗 ผูกบัญชีก่อนนะคะ", weight: "bold", size: "md" },
+        { type: "text", text: "ยังไม่พบบัญชีของคุณในระบบค่ะ กดปุ่มด้านล่างเพื่อผูกบัญชี (ใช้เบอร์โทร/เลขผู้เสียภาษี) แล้วส่งรายการเข้ามาอีกครั้งได้เลยค่ะ", size: "sm", wrap: true, color: "#555555" },
+        { type: "text", text: `📝 ${rawText.slice(0, 120)}`, size: "xs", wrap: true, color: "#999999" },
+      ]},
+      footer: { type: "box", layout: "vertical", paddingAll: "lg", contents: [
+        { type: "button", style: "primary", color: "#1E40AF", height: "sm",
+          action: { type: "uri", label: "🔗 ผูกบัญชี", uri: `${LIFF_BASE}?view=quick-link` } },
+      ]},
+    },
+  };
 }
 
 function getWelcomeFlex(displayName: string | null): Record<string, unknown> {
