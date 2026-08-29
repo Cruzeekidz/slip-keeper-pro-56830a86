@@ -1,7 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { EventTagPicker } from "@/components/event-tag-picker";
-import { isUnknownTag } from "@/lib/event-tags";
+import { isUnknownTag, resolveEntityForTag } from "@/lib/event-tags";
+import { useEventOptions } from "@/hooks/useEventOptions";
+import { DEFAULT_ENTITY } from "@/lib/entity";
+import { cleanText } from "@/lib/sanitize";
+
 import { Label } from "@/components/ui/label";
 
 import { Card } from "@/components/ui/card";
