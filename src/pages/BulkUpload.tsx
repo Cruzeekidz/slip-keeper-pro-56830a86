@@ -328,18 +328,18 @@ export default function BulkUpload() {
 
           amount = d.amount || 0;
           expenseDate = d.date || expenseDate;
-          ocrDateRaw = d.date_raw || null;
+          ocrDateRaw = cleanText(d.date_raw);
           if (!d.date) needsDateReview = true;
-          description = d.description || 'รอกรอกข้อมูล';
-          merchant = d.merchant || null;
-          sender = d.sender || null;
-          receiver = d.receiver || null;
-          transactionId = d.transaction_id || null;
+          description = cleanText(d.description) || 'รอกรอกข้อมูล';
+          merchant = cleanText(d.merchant);
+          sender = cleanText(d.sender);
+          receiver = cleanText(d.receiver);
+          transactionId = cleanText(d.transaction_id);
           expenseTime = d.time || null;
           confidence = d.confidence_score ?? null;
-          transactionType = d.transaction_type || null;
-          categoryGroup = d.category_group || null;
-          projectTag = d.project_tag || null;
+          transactionType = cleanText(d.transaction_type);
+          categoryGroup = cleanText(d.category_group);
+          projectTag = cleanText(d.project_tag);
 
           // Re-build path with correct entity after AI analysis
           const correctPath = buildReceiptPath(transactionType, categoryGroup, user.id, baseFileName, expenseDate);
@@ -351,19 +351,25 @@ export default function BulkUpload() {
               fileName = correctPath;
             }
           }
-          subcategory = d.subcategory || null;
-          staffName = d.staff_name || null;
-          eventName = d.event_name || null;
-          memoText = d.memo_text || null;
+          subcategory = cleanText(d.subcategory);
+          staffName = cleanText(d.staff_name);
+          eventName = cleanText(d.event_name);
+          memoText = cleanText(d.memo_text);
       }
 
       // Batch-level event selection wins over anything OCR guessed
       if (batchTag) {
-        projectTag = batchTag;
-        eventName = isUnknownTag(batchTag) ? null : batchEventName;
+        projectTag = cleanText(batchTag);
+        eventName = isUnknownTag(batchTag) ? null : cleanText(batchEventName);
       }
 
-      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview || isUnknownTag(batchTag);
+      // entity มาจากทะเบียนงาน ไม่ใช่ AI เดา
+      const resolvedEntity =
+        transactionType === 'PERSONAL'
+          ? 'PERSONAL'
+          : (resolveEntityForTag(projectTag, eventOptions) || DEFAULT_ENTITY);
+
+      const isLowConfidence = (confidence != null && confidence < 75) || needsDateReview || isUnknownTag(batchTag) || !projectTag && categoryGroup === 'EVENT';
       const category = transactionType === 'BUSINESS' && categoryGroup ? `${transactionType}/${categoryGroup}` : transactionType || 'ไม่ระบุ';
 
       const { data, error: insertError } = await supabase.from('expenses').insert({
@@ -373,9 +379,11 @@ export default function BulkUpload() {
         receipt_url: fileName, transaction_id: transactionId,
         transaction_type: transactionType, category_group: categoryGroup,
         project_tag: projectTag, confidence_score: confidence,
+        entity: resolvedEntity,
         needs_review: isLowConfidence, staff_name: staffName,
         event_name: eventName, memo_text: memoText,
       }).select().single();
+
 
       if (insertError) throw insertError;
 
