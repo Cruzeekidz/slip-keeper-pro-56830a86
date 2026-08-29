@@ -921,6 +921,7 @@ export type Database = {
           id: string
           kind: string
           line_user_id: string
+          reminded_at: string | null
         }
         Insert: {
           amount?: number | null
@@ -930,6 +931,7 @@ export type Database = {
           id?: string
           kind: string
           line_user_id: string
+          reminded_at?: string | null
         }
         Update: {
           amount?: number | null
@@ -939,6 +941,7 @@ export type Database = {
           id?: string
           kind?: string
           line_user_id?: string
+          reminded_at?: string | null
         }
         Relationships: []
       }
@@ -1341,75 +1344,87 @@ export type Database = {
         Row: {
           bonus_amount: number
           created_at: string
-          daily_rate: number
-          days_worked: number
+          daily_rate: number | null
+          days_worked: number | null
           event_id: string | null
           event_name: string | null
-          gross_amount: number
+          gross_amount: number | null
           id: string
           invoice_number: string
           matched_expense_id: string | null
-          net_amount: number
+          net_amount: number | null
           notes: string | null
           paid_at: string | null
           payment_slip_url: string | null
+          receipt_no: string | null
           staff_id: string
           status: string
           submitted_at: string | null
           submitted_via: string | null
+          submitted_via_line_user_id: string | null
           user_id: string
+          voucher_id: string | null
           wht_amount: number
           wht_rate: number
+          work_days_note: string | null
           work_end_date: string | null
           work_start_date: string | null
         }
         Insert: {
           bonus_amount?: number
           created_at?: string
-          daily_rate?: number
-          days_worked?: number
+          daily_rate?: number | null
+          days_worked?: number | null
           event_id?: string | null
           event_name?: string | null
-          gross_amount?: number
+          gross_amount?: number | null
           id?: string
           invoice_number: string
           matched_expense_id?: string | null
-          net_amount?: number
+          net_amount?: number | null
           notes?: string | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          receipt_no?: string | null
           staff_id: string
           status?: string
           submitted_at?: string | null
           submitted_via?: string | null
+          submitted_via_line_user_id?: string | null
           user_id: string
+          voucher_id?: string | null
           wht_amount?: number
           wht_rate?: number
+          work_days_note?: string | null
           work_end_date?: string | null
           work_start_date?: string | null
         }
         Update: {
           bonus_amount?: number
           created_at?: string
-          daily_rate?: number
-          days_worked?: number
+          daily_rate?: number | null
+          days_worked?: number | null
           event_id?: string | null
           event_name?: string | null
-          gross_amount?: number
+          gross_amount?: number | null
           id?: string
           invoice_number?: string
           matched_expense_id?: string | null
-          net_amount?: number
+          net_amount?: number | null
           notes?: string | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          receipt_no?: string | null
           staff_id?: string
           status?: string
           submitted_at?: string | null
           submitted_via?: string | null
+          submitted_via_line_user_id?: string | null
           user_id?: string
+          voucher_id?: string | null
           wht_amount?: number
           wht_rate?: number
+          work_days_note?: string | null
           work_end_date?: string | null
           work_start_date?: string | null
         }
@@ -1426,6 +1441,13 @@ export type Database = {
             columns: ["staff_id"]
             isOneToOne: false
             referencedRelation: "staff_profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_invoices_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "payment_vouchers"
             referencedColumns: ["id"]
           },
         ]
@@ -2050,6 +2072,7 @@ export type Database = {
         Returns: Json
       }
       next_payment_voucher_no: { Args: never; Returns: string }
+      next_staff_receipt_no: { Args: never; Returns: string }
       next_vendor_receipt_no: { Args: never; Returns: string }
       portal_list_active_events: {
         Args: { p_owner: string; p_since: string }
