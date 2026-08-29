@@ -937,23 +937,42 @@ const PaymentQueue = () => {
                       <CardContent className="pt-4 space-y-3">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{vendorName}</p>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {b.invoice_number ? `${b.invoice_number} • ` : ""}{b.description || "—"}
-                            </p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <CalendarClock className="h-3 w-3" />
-                              ส่งเข้าเมื่อ {formatSubmittedAt(b.created_at)}
-                              {b.submitted_via_line_display_name && (
-                                <span className="ml-1">· โดย {b.submitted_via_line_display_name}</span>
+                          <div className="flex items-start gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 accent-primary shrink-0"
+                              checked={selectedBillIds.includes(b.id)}
+                              onChange={(e) => setSelectedBillIds((prev) =>
+                                e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id)
                               )}
-                            </p>
+                              aria-label="เลือกบิลนี้เพื่อรวมเป็นใบสรุปการจ่าย"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {b.receipt_no && <span className="font-mono text-primary mr-1">{b.receipt_no}</span>}
+                                {vendorName}
+                              </p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {b.invoice_number ? `${b.invoice_number} • ` : ""}{b.description || "—"}
+                              </p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <CalendarClock className="h-3 w-3" />
+                                ส่งเข้าเมื่อ {formatSubmittedAt(b.created_at)}
+                                {b.submitted_via_line_display_name && (
+                                  <span className="ml-1">· โดย {b.submitted_via_line_display_name}</span>
+                                )}
+                                {b.source === "line" && <span className="ml-1">· ผ่าน LINE</span>}
+                              </p>
+                            </div>
                           </div>
-                          <Badge variant={b.status === "approved" ? "default" : "secondary"}>
-                            {b.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant={b.status === "approved" ? "default" : "secondary"}>
+                              {b.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
+                            </Badge>
+                            {b.voucher_id && <Badge variant="outline" className="text-[10px]">อยู่ในใบสรุป P</Badge>}
+                          </div>
                         </div>
+
 
                         {/* Bank account block */}
                         {b.vendor_profiles?.bank_name && acct && (
