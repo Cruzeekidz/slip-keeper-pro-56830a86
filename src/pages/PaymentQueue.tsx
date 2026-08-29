@@ -1069,18 +1069,21 @@ const PaymentQueue = () => {
                               💡 มี WHT {Number(b.wht_amount).toLocaleString()} ฿ — ตอนบันทึกจ่ายใน FlowAccount ให้ติ๊ก "หัก ณ ที่จ่าย" ระบบ FA จะออกหนังสือ WHT ให้อัตโนมัติ
                             </p>
                           )}
-                          {(b.flowaccount_push_status === "failed" || (!b.flowaccount_push_status && b.status === "paid")) && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="w-full mt-2"
-                              disabled={retryFlowAccountPush.isPending}
-                              onClick={() => retryFlowAccountPush.mutate(b.id)}
-                            >
-                              <Send className="h-3 w-3 mr-1" />
-                              {retryFlowAccountPush.isPending ? "กำลังส่ง..." : (b.flowaccount_push_status === "failed" ? "ลองส่ง FA อีกครั้ง" : "ส่งเข้า FA ตอนนี้")}
-                            </Button>
+                          {b.receipt_no && (
+                            <div className="mt-2 rounded-md bg-primary/5 border border-primary/20 p-2">
+                              <p className="text-[10px] text-muted-foreground">รหัสตัดจ่าย — ใส่ในช่องบันทึกช่วยจำของสลิป</p>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono font-bold">@{b.receipt_no}</span>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                  navigator.clipboard.writeText(`@${b.receipt_no}`);
+                                  toast({ title: "คัดลอกรหัสตัดจ่าย", description: `@${b.receipt_no}` });
+                                }}>
+                                  <Copy className="h-3 w-3 mr-1" />คัดลอก
+                                </Button>
+                              </div>
+                            </div>
                           )}
+
                           {(b.flowaccount_expense_id || b.flowaccount_bill_id || b.flowaccount_wht_id) && (
                             <Button
                               variant="outline"
