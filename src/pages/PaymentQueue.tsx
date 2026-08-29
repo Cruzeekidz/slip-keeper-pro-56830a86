@@ -1053,6 +1053,10 @@ const PaymentQueue = () => {
                             </Button>
                           )}
                         </div>
+                        <Button variant="secondary" size="sm" className="w-full" onClick={() => setPaySheetBill(b)}>
+                          <Pencil className="h-4 w-4 mr-1" />ตรวจยอด / หัก ณ ที่จ่าย ก่อนจ่าย
+                        </Button>
+
 
                         {/* Send info to accounting */}
                         {acct && (
