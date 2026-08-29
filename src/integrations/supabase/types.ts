@@ -1069,33 +1069,57 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          matched_expense_id: string | null
+          notes: string | null
           paid_date: string | null
+          payment_slip_url: string | null
           pdf_url: string | null
           signed_url: string | null
-          staff_invoice_id: string
+          staff_invoice_id: string | null
+          status: string
+          total_amount: number
+          total_net: number
+          total_wht: number
           user_id: string
+          vendor_id: string | null
           voucher_number: string
           wht_cert_url: string | null
         }
         Insert: {
           created_at?: string
           id?: string
+          matched_expense_id?: string | null
+          notes?: string | null
           paid_date?: string | null
+          payment_slip_url?: string | null
           pdf_url?: string | null
           signed_url?: string | null
-          staff_invoice_id: string
+          staff_invoice_id?: string | null
+          status?: string
+          total_amount?: number
+          total_net?: number
+          total_wht?: number
           user_id: string
+          vendor_id?: string | null
           voucher_number: string
           wht_cert_url?: string | null
         }
         Update: {
           created_at?: string
           id?: string
+          matched_expense_id?: string | null
+          notes?: string | null
           paid_date?: string | null
+          payment_slip_url?: string | null
           pdf_url?: string | null
           signed_url?: string | null
-          staff_invoice_id?: string
+          staff_invoice_id?: string | null
+          status?: string
+          total_amount?: number
+          total_net?: number
+          total_wht?: number
           user_id?: string
+          vendor_id?: string | null
           voucher_number?: string
           wht_cert_url?: string | null
         }
@@ -1522,6 +1546,7 @@ export type Database = {
           ocr_data: Json | null
           paid_at: string | null
           payment_slip_url: string | null
+          receipt_no: string | null
           source: string | null
           status: string
           submitted_via_line_display_name: string | null
@@ -1530,7 +1555,9 @@ export type Database = {
           user_id: string
           vat_amount: number
           vendor_id: string | null
+          voucher_id: string | null
           wht_amount: number
+          wht_rate: number
         }
         Insert: {
           amount?: number
@@ -1563,6 +1590,7 @@ export type Database = {
           ocr_data?: Json | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          receipt_no?: string | null
           source?: string | null
           status?: string
           submitted_via_line_display_name?: string | null
@@ -1571,7 +1599,9 @@ export type Database = {
           user_id: string
           vat_amount?: number
           vendor_id?: string | null
+          voucher_id?: string | null
           wht_amount?: number
+          wht_rate?: number
         }
         Update: {
           amount?: number
@@ -1604,6 +1634,7 @@ export type Database = {
           ocr_data?: Json | null
           paid_at?: string | null
           payment_slip_url?: string | null
+          receipt_no?: string | null
           source?: string | null
           status?: string
           submitted_via_line_display_name?: string | null
@@ -1612,7 +1643,9 @@ export type Database = {
           user_id?: string
           vat_amount?: number
           vendor_id?: string | null
+          voucher_id?: string | null
           wht_amount?: number
+          wht_rate?: number
         }
         Relationships: [
           {
@@ -1634,6 +1667,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendor_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_invoices_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "payment_vouchers"
             referencedColumns: ["id"]
           },
         ]
@@ -2009,6 +2049,8 @@ export type Database = {
         }
         Returns: Json
       }
+      next_payment_voucher_no: { Args: never; Returns: string }
+      next_vendor_receipt_no: { Args: never; Returns: string }
       portal_list_active_events: {
         Args: { p_owner: string; p_since: string }
         Returns: {

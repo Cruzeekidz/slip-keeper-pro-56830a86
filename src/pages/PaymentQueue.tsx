@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock, Plus } from "lucide-react";
 import AdminVendorBillSheet from "@/components/payment/AdminVendorBillSheet";
+import VendorBillPaySheet from "@/components/payment/VendorBillPaySheet";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -98,6 +99,8 @@ const PaymentQueue = () => {
   const [dueTo, setDueTo] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [adminBillOpen, setAdminBillOpen] = useState(false);
+  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [paySheetBill, setPaySheetBill] = useState<any | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
@@ -132,7 +135,7 @@ const PaymentQueue = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("vendor_invoices")
-        .select("id, invoice_number, description, amount, net_amount, wht_amount, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, source, line_raw_text, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_expense_id, flowaccount_expense_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id)")
+        .select("id, receipt_no, invoice_number, description, amount, net_amount, wht_amount, wht_rate, voucher_id, tax_id, file_url, status, vendor_id, link_type, invoice_date, due_date, created_at, source, line_raw_text, submitted_via_line_user_id, submitted_via_line_display_name, flowaccount_bill_id, flowaccount_bill_url, flowaccount_wht_id, flowaccount_wht_url, flowaccount_expense_id, flowaccount_expense_url, flowaccount_push_status, flowaccount_push_error, flowaccount_pushed_at, vendor_profiles(company_name, bank_name, bank_account, tax_id, address, line_user_id)")
         .in("status", ["pending", "approved"])
         .neq("link_type", "staff")
         .order("invoice_date", { ascending: true, nullsFirst: false });
@@ -149,76 +152,62 @@ const PaymentQueue = () => {
       if (action === "paid") updates.paid_at = new Date().toISOString();
       const { error } = await supabase.from("vendor_invoices").update(updates).eq("id", id);
       if (error) throw error;
-      // Auto-push to FlowAccount
-      if (action === "approve") {
-        try {
-          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-expense-note", {
-            body: { invoice_id: id },
-          });
-          return { action, faSuccess: !fnErr && (data as any)?.success, faData: data, faError: fnErr?.message };
-        } catch (e: any) {
-          return { action, faSuccess: false, faError: e?.message };
-        }
-      }
-      if (action === "paid") {
-        try {
-          const { data, error: fnErr } = await supabase.functions.invoke("flowaccount-push-payment", {
-            body: { invoice_id: id, invoice_type: "vendor" },
-          });
-          return { action, faSuccess: !fnErr && data?.success, faData: data, faError: fnErr?.message };
-        } catch (e: any) {
-          return { action, faSuccess: false, faError: e?.message };
-        }
-      }
+      // ยังไม่เชื่อม FlowAccount API — ใช้ลิงก์เปิดเอกสารบน FA เอง
       return { action };
     },
     onSuccess: (result: any) => {
       const action = result?.action;
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
       queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      if (action === "paid") {
-        if (result?.faSuccess) {
-          toast({ title: "✅ จ่ายแล้ว + ส่งเข้า FlowAccount สำเร็จ", description: "สร้างใบกำกับซื้อ/หนังสือ WHT บน FA เรียบร้อย" });
-        } else {
-          toast({
-            title: "บันทึกว่าจ่ายแล้ว (⚠️ FA push ล้มเหลว)",
-            description: (result?.faError || "").slice(0, 200) || "กด 'ลองส่ง FA อีกครั้ง' ในการ์ดบิล",
-            variant: "destructive",
-          });
-        }
-      } else if (action === "approve") {
-        if (result?.faSuccess) {
-          toast({ title: "✅ อนุมัติ + ส่ง Expense Note ไป FA สำเร็จ" });
-        } else {
-          toast({
-            title: "อนุมัติแล้ว (⚠️ Expense Note push ล้มเหลว)",
-            description: (result?.faError || "").slice(0, 200) || "กดปุ่ม 'ลองส่ง FA' เพื่อลองใหม่",
-            variant: "destructive",
-          });
-        }
-      } else {
-        toast({ title: "ปฏิเสธบิลแล้ว" });
-      }
+      toast({
+        title: action === "paid" ? "✅ บันทึกว่าจ่ายแล้ว" : action === "approve" ? "✅ อนุมัติบิลแล้ว" : "ปฏิเสธบิลแล้ว",
+      });
     },
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
 
-  const retryFlowAccountPush = useMutation({
-    mutationFn: async (invoiceId: string) => {
-      const { data, error } = await supabase.functions.invoke("flowaccount-push-payment", {
-        body: { invoice_id: invoiceId, invoice_type: "vendor" },
-      });
-      if (error) throw new Error(error.message);
-      return data;
+  // รวมหลายบิลเป็นใบสรุปการจ่าย (P00xx) — ใช้ตัดจ่ายทีเดียวด้วย @P00xx
+  const createVoucherMutation = useMutation({
+    mutationFn: async (bills: any[]) => {
+      if (!user) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+      if (!bills.length) throw new Error("ยังไม่ได้เลือกบิล");
+      const vendorIds = new Set(bills.map((b) => b.vendor_id).filter(Boolean));
+      const { data: no, error: noErr } = await supabase.rpc("next_payment_voucher_no" as any);
+      if (noErr) throw noErr;
+      const total = bills.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+      const wht = bills.reduce((s, b) => s + (Number(b.wht_amount) || 0), 0);
+      const { data: voucher, error } = await supabase
+        .from("payment_vouchers")
+        .insert({
+          user_id: user.id,
+          voucher_number: no as unknown as string,
+          vendor_id: vendorIds.size === 1 ? [...vendorIds][0] : null,
+          total_amount: total,
+          total_wht: wht,
+          total_net: total - wht,
+          status: "open",
+        } as any)
+        .select("id, voucher_number")
+        .single();
+      if (error) throw error;
+      const { error: linkErr } = await supabase
+        .from("vendor_invoices")
+        .update({ voucher_id: voucher.id, status: "approved" } as any)
+        .in("id", bills.map((b) => b.id));
+      if (linkErr) throw linkErr;
+      return voucher;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (voucher: any) => {
       queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
-      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
-      if (data?.success) toast({ title: "✅ ส่งเข้า FlowAccount สำเร็จ" });
-      else toast({ title: "⚠️ ส่งไม่สำเร็จ", description: (data?.errors || []).join(" | ").slice(0, 200), variant: "destructive" });
+      setSelectedBillIds([]);
+      toast({
+        title: `✅ สร้างใบสรุปการจ่าย ${voucher.voucher_number}`,
+        description: `ใส่ ${"@" + voucher.voucher_number} ในช่องบันทึกช่วยจำของสลิป แล้วระบบจะตัดจ่ายทุกบิลในใบนี้ให้เอง`,
+      });
     },
-    onError: (err: any) => toast({ title: "เรียก function ไม่สำเร็จ", description: err.message, variant: "destructive" }),
+    onError: (err: any) => toast({ title: "สร้างใบสรุปไม่สำเร็จ", description: err.message, variant: "destructive" }),
   });
+
 
   const attachToFA = useMutation({
     mutationFn: async (bill: any) => {
@@ -908,6 +897,31 @@ const PaymentQueue = () => {
               </p>
               <Badge variant="secondary">{filteredVendorBills.length} รายการ</Badge>
             </div>
+            {selectedBillIds.length > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <p className="text-xs">
+                  เลือกไว้ {selectedBillIds.length} ใบ · สุทธิ{" "}
+                  <span className="font-bold">
+                    {filteredVendorBills
+                      .filter((b: any) => selectedBillIds.includes(b.id))
+                      .reduce((s: number, b: any) => s + (Number(b.net_amount || b.amount) || 0), 0)
+                      .toLocaleString(undefined, { minimumFractionDigits: 2 })} ฿
+                  </span>
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedBillIds([])}>ล้าง</Button>
+                  <Button
+                    size="sm"
+                    disabled={createVoucherMutation.isPending}
+                    onClick={() => createVoucherMutation.mutate(
+                      filteredVendorBills.filter((b: any) => selectedBillIds.includes(b.id))
+                    )}
+                  >
+                    <Receipt className="h-4 w-4 mr-1" />รวมเป็นใบสรุปการจ่าย (P)
+                  </Button>
+                </div>
+              </div>
+            )}
             {filteredVendorBills.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-3">ไม่มีบิลคู่ค้าค้างจ่าย</p>
             ) : (
@@ -924,23 +938,42 @@ const PaymentQueue = () => {
                       <CardContent className="pt-4 space-y-3">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0">
-                            <p className="font-medium truncate">{vendorName}</p>
-                            <p className="text-sm text-muted-foreground truncate">
-                              {b.invoice_number ? `${b.invoice_number} • ` : ""}{b.description || "—"}
-                            </p>
-                            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-                              <CalendarClock className="h-3 w-3" />
-                              ส่งเข้าเมื่อ {formatSubmittedAt(b.created_at)}
-                              {b.submitted_via_line_display_name && (
-                                <span className="ml-1">· โดย {b.submitted_via_line_display_name}</span>
+                          <div className="flex items-start gap-2 min-w-0">
+                            <input
+                              type="checkbox"
+                              className="mt-1 h-4 w-4 accent-primary shrink-0"
+                              checked={selectedBillIds.includes(b.id)}
+                              onChange={(e) => setSelectedBillIds((prev) =>
+                                e.target.checked ? [...prev, b.id] : prev.filter((x) => x !== b.id)
                               )}
-                            </p>
+                              aria-label="เลือกบิลนี้เพื่อรวมเป็นใบสรุปการจ่าย"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {b.receipt_no && <span className="font-mono text-primary mr-1">{b.receipt_no}</span>}
+                                {vendorName}
+                              </p>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {b.invoice_number ? `${b.invoice_number} • ` : ""}{b.description || "—"}
+                              </p>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <CalendarClock className="h-3 w-3" />
+                                ส่งเข้าเมื่อ {formatSubmittedAt(b.created_at)}
+                                {b.submitted_via_line_display_name && (
+                                  <span className="ml-1">· โดย {b.submitted_via_line_display_name}</span>
+                                )}
+                                {b.source === "line" && <span className="ml-1">· ผ่าน LINE</span>}
+                              </p>
+                            </div>
                           </div>
-                          <Badge variant={b.status === "approved" ? "default" : "secondary"}>
-                            {b.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
-                          </Badge>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant={b.status === "approved" ? "default" : "secondary"}>
+                              {b.status === "approved" ? "อนุมัติแล้ว" : "รออนุมัติ"}
+                            </Badge>
+                            {b.voucher_id && <Badge variant="outline" className="text-[10px]">อยู่ในใบสรุป P</Badge>}
+                          </div>
                         </div>
+
 
                         {/* Bank account block */}
                         {b.vendor_profiles?.bank_name && acct && (
@@ -1021,6 +1054,10 @@ const PaymentQueue = () => {
                             </Button>
                           )}
                         </div>
+                        <Button variant="secondary" size="sm" className="w-full" onClick={() => setPaySheetBill(b)}>
+                          <Pencil className="h-4 w-4 mr-1" />ตรวจยอด / หัก ณ ที่จ่าย ก่อนจ่าย
+                        </Button>
+
 
                         {/* Send info to accounting */}
                         {acct && (
@@ -1083,18 +1120,21 @@ const PaymentQueue = () => {
                               💡 มี WHT {Number(b.wht_amount).toLocaleString()} ฿ — ตอนบันทึกจ่ายใน FlowAccount ให้ติ๊ก "หัก ณ ที่จ่าย" ระบบ FA จะออกหนังสือ WHT ให้อัตโนมัติ
                             </p>
                           )}
-                          {(b.flowaccount_push_status === "failed" || (!b.flowaccount_push_status && b.status === "paid")) && (
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              className="w-full mt-2"
-                              disabled={retryFlowAccountPush.isPending}
-                              onClick={() => retryFlowAccountPush.mutate(b.id)}
-                            >
-                              <Send className="h-3 w-3 mr-1" />
-                              {retryFlowAccountPush.isPending ? "กำลังส่ง..." : (b.flowaccount_push_status === "failed" ? "ลองส่ง FA อีกครั้ง" : "ส่งเข้า FA ตอนนี้")}
-                            </Button>
+                          {b.receipt_no && (
+                            <div className="mt-2 rounded-md bg-primary/5 border border-primary/20 p-2">
+                              <p className="text-[10px] text-muted-foreground">รหัสตัดจ่าย — ใส่ในช่องบันทึกช่วยจำของสลิป</p>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono font-bold">@{b.receipt_no}</span>
+                                <Button variant="outline" size="sm" onClick={() => {
+                                  navigator.clipboard.writeText(`@${b.receipt_no}`);
+                                  toast({ title: "คัดลอกรหัสตัดจ่าย", description: `@${b.receipt_no}` });
+                                }}>
+                                  <Copy className="h-3 w-3 mr-1" />คัดลอก
+                                </Button>
+                              </div>
+                            </div>
                           )}
+
                           {(b.flowaccount_expense_id || b.flowaccount_bill_id || b.flowaccount_wht_id) && (
                             <Button
                               variant="outline"
@@ -1291,6 +1331,7 @@ const PaymentQueue = () => {
         </AlertDialog>
       </main>
       <AdminVendorBillSheet open={adminBillOpen} onOpenChange={setAdminBillOpen} />
+      <VendorBillPaySheet bill={paySheetBill} onOpenChange={(o) => { if (!o) setPaySheetBill(null); }} />
     </div>
   );
 };
