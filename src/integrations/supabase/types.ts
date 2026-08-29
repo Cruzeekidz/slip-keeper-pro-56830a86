@@ -1949,6 +1949,10 @@ export type Database = {
       }
     }
     Functions: {
+      delete_expenses_with_reason: {
+        Args: { p_ids: string[]; p_reason: string }
+        Returns: number
+      }
       find_duplicate_groups: {
         Args: {
           p_days?: number
