@@ -2135,10 +2135,10 @@ async function getConvState(supabase: any, lineUserId: string) {
   return data;
 }
 
-async function setConvState(supabase: any, lineUserId: string, owner: string, state: string, draft: Record<string, any>) {
+async function setConvState(supabase: any, lineUserId: string, owner: string, state: string, draft: Record<string, any>, ttlMinutes = 10) {
   await supabase.from('line_conversation_state').upsert({
     line_user_id: lineUserId, owner, state, draft_data: draft,
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    expires_at: new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString(),
     updated_at: new Date().toISOString(),
   }, { onConflict: 'line_user_id' });
 }
