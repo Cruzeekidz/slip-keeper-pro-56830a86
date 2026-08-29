@@ -3,6 +3,32 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.168.0/crypto/mod.ts";
 import { encode as encodeBase64 } from "https://deno.land/std@0.168.0/encoding/base64.ts";
 import { parseSlipDateRaw } from "../_shared/slip-date.ts";
+import { cleanText, sanitizeExpense } from "../_shared/sanitize.ts";
+
+/** entity มาจากทะเบียนงาน (event_registry) เท่านั้น — ห้าม AI เดา */
+async function resolveEntity(
+  supabase: any,
+  owner: string,
+  projectTag: string | null,
+  transactionType: string | null,
+): Promise<string> {
+  if (transactionType === 'PERSONAL') return 'PERSONAL';
+  const tag = cleanText(projectTag);
+  if (!tag) return 'MENGXIN';
+  const { data } = await supabase
+    .from('event_registry')
+    .select('entity')
+    .eq('user_id', owner)
+    .eq('project_tag', tag)
+    .maybeSingle();
+  if (data?.entity) return data.entity as string;
+  const t = tag.toUpperCase();
+  if (t.startsWith('BCCNEXT-')) return 'EDUCATION';
+  if (t.startsWith('KUKAN-')) return 'KUKANANG';
+  if (t.startsWith('PROG-')) return 'ACADEMY';
+  if (t === 'PERSONAL') return 'PERSONAL';
+  return 'MENGXIN';
+}
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -808,28 +834,31 @@ serve(async (req) => {
             continue;
           }
 
-          const txType = parsed.transaction_type || 'BUSINESS';
-          const catGroup = txType === 'BUSINESS' ? (parsed.category_group || 'GENERAL') : null;
+          const txType = cleanText(parsed.transaction_type) || 'BUSINESS';
+          const catGroup = txType === 'BUSINESS' ? (cleanText(parsed.category_group) || 'GENERAL') : null;
           const category = txType === 'BUSINESS' ? `BUSINESS > ${catGroup}` : txType;
+          const cashTag = cleanText(parsed.project_tag);
+          const cashEntity = await resolveEntity(supabase, mapping.supabase_user_id, cashTag, txType);
 
-          const { data: inserted, error: insErr } = await supabase.from('expenses').insert({
+          const { data: inserted, error: insErr } = await supabase.from('expenses').insert(sanitizeExpense({
             user_id: mapping.supabase_user_id,
             amount: parsed.amount,
             expense_date: new Date().toISOString().split('T')[0],
-            description: parsed.description || text,
-            receiver: parsed.receiver || null,
+            description: cleanText(parsed.description) || text,
+            receiver: cleanText(parsed.receiver),
             category,
-            subcategory: parsed.subcategory || null,
+            subcategory: cleanText(parsed.subcategory),
             transaction_type: txType,
             category_group: catGroup,
-            project_tag: parsed.project_tag || null,
+            project_tag: cashTag,
+            entity: cashEntity,
             transaction_direction: 'EXPENSE',
             confidence_score: parsed.confidence_score || 75,
-            needs_review: (parsed.confidence_score || 0) < 75,
+            needs_review: (parsed.confidence_score || 0) < 75 || (catGroup === 'EVENT' && !cashTag),
             is_cash: true,
             receipt_url: null,
             memo_text: text,
-          } as any).select('id').single();
+          }) as any).select('id').single();
 
           if (insErr) {
             console.error("Cash expense insert error:", insErr);
@@ -1301,23 +1330,23 @@ serve(async (req) => {
           ocr_date_raw: rawDate,
           expense_time: cleanTime,
           category: typeLabel,
-          subcategory: extractedData?.subcategory || null,
-          description: extractedData?.description || `LINE Receipt ${messageId}`,
-          merchant: extractedData?.merchant || null,
-          sender: extractedData?.sender || null,
-          receiver: extractedData?.receiver || null,
-          transaction_id: extractedData?.transaction_id || null,
-          transaction_type: extractedData?.transaction_type || null,
-          category_group: extractedData?.category_group || null,
-          project_tag: normalizedProjectTag,
+          subcategory: cleanText(extractedData?.subcategory),
+          description: cleanText(extractedData?.description) || `LINE Receipt ${messageId}`,
+          merchant: cleanText(extractedData?.merchant),
+          sender: cleanText(extractedData?.sender),
+          receiver: cleanText(extractedData?.receiver),
+          transaction_id: cleanText(extractedData?.transaction_id),
+          transaction_type: cleanText(extractedData?.transaction_type),
+          category_group: cleanText(extractedData?.category_group),
+          project_tag: cleanText(normalizedProjectTag),
           transaction_direction: extractedData?.transaction_direction || 'EXPENSE',
           confidence_score: extractedData?.confidence_score || null,
           needs_review: (extractedData?.confidence_score || 0) < 75 || (extractedData as any)?.needs_review === true || !extractedData?.date || (extractedData?.category_group === 'EVENT' && !normalizedProjectTag),
           receipt_url: storagePath,
-          staff_name: extractedData?.staff_name || null,
+          staff_name: cleanText(extractedData?.staff_name),
           days_worked: extractedData?.days_worked || null,
-          event_name: normalizedEventName,
-          memo_text: memo || null,
+          event_name: cleanText(normalizedEventName),
+          memo_text: cleanText(memo),
         };
 
         // Resolve owner: mapping → vendor_profiles → staff_profiles → default super_admin
