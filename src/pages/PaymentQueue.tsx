@@ -98,6 +98,8 @@ const PaymentQueue = () => {
   const [dueTo, setDueTo] = useState("");
   const [sending, setSending] = useState<string | null>(null);
   const [adminBillOpen, setAdminBillOpen] = useState(false);
+  const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
+  const [paySheetBill, setPaySheetBill] = useState<any | null>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
