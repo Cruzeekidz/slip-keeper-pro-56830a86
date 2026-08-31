@@ -81,7 +81,8 @@ const fetchExpensesWindow = async (params: {
   payees?: string[];
   transactionType?: string;
   categoryGroup?: string;
-
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
@@ -89,7 +90,11 @@ const fetchExpensesWindow = async (params: {
     .select('*', { count: 'exact' })
     .order(sortField, { ascending: params.ascending ?? false });
 
-  if (params.months > 0) {
+  // Explicit date range always wins over the rolling month window
+  if (params.dateFrom || params.dateTo) {
+    if (params.dateFrom) q = q.gte('expense_date', params.dateFrom);
+    if (params.dateTo) q = q.lte('expense_date', params.dateTo);
+  } else if (params.months > 0) {
     const from = new Date();
     from.setMonth(from.getMonth() - params.months);
     from.setHours(0, 0, 0, 0);
@@ -99,6 +104,7 @@ const fetchExpensesWindow = async (params: {
       q = q.gte('expense_date', from.toISOString().split('T')[0]);
     }
   }
+
 
   // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group).
   // Multiple names are OR-ed together.
