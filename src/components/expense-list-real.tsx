@@ -81,7 +81,8 @@ const fetchExpensesWindow = async (params: {
   payees?: string[];
   transactionType?: string;
   categoryGroup?: string;
-
+  dateFrom?: string;
+  dateTo?: string;
 }): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
@@ -89,7 +90,11 @@ const fetchExpensesWindow = async (params: {
     .select('*', { count: 'exact' })
     .order(sortField, { ascending: params.ascending ?? false });
 
-  if (params.months > 0) {
+  // Explicit date range always wins over the rolling month window
+  if (params.dateFrom || params.dateTo) {
+    if (params.dateFrom) q = q.gte('expense_date', params.dateFrom);
+    if (params.dateTo) q = q.lte('expense_date', params.dateTo);
+  } else if (params.months > 0) {
     const from = new Date();
     from.setMonth(from.getMonth() - params.months);
     from.setHours(0, 0, 0, 0);
@@ -99,6 +104,7 @@ const fetchExpensesWindow = async (params: {
       q = q.gte('expense_date', from.toISOString().split('T')[0]);
     }
   }
+
 
   // Server-side payee filter (fuzzy, across receiver/merchant/sender/payee_group).
   // Multiple names are OR-ed together.
@@ -273,12 +279,28 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   }, [searchTerm]);
 
   // Reset to page 1 when window/size/filters change
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers]);
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers, filterMonth, dateFrom, dateTo]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
   const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
+
+  // Server-side date range: explicit range, else selected month
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  let serverFrom: string | undefined;
+  let serverTo: string | undefined;
+  if (dateFrom || dateTo) {
+    serverFrom = dateFrom ? ymd(dateFrom) : undefined;
+    serverTo = dateTo ? ymd(dateTo) : undefined;
+  } else if (filterMonth !== "all") {
+    const [my, mm] = filterMonth.split("-").map(Number);
+    if (my && mm) {
+      serverFrom = `${my}-${pad(mm)}-01`;
+      serverTo = ymd(new Date(my, mm, 0));
+    }
+  }
 
   // When searching/filtering by payee, widen the window to all history
   const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all";
@@ -287,13 +309,14 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup],
-    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup, serverFrom ?? '', serverTo ?? ''],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup, dateFrom: serverFrom, dateTo: serverTo }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
   const totalCount = pageData?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
 
   const { data: eventNames = [] } = useQuery({
     queryKey: ['event-registry-names'],
