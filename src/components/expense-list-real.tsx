@@ -83,6 +83,9 @@ const fetchExpensesWindow = async (params: {
   categoryGroup?: string;
   dateFrom?: string;
   dateTo?: string;
+  eventName?: string;
+  projectTag?: string;
+
 }): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
