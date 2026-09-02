@@ -252,8 +252,12 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   const [filterReceivers, setFilterReceivers] = useState<string[]>([]);
   const [receiverSearch, setReceiverSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState("all");
+  const [filterMonthTo, setFilterMonthTo] = useState("all");
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterTag, setFilterTag] = useState("all");
+  // When an event/tag is selected, ignore the period by default (events span months)
+  const [periodAppliesToEvent, setPeriodAppliesToEvent] = useState(false);
+
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [dateOpen, setDateOpen] = useState(false);
