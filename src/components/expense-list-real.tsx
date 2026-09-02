@@ -378,11 +378,18 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
     queryFn: fetchEventNamesList,
   });
 
+  const { data: facets } = useQuery({
+    queryKey: ['expense-facets'],
+    queryFn: fetchExpenseFacets,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: payeeNames } = useQuery({
     queryKey: ['expense-payee-names'],
     queryFn: fetchPayeeNames,
     staleTime: 5 * 60 * 1000,
   });
+
 
 
   // Realtime subscription → invalidate queries
