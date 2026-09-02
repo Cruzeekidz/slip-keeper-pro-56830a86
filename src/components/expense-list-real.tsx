@@ -1000,30 +1000,40 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
         )}
 
         <Select value={filterMonth} onValueChange={setFilterMonth}>
-          <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="เดือนเริ่ม" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
             <SelectItem value="all">ทุกเดือน</SelectItem>
-            {uniqueMonths.map(ym => {
-              const [y, m] = ym.split("-");
-              const label = `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
-              return <SelectItem key={ym} value={ym}>{label}</SelectItem>;
-            })}
+            {monthOptions.map(ym => <SelectItem key={ym} value={ym}>ตั้งแต่ {monthLabel(ym)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterMonthTo} onValueChange={setFilterMonthTo}>
+          <SelectTrigger><SelectValue placeholder="ถึงเดือน" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ถึงเดือนล่าสุด</SelectItem>
+            {monthOptions.map(ym => <SelectItem key={ym} value={ym}>ถึง {monthLabel(ym)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterEvent} onValueChange={setFilterEvent}>
           <SelectTrigger><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
-            <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+            <SelectItem value="all">ทุกอีเวนท์ ({uniqueEvents.length})</SelectItem>
             {uniqueEvents.map(ev => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterTag} onValueChange={setFilterTag}>
           <SelectTrigger><SelectValue placeholder="แท็กโปรเจกต์" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
-            <SelectItem value="all">ทุกแท็ก</SelectItem>
+            <SelectItem value="all">ทุกแท็ก ({uniqueTags.length})</SelectItem>
             {uniqueTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
+        {isFacetFiltering && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
+            <Checkbox checked={periodAppliesToEvent} onCheckedChange={(v) => setPeriodAppliesToEvent(!!v)} />
+            จำกัดอีเวนท์/แท็กตามช่วงเวลาที่เลือก (ปิดไว้ = ดึงทุกเดือนที่เกี่ยวข้อง)
+          </label>
+        )}
+
       </div>
 
       {/* Sort & Date Filter */}
