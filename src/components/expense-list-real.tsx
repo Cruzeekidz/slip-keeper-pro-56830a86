@@ -1094,9 +1094,10 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
           </PopoverContent>
         </Popover>
 
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterMonthTo !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterMonthTo("all"); setFilterEvent("all"); setFilterTag("all"); setPeriodAppliesToEvent(false); setDateFrom(undefined); setDateTo(undefined);
+
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
