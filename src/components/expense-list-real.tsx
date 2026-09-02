@@ -174,6 +174,25 @@ const fetchPayeeNames = async (): Promise<{ receivers: string[]; senders: string
 };
 
 
+// Distinct event names / project tags used in expenses (whole history, not just page)
+const fetchExpenseFacets = async (): Promise<{ events: string[]; tags: string[] }> => {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('event_name, project_tag')
+    .order('expense_date', { ascending: false })
+    .limit(20000);
+  if (error) throw error;
+  const events = new Set<string>();
+  const tags = new Set<string>();
+  (data || []).forEach((r: any) => {
+    if (r.event_name?.trim()) events.add(r.event_name.trim());
+    if (r.project_tag?.trim()) tags.add(r.project_tag.trim());
+  });
+  return {
+    events: Array.from(events).sort((a, b) => a.localeCompare(b, 'th')),
+    tags: Array.from(tags).sort((a, b) => a.localeCompare(b, 'th')),
+  };
+};
 
 const fetchEventNamesList = async (): Promise<string[]> => {
   const { data, error } = await supabase
@@ -183,6 +202,7 @@ const fetchEventNamesList = async (): Promise<string[]> => {
   if (error) throw error;
   return Array.from(new Set((data || []).map(e => e.event_name))).filter(Boolean);
 };
+
 
 type EntityFilter = "all" | "personal" | "main_biz" | "bcc_next" | "kukanang";
 
