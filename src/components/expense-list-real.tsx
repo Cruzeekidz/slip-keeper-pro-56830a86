@@ -226,6 +226,9 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   const [filterTag, setFilterTag] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState("");
+  const [draftTo, setDraftTo] = useState("");
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "upload-asc">("date-desc");
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
