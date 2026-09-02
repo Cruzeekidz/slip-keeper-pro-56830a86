@@ -563,16 +563,8 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
 
-    if (filterMonth !== "all") {
-      filtered = filtered.filter(e => {
-        if (!e.expense_date) return false;
-        const d = new Date(e.expense_date);
-        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        return ym === filterMonth;
-      });
-    }
-    if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
-    if (filterTag !== "all") filtered = filtered.filter(e => e.project_tag === filterTag);
+    // Month range + event/tag are applied server-side (may span many months)
+
     if (noTagOnly) {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
       filtered = filtered.filter(e => e.transaction_type === 'BUSINESS' && !e.project_tag && new Date(e.expense_date) >= cutoff);
