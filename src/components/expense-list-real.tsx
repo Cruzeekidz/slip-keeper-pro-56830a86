@@ -145,6 +145,13 @@ const fetchExpensesWindow = async (params: {
   if (params.categoryGroup && params.categoryGroup !== 'all') {
     q = q.eq('category_group', params.categoryGroup);
   }
+  if (params.eventName && params.eventName !== 'all') {
+    q = q.eq('event_name', params.eventName);
+  }
+  if (params.projectTag && params.projectTag !== 'all') {
+    q = q.eq('project_tag', params.projectTag);
+  }
+
 
   q = q.range(params.offset, params.offset + params.limit - 1);
 
