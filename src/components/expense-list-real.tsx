@@ -483,24 +483,32 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
 
 
   const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-  const uniqueMonths = useMemo(() => {
-    const set = new Set<string>();
-    expenses.forEach(e => {
-      if (!e.expense_date) return;
-      const d = new Date(e.expense_date);
-      if (isNaN(d.getTime())) return;
-      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    });
-    return Array.from(set).sort().reverse();
-  }, [expenses]);
-  const uniqueEvents = useMemo(
-    () => Array.from(new Set(expenses.map(e => e.event_name).filter(Boolean) as string[])).sort(),
-    [expenses]
-  );
-  const uniqueTags = useMemo(
-    () => Array.from(new Set(expenses.map(e => e.project_tag).filter(Boolean) as string[])).sort(),
-    [expenses]
-  );
+  // Fixed 48-month list so the picker isn't limited to the loaded page
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const out: string[] = [];
+    for (let i = 0; i < 48; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return out;
+  }, []);
+  const monthLabel = (ym: string) => {
+    const [y, m] = ym.split("-");
+    return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+  };
+  // Options come from the whole history (facets) merged with the event registry
+  const uniqueEvents = useMemo(() => {
+    const set = new Set<string>([...(facets?.events ?? []), ...eventNames]);
+    expenses.forEach(e => { if (e.event_name?.trim()) set.add(e.event_name.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [facets, eventNames, expenses]);
+  const uniqueTags = useMemo(() => {
+    const set = new Set<string>(facets?.tags ?? []);
+    expenses.forEach(e => { if (e.project_tag?.trim()) set.add(e.project_tag.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [facets, expenses]);
+
 
   // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
