@@ -83,6 +83,9 @@ const fetchExpensesWindow = async (params: {
   categoryGroup?: string;
   dateFrom?: string;
   dateTo?: string;
+  eventName?: string;
+  projectTag?: string;
+
 }): Promise<{ rows: Expense[]; total: number }> => {
   const sortField = params.sortField ?? 'expense_date';
   let q = supabase
@@ -142,6 +145,13 @@ const fetchExpensesWindow = async (params: {
   if (params.categoryGroup && params.categoryGroup !== 'all') {
     q = q.eq('category_group', params.categoryGroup);
   }
+  if (params.eventName && params.eventName !== 'all') {
+    q = q.eq('event_name', params.eventName);
+  }
+  if (params.projectTag && params.projectTag !== 'all') {
+    q = q.eq('project_tag', params.projectTag);
+  }
+
 
   q = q.range(params.offset, params.offset + params.limit - 1);
 
@@ -174,6 +184,25 @@ const fetchPayeeNames = async (): Promise<{ receivers: string[]; senders: string
 };
 
 
+// Distinct event names / project tags used in expenses (whole history, not just page)
+const fetchExpenseFacets = async (): Promise<{ events: string[]; tags: string[] }> => {
+  const { data, error } = await supabase
+    .from('expenses')
+    .select('event_name, project_tag')
+    .order('expense_date', { ascending: false })
+    .limit(20000);
+  if (error) throw error;
+  const events = new Set<string>();
+  const tags = new Set<string>();
+  (data || []).forEach((r: any) => {
+    if (r.event_name?.trim()) events.add(r.event_name.trim());
+    if (r.project_tag?.trim()) tags.add(r.project_tag.trim());
+  });
+  return {
+    events: Array.from(events).sort((a, b) => a.localeCompare(b, 'th')),
+    tags: Array.from(tags).sort((a, b) => a.localeCompare(b, 'th')),
+  };
+};
 
 const fetchEventNamesList = async (): Promise<string[]> => {
   const { data, error } = await supabase
@@ -183,6 +212,7 @@ const fetchEventNamesList = async (): Promise<string[]> => {
   if (error) throw error;
   return Array.from(new Set((data || []).map(e => e.event_name))).filter(Boolean);
 };
+
 
 type EntityFilter = "all" | "personal" | "main_biz" | "bcc_next" | "kukanang";
 
@@ -222,8 +252,12 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   const [filterReceivers, setFilterReceivers] = useState<string[]>([]);
   const [receiverSearch, setReceiverSearch] = useState("");
   const [filterMonth, setFilterMonth] = useState("all");
+  const [filterMonthTo, setFilterMonthTo] = useState("all");
   const [filterEvent, setFilterEvent] = useState("all");
   const [filterTag, setFilterTag] = useState("all");
+  // When an event/tag is selected, ignore the period by default (events span months)
+  const [periodAppliesToEvent, setPeriodAppliesToEvent] = useState(false);
+
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
   const [dateOpen, setDateOpen] = useState(false);
@@ -282,42 +316,60 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   }, [searchTerm]);
 
   // Reset to page 1 when window/size/filters change
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers, filterMonth, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers, filterMonth, filterMonthTo, filterEvent, filterTag, periodAppliesToEvent, dateFrom, dateTo]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
   const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
-  // Server-side date range: explicit range, else selected month
+  // Server-side date range: explicit range, else selected month range
   const pad = (n: number) => String(n).padStart(2, "0");
   const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const monthStart = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    return y && m ? `${y}-${pad(m)}-01` : undefined;
+  };
+  const monthEnd = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    return y && m ? ymd(new Date(y, m, 0)) : undefined;
+  };
   let serverFrom: string | undefined;
   let serverTo: string | undefined;
   if (dateFrom || dateTo) {
     serverFrom = dateFrom ? ymd(dateFrom) : undefined;
     serverTo = dateTo ? ymd(dateTo) : undefined;
-  } else if (filterMonth !== "all") {
-    const [my, mm] = filterMonth.split("-").map(Number);
-    if (my && mm) {
-      serverFrom = `${my}-${pad(mm)}-01`;
-      serverTo = ymd(new Date(my, mm, 0));
-    }
+  } else if (filterMonth !== "all" || filterMonthTo !== "all") {
+    const startYm = filterMonth !== "all" ? filterMonth : filterMonthTo;
+    const endYm = filterMonthTo !== "all" ? filterMonthTo : filterMonth;
+    const a = monthStart(startYm);
+    const b = monthEnd(endYm);
+    // Keep the range ordered even if the user picks them backwards
+    if (a && b && a <= b) { serverFrom = a; serverTo = b; }
+    else { serverFrom = monthStart(endYm); serverTo = monthEnd(startYm); }
+  }
+
+  // Event / tag filters run server-side so they span the whole history
+  const isFacetFiltering = filterEvent !== "all" || filterTag !== "all";
+  if (isFacetFiltering && !periodAppliesToEvent) {
+    serverFrom = undefined;
+    serverTo = undefined;
   }
 
   // When searching/filtering by payee, widen the window to all history
-  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all";
+  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all" || isFacetFiltering || !!serverFrom || !!serverTo;
   const effectiveMonths = isNameFiltering ? 0 : windowMonths;
   const serverPayees = filterReceivers.length > 0 ? filterReceivers : undefined;
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup, serverFrom ?? '', serverTo ?? ''],
-    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup, dateFrom: serverFrom, dateTo: serverTo }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup, serverFrom ?? '', serverTo ?? '', filterEvent, filterTag],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup, dateFrom: serverFrom, dateTo: serverTo, eventName: filterEvent, projectTag: filterTag }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
   const totalCount = pageData?.total ?? 0;
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
 
@@ -326,11 +378,18 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
     queryFn: fetchEventNamesList,
   });
 
+  const { data: facets } = useQuery({
+    queryKey: ['expense-facets'],
+    queryFn: fetchExpenseFacets,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: payeeNames } = useQuery({
     queryKey: ['expense-payee-names'],
     queryFn: fetchPayeeNames,
     staleTime: 5 * 60 * 1000,
   });
+
 
 
   // Realtime subscription → invalidate queries
@@ -431,24 +490,32 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
 
 
   const THAI_MONTHS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
-  const uniqueMonths = useMemo(() => {
-    const set = new Set<string>();
-    expenses.forEach(e => {
-      if (!e.expense_date) return;
-      const d = new Date(e.expense_date);
-      if (isNaN(d.getTime())) return;
-      set.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    });
-    return Array.from(set).sort().reverse();
-  }, [expenses]);
-  const uniqueEvents = useMemo(
-    () => Array.from(new Set(expenses.map(e => e.event_name).filter(Boolean) as string[])).sort(),
-    [expenses]
-  );
-  const uniqueTags = useMemo(
-    () => Array.from(new Set(expenses.map(e => e.project_tag).filter(Boolean) as string[])).sort(),
-    [expenses]
-  );
+  // Fixed 48-month list so the picker isn't limited to the loaded page
+  const monthOptions = useMemo(() => {
+    const now = new Date();
+    const out: string[] = [];
+    for (let i = 0; i < 48; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      out.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    }
+    return out;
+  }, []);
+  const monthLabel = (ym: string) => {
+    const [y, m] = ym.split("-");
+    return `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
+  };
+  // Options come from the whole history (facets) merged with the event registry
+  const uniqueEvents = useMemo(() => {
+    const set = new Set<string>([...(facets?.events ?? []), ...eventNames]);
+    expenses.forEach(e => { if (e.event_name?.trim()) set.add(e.event_name.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [facets, eventNames, expenses]);
+  const uniqueTags = useMemo(() => {
+    const set = new Set<string>(facets?.tags ?? []);
+    expenses.forEach(e => { if (e.project_tag?.trim()) set.add(e.project_tag.trim()); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [facets, expenses]);
+
 
   // WHT stats for credit tab — only unsettled items
   const whtStats = useMemo(() => {
@@ -496,16 +563,8 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
     if (filterReview === "review") filtered = filtered.filter(e => e.needs_review);
     if (filterSender !== "all") filtered = filtered.filter(e => e.sender === filterSender);
 
-    if (filterMonth !== "all") {
-      filtered = filtered.filter(e => {
-        if (!e.expense_date) return false;
-        const d = new Date(e.expense_date);
-        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        return ym === filterMonth;
-      });
-    }
-    if (filterEvent !== "all") filtered = filtered.filter(e => e.event_name === filterEvent);
-    if (filterTag !== "all") filtered = filtered.filter(e => e.project_tag === filterTag);
+    // Month range + event/tag are applied server-side (may span many months)
+
     if (noTagOnly) {
       const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
       filtered = filtered.filter(e => e.transaction_type === 'BUSINESS' && !e.project_tag && new Date(e.expense_date) >= cutoff);
@@ -933,30 +992,40 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
         )}
 
         <Select value={filterMonth} onValueChange={setFilterMonth}>
-          <SelectTrigger><SelectValue placeholder="เดือน" /></SelectTrigger>
+          <SelectTrigger><SelectValue placeholder="เดือนเริ่ม" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
             <SelectItem value="all">ทุกเดือน</SelectItem>
-            {uniqueMonths.map(ym => {
-              const [y, m] = ym.split("-");
-              const label = `${THAI_MONTHS[Number(m) - 1]} ${Number(y) + 543}`;
-              return <SelectItem key={ym} value={ym}>{label}</SelectItem>;
-            })}
+            {monthOptions.map(ym => <SelectItem key={ym} value={ym}>ตั้งแต่ {monthLabel(ym)}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filterMonthTo} onValueChange={setFilterMonthTo}>
+          <SelectTrigger><SelectValue placeholder="ถึงเดือน" /></SelectTrigger>
+          <SelectContent className="bg-background max-h-64">
+            <SelectItem value="all">ถึงเดือนล่าสุด</SelectItem>
+            {monthOptions.map(ym => <SelectItem key={ym} value={ym}>ถึง {monthLabel(ym)}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterEvent} onValueChange={setFilterEvent}>
           <SelectTrigger><SelectValue placeholder="อีเวนท์" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
-            <SelectItem value="all">ทุกอีเวนท์</SelectItem>
+            <SelectItem value="all">ทุกอีเวนท์ ({uniqueEvents.length})</SelectItem>
             {uniqueEvents.map(ev => <SelectItem key={ev} value={ev}>{ev}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={filterTag} onValueChange={setFilterTag}>
           <SelectTrigger><SelectValue placeholder="แท็กโปรเจกต์" /></SelectTrigger>
           <SelectContent className="bg-background max-h-64">
-            <SelectItem value="all">ทุกแท็ก</SelectItem>
+            <SelectItem value="all">ทุกแท็ก ({uniqueTags.length})</SelectItem>
             {uniqueTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
           </SelectContent>
         </Select>
+        {isFacetFiltering && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground sm:col-span-2">
+            <Checkbox checked={periodAppliesToEvent} onCheckedChange={(v) => setPeriodAppliesToEvent(!!v)} />
+            จำกัดอีเวนท์/แท็กตามช่วงเวลาที่เลือก (ปิดไว้ = ดึงทุกเดือนที่เกี่ยวข้อง)
+          </label>
+        )}
+
       </div>
 
       {/* Sort & Date Filter */}
@@ -1025,9 +1094,10 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
           </PopoverContent>
         </Popover>
 
-        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
+        {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterMonthTo !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
-            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
+            setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterMonthTo("all"); setFilterEvent("all"); setFilterTag("all"); setPeriodAppliesToEvent(false); setDateFrom(undefined); setDateTo(undefined);
+
           }}><X className="h-4 w-4 mr-2" />ล้างฟิลเตอร์</Button>
         )}
       </div>
