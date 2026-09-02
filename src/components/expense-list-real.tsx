@@ -226,6 +226,9 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   const [filterTag, setFilterTag] = useState("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
   const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
+  const [dateOpen, setDateOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState("");
+  const [draftTo, setDraftTo] = useState("");
   const [sortBy, setSortBy] = useState<"date-desc" | "date-asc" | "upload-desc" | "upload-asc">("date-desc");
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -968,22 +971,60 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
 
           </SelectContent>
         </Select>
-        <Popover>
+        <Popover open={dateOpen} onOpenChange={(o) => {
+          setDateOpen(o);
+          if (o) {
+            setDraftFrom(dateFrom ? format(dateFrom, "yyyy-MM-dd") : "");
+            setDraftTo(dateTo ? format(dateTo, "yyyy-MM-dd") : "");
+          }
+        }}>
           <PopoverTrigger asChild>
             <Button variant="outline" className={cn("justify-start text-left font-normal", !dateFrom && !dateTo && "text-muted-foreground")}>
               <CalendarIcon className="mr-2 h-4 w-4" />
-              {dateFrom || dateTo ? `${dateFrom ? format(dateFrom, "d MMM", { locale: th }) : "..."} - ${dateTo ? format(dateTo, "d MMM", { locale: th }) : "..."}` : "ช่วงวันที่"}
+              {dateFrom || dateTo ? `${dateFrom ? format(dateFrom, "d MMM yy", { locale: th }) : "..."} - ${dateTo ? format(dateTo, "d MMM yy", { locale: th }) : "..."}` : "ช่วงวันที่"}
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-[320px] p-3 bg-background" align="start">
             <div className="space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {(() => {
+                  const now = new Date();
+                  const y = now.getFullYear(), m = now.getMonth();
+                  const iso = (d: Date) => format(d, "yyyy-MM-dd");
+                  const presets: { label: string; from: Date; to: Date }[] = [
+                    { label: "เดือนนี้", from: new Date(y, m, 1), to: new Date(y, m + 1, 0) },
+                    { label: "เดือนก่อน", from: new Date(y, m - 1, 1), to: new Date(y, m, 0) },
+                    { label: "90 วัน", from: new Date(y, m, now.getDate() - 89), to: now },
+                    { label: `ปี ${y + 543}`, from: new Date(y, 0, 1), to: new Date(y, 11, 31) },
+                  ];
+                  return presets.map(p => (
+                    <Button key={p.label} type="button" variant="secondary" size="sm" className="h-7 text-xs"
+                      onClick={() => { setDraftFrom(iso(p.from)); setDraftTo(iso(p.to)); }}>
+                      {p.label}
+                    </Button>
+                  ));
+                })()}
+              </div>
               <div><div className="text-xs text-muted-foreground mb-1">จาก</div>
-                <Input type="date" value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""} onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value) : undefined)} /></div>
+                <Input type="date" value={draftFrom} onChange={(e) => setDraftFrom(e.target.value)} /></div>
               <div><div className="text-xs text-muted-foreground mb-1">ถึง</div>
-                <Input type="date" value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""} onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value) : undefined)} /></div>
+                <Input type="date" value={draftTo} onChange={(e) => setDraftTo(e.target.value)} /></div>
+              <div className="flex gap-2 pt-1">
+                <Button size="sm" className="flex-1" onClick={() => {
+                  setDateFrom(draftFrom ? new Date(`${draftFrom}T00:00:00`) : undefined);
+                  setDateTo(draftTo ? new Date(`${draftTo}T00:00:00`) : undefined);
+                  setDateOpen(false);
+                }}>ใช้ช่วงนี้</Button>
+                <Button size="sm" variant="outline" onClick={() => {
+                  setDraftFrom(""); setDraftTo("");
+                  setDateFrom(undefined); setDateTo(undefined);
+                }}>ล้าง</Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground">พิมพ์วัน/เดือน/ปีให้ครบ แล้วกด "ใช้ช่วงนี้"</p>
             </div>
           </PopoverContent>
         </Popover>
+
         {(filterType !== "all" || filterGroup !== "all" || filterReview !== "all" || filterSender !== "all" || filterReceivers.length > 0 || filterMonth !== "all" || filterEvent !== "all" || filterTag !== "all" || dateFrom || dateTo || searchTerm) && (
           <Button variant="outline" onClick={() => {
             setSearchTerm(""); setFilterType("all"); setFilterGroup("all"); setFilterReview("all"); setFilterSender("all"); setFilterReceivers([]); setFilterMonth("all"); setFilterEvent("all"); setFilterTag("all"); setDateFrom(undefined); setDateTo(undefined);
