@@ -316,42 +316,60 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
   }, [searchTerm]);
 
   // Reset to page 1 when window/size/filters change
-  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers, filterMonth, dateFrom, dateTo]);
+  useEffect(() => { setPage(1); }, [windowMonths, pageSize, sortBy, debouncedSearch, filterReceivers, filterMonth, filterMonthTo, filterEvent, filterTag, periodAppliesToEvent, dateFrom, dateTo]);
 
   // Sorting mode → drives server-side ordering/window
   const isUploadSort = sortBy === "upload-desc" || sortBy === "upload-asc";
   const sortField: 'expense_date' | 'created_at' = isUploadSort ? 'created_at' : 'expense_date';
   const sortAscending = sortBy === "date-asc" || sortBy === "upload-asc";
 
-  // Server-side date range: explicit range, else selected month
+  // Server-side date range: explicit range, else selected month range
   const pad = (n: number) => String(n).padStart(2, "0");
   const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const monthStart = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    return y && m ? `${y}-${pad(m)}-01` : undefined;
+  };
+  const monthEnd = (ym: string) => {
+    const [y, m] = ym.split("-").map(Number);
+    return y && m ? ymd(new Date(y, m, 0)) : undefined;
+  };
   let serverFrom: string | undefined;
   let serverTo: string | undefined;
   if (dateFrom || dateTo) {
     serverFrom = dateFrom ? ymd(dateFrom) : undefined;
     serverTo = dateTo ? ymd(dateTo) : undefined;
-  } else if (filterMonth !== "all") {
-    const [my, mm] = filterMonth.split("-").map(Number);
-    if (my && mm) {
-      serverFrom = `${my}-${pad(mm)}-01`;
-      serverTo = ymd(new Date(my, mm, 0));
-    }
+  } else if (filterMonth !== "all" || filterMonthTo !== "all") {
+    const startYm = filterMonth !== "all" ? filterMonth : filterMonthTo;
+    const endYm = filterMonthTo !== "all" ? filterMonthTo : filterMonth;
+    const a = monthStart(startYm);
+    const b = monthEnd(endYm);
+    // Keep the range ordered even if the user picks them backwards
+    if (a && b && a <= b) { serverFrom = a; serverTo = b; }
+    else { serverFrom = monthStart(endYm); serverTo = monthEnd(startYm); }
+  }
+
+  // Event / tag filters run server-side so they span the whole history
+  const isFacetFiltering = filterEvent !== "all" || filterTag !== "all";
+  if (isFacetFiltering && !periodAppliesToEvent) {
+    serverFrom = undefined;
+    serverTo = undefined;
   }
 
   // When searching/filtering by payee, widen the window to all history
-  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all";
+  const isNameFiltering = !!debouncedSearch || filterReceivers.length > 0 || filterType !== "all" || filterGroup !== "all" || isFacetFiltering || !!serverFrom || !!serverTo;
   const effectiveMonths = isNameFiltering ? 0 : windowMonths;
   const serverPayees = filterReceivers.length > 0 ? filterReceivers : undefined;
 
   // Data queries
   const { data: pageData, isLoading, isFetching } = useQuery<{ rows: Expense[]; total: number }>({
-    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup, serverFrom ?? '', serverTo ?? ''],
-    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup, dateFrom: serverFrom, dateTo: serverTo }),
+    queryKey: ['expenses', effectiveMonths, pageSize, page, sortField, sortAscending, debouncedSearch, serverPayees ?? [], filterType, filterGroup, serverFrom ?? '', serverTo ?? '', filterEvent, filterTag],
+    queryFn: () => fetchExpensesWindow({ months: effectiveMonths, limit: pageSize, offset: (page - 1) * pageSize, sortField, ascending: sortAscending, search: debouncedSearch, payees: serverPayees, transactionType: filterType, categoryGroup: filterGroup, dateFrom: serverFrom, dateTo: serverTo, eventName: filterEvent, projectTag: filterTag }),
   });
 
   const expenses: Expense[] = pageData?.rows ?? [];
   const totalCount = pageData?.total ?? 0;
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
 
