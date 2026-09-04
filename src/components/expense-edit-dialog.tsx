@@ -107,6 +107,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [slipFile, setSlipFile] = useState<File | null>(null);
   const [dateWarning, setDateWarning] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
