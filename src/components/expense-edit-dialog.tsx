@@ -114,6 +114,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
 
   useEffect(() => {
     if (expense) {
+      setSlipFile(null);
       setFormData({
         category: expense.category,
         subcategory: expense.subcategory || "",
