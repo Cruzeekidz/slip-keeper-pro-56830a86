@@ -237,9 +237,25 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     setLoading(true);
     try {
       const breakdown = computeTax(tax);
+
+      // Replace slip file if the user picked a new one
+      let newReceiptUrl: string | null | undefined;
+      if (slipFile) {
+        const uid = (await supabase.auth.getUser()).data.user?.id;
+        if (!uid) throw new Error("ไม่พบผู้ใช้");
+        const ext = slipFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = buildUploadPath("payment-slips", uid, `${Date.now()}_${expense.id}.${ext}`);
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, slipFile, { contentType: slipFile.type, upsert: false });
+        if (upErr) throw upErr;
+        newReceiptUrl = path;
+      }
+
       const { error } = await supabase
         .from('expenses')
         .update({
+          ...(newReceiptUrl !== undefined ? { receipt_url: newReceiptUrl } : {}),
           amount: breakdown.gross,
           vat_amount: breakdown.vat,
           vat_rate: tax.hasVat ? tax.vatRate : 0,
