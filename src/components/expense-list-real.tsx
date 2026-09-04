@@ -24,6 +24,7 @@ import { AttachInvoiceDialog } from "./attach-invoice-dialog";
 import { ReceiptGallery } from "./receipt-gallery";
 import { AmountBreakdown } from "./amount-breakdown";
 import { cn } from "@/lib/utils";
+import { downloadReceiptFile } from "@/lib/receipt-file";
 import {
   TransactionType, CategoryGroup,
   TRANSACTION_TYPES, CATEGORY_GROUPS,
