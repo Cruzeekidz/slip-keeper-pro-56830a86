@@ -17,6 +17,7 @@ import {
 import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
 import { autoRegisterEventTag } from "@/lib/event-registry";
 import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
+import { buildUploadPath } from "@/lib/storage-path";
 
 interface Expense {
   id: string;
