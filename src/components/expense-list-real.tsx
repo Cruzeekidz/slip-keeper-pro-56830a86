@@ -24,6 +24,7 @@ import { AttachInvoiceDialog } from "./attach-invoice-dialog";
 import { ReceiptGallery } from "./receipt-gallery";
 import { AmountBreakdown } from "./amount-breakdown";
 import { cn } from "@/lib/utils";
+import { downloadReceiptFile } from "@/lib/receipt-file";
 import {
   TransactionType, CategoryGroup,
   TRANSACTION_TYPES, CATEGORY_GROUPS,
@@ -637,12 +638,17 @@ export function ExpenseListReal({ editId, initialFilter }: { editId?: string | n
 
   const downloadReceipt = async (receiptUrl: string) => {
     try {
-      const { data, error } = await supabase.storage.from('receipts').download(receiptUrl);
-      if (error) throw error;
-      const url = URL.createObjectURL(data);
+      // Use the same signed edge-function path as the viewer (works for slips
+      // uploaded by other users / LINE bot, which direct storage access blocks)
+      const blob = await downloadReceiptFile(receiptUrl);
+      const ext = receiptUrl.toLowerCase().endsWith('.pdf') ? 'pdf' : 'jpg';
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url; a.download = `receipt-${Date.now()}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-    } catch (error) { toast({ title: "เกิดข้อผิดพลาด", variant: "destructive" }); }
+      a.href = url; a.download = `receipt-${Date.now()}.${ext}`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download receipt failed:', receiptUrl, error);
+      toast({ title: "ดาวน์โหลดไม่สำเร็จ", description: "ไฟล์อาจถูกย้ายหรือหมดสิทธิ์เข้าถึง", variant: "destructive" });
+    }
   };
 
   if (isLoading) {
