@@ -1,52 +1,83 @@
-# วางระบบ "ยอดค่าใช้จ่าย" vs "ยอดจ่ายจริง" ให้ชัดเจน
+# แผนสร้างเอกสารสรุปโครงสร้างระบบ + ทิศทางพัฒนาเว็บจัดการเอกสารบัญชี
 
-## ปัญหาที่เกิดขึ้นจริง
-ตอนนี้ช่อง `amount` ของรายการค่าใช้จ่าย ถูกใช้ปนกัน 2 ความหมาย
-- บางรายการเก็บ **ยอดเต็ม (Gross)** ตามใบแจ้งหนี้/ค่าแรง
-- บางรายการเก็บ **ยอดโอนจริง (Net)** ที่หัก ณ ที่จ่ายแล้ว (ตามที่เห็นบนสลิป)
+## เป้าหมาย
 
-ผลคือ ตอนกด "วิเคราะห์สลิปใหม่ (OCR)" ระบบอ่านยอดจากสลิป = ยอดสุทธิ แล้วเอาไปทับยอดเต็มที่บันทึกไว้ → รายงานค่าใช้จ่ายเพี้ยน และภาษีหัก ณ ที่จ่ายหาย
+1. สร้างเอกสารสรุปโครงสร้างโปรแกรมทั้งหมดในรูปแบบไฟล์ `.md` ภายใน repo ที่อ่านง่ายและค้นหาได้
+2. อธิบายแหล่งข้อมูลที่มีอยู่แล้ว (Project Memory, migrations, edge functions)
+3. เปรียบเทียบช่องทางการใช้ AI เขียนโค้ดกับโปรเจกต์นี้ (Lovable AI vs Claude Fable)
+4. วางพื้นฐานสำหรับการขยายเป็น "เว็บจัดการเอกสารทางบัญชีครบวงจร" ในภายหลัง
 
-## หลักบัญชีที่ถูกต้อง (Liability Settlement Model — ใช้อยู่แล้ว ให้บังคับใช้ทุกจุด)
-สำหรับค่าจ้าง 10,000 หัก 3%:
-```text
-Dr ค่าใช้จ่าย (Gross)        10,000   <- amount = ยอดค่าใช้จ่ายที่ลงบัญชี/P&L
-   Cr ภาษีหัก ณ ที่จ่ายค้างจ่าย   300   <- wht_amount = หนี้ที่ต้องนำส่งกรมสรรพากร
-   Cr เงินฝากธนาคาร            9,700   <- ยอดบนสลิป = amount - wht_amount (ค่าคำนวณ ไม่เก็บซ้ำ)
-```
-กฎเดียวที่ต้องจำ: **`amount` = Gross เสมอ** และ **ยอดจ่ายจริง = คำนวณ ไม่ใช่ช่องกรอก**
+## สภาพปัจจุบัน (verified)
 
-## สิ่งที่จะทำ
+- Repo มีเฉพาะ `README.md` แบบ template และ `.lovable/plan.md`
+- ไม่มีโฟลเดอร์ `docs/` หรือเอกสารสรุป architecture
+- ระบบมี Project Memory บันทึกฟีเจอร์ไว้มากกว่า 30 หัวข้อ (เช่น LINE bot, WHT, duplicate detection, event sync)
+- Frontend: React 18 + Vite 5 + TypeScript + Tailwind + shadcn/ui + React Query มี 54 routes และ components กว่า 30 ตัว
+- Backend: Lovable Cloud/Supabase มี 40+ tables, 20+ edge functions, 70+ migrations, triggers, RLS
+- Integrations: LINE (LIFF/webhook), ReadyGo (one-way sync), FlowAccount (test/push จำกัด)
 
-### 1. นิยามฟิลด์ให้ตายตัว (ไม่เพิ่มตารางใหม่)
-- `amount` = ยอดค่าใช้จ่าย (Gross, รวม VAT ถ้ามี, ก่อนหัก WHT) — ใช้ในทุกรายงาน P&L
-- `wht_amount` / `vat_amount` = ยอดภาษี
-- `amount_input_mode` = ที่มาของยอดที่ผู้ใช้กรอก (`gross` | `net` | `none`) ใช้แปลงกลับ
+## ขอบเขตงานนี้
 
-### 2. เพิ่มฟังก์ชันกลาง `src/lib/amount-model.ts`
-- `deriveAmounts({ input, mode, whtRate, vatRate })` → `{ gross, wht, net }`
-- `grossFromSlip(slipAmount, whtRate)` = `slipAmount / (1 - rate)` สำหรับกรณีอ่านยอดจากสลิป
-ให้ทุกหน้า/ทุก edge function เรียกใช้ตัวนี้ตัวเดียว จะไม่มีสูตรกระจัดกระจายอีก
+สร้างเอกสารและโครงสร้างพื้นฐานเท่านั้น ยังไม่แก้ไข business logic, ไม่เพิ่ม table ใหม่, และไม่สร้างหน้า UI ใหม่ นอกจากหน้า `/system-docs` ที่มีอยู่แล้วอาจเชื่อมโยง
 
-### 3. แก้ตัววิเคราะห์ใหม่ (สาเหตุที่ค้างอยู่ตอนนี้) — `src/pages/ReanalyzeRecent.tsx`
-- ถ้ารายการนั้น `wht_amount > 0`: **ห้ามทับ `amount`** ให้เทียบยอดสลิปกับ `amount - wht_amount` แทน
-  - ถ้าตรงกัน → ถือว่า "ถูกต้องแล้ว" อัปเดตแค่วันที่
-  - ถ้าไม่ตรง → ขึ้นป้าย "ต้องตรวจ (มี WHT)" และ **ไม่ติ๊กเลือกให้อัตโนมัติ**
-- ถ้า `wht_amount = 0` → อัปเดตยอดได้ตามปกติ
-- แสดง 3 คอลัมน์ในตารางเทียบ: ยอดค่าใช้จ่าย / WHT / ยอดจ่ายจริง
+## ขั้นตอนการทำงาน
 
-### 4. ทำให้ UI พูดภาษาเดียวกันทุกหน้า
-ทุกที่ที่มียอด (แก้ไขรายการ, Payment Queue, รายการธุรกรรม, Event P&L) แสดงเป็นชุด 3 บรรทัดเสมอ:
-```text
-ยอดค่าใช้จ่าย (ลงบัญชี)   10,000.00
-หัก ณ ที่จ่าย 3%             -300.00
-ยอดโอนจริง (ตามสลิป)       9,700.00
-```
-ในฟอร์มกรอก มีสวิตช์ "ยอดที่กรอกคือ" = ยอดเต็ม / ยอดโอนจริง แล้วระบบคำนวณอีก 2 ค่าให้อัตโนมัติ
+### 1. สร้างโครงสร้างเอกสารใน repo
 
-### 5. ตัวตรวจสอบความถูกต้อง (Reconcile)
-เพิ่มการตรวจในหน้าเครื่องมือ: หา่รายการที่ `amount` ดูเหมือนเป็นยอดสุทธิ (คือ `wht_amount > 0` แต่ยอดสลิป = `amount`) แล้วเสนอแก้เป็น Gross ทีละรายการพร้อมกดยืนยัน
+สร้างโฟลเดอร์ `docs/` และไฟล์หลักดังนี้:
 
-## สรุปคำตอบคำถามหลัก
-ไม่ต้องแยกเป็น "บันทึกจ่าย" กับ "บันทึกค่าใช้จ่าย" เป็น 2 รายการ — จะทำให้ยอดซ้ำใน P&L
-ให้ใช้ **1 รายการ + 3 ตัวเลขในตัวมันเอง** (Gross / WHT / Net) แบบเดียวกับที่ FlowAccount ทำ แล้วบังคับให้ `amount` เป็น Gross เสมอ
+- `docs/README.md` — สารบัญเอกสารทั้งหมด
+- `docs/ARCHITECTURE.md` — ภาพรวมระบบ (business context, tech stack, deployment)
+- `docs/DATA_MODEL.md` — กลุ่ม table หลัก: expenses, staff/vendor, events, WHT, invoices/vouchers, LINE, auth/RBAC พร้อมความสัมพันธ์
+- `docs/FLOWS.md` — flow สำคัญ: ส่งสลิป/ใบเสร็จทาง LINE, ตรวจสอบซ้ำ, อนุมัติค่าจ้าง/ค่าใช้จ่าย, สร้าง voucher, WHT remittance, ReadyGo sync
+- `docs/INTEGRATIONS.md` — LINE, ReadyGo, FlowAccount, storage buckets
+- `docs/FRONTEND.md` — routes, components หลัก, hooks, lib utilities
+- `docs/PROJECT_MEMORY_GUIDE.md` — อธิบายว่า Project Memory คืออะไร มีหัวข้ออะไรบ้าง และวิธีค้นหา
+
+### 2. อัปเดต `README.md` หลัก
+
+แทนที่ template ด้วยข้อมูลเฉพาะโปรเจกต์:
+
+- ชื่อระบบและคำอธิบายสั้น
+- ลิงก์ไป `docs/README.md`
+- วิธีรัน dev server
+- tech stack ที่ใช้จริง
+- ลิงก์ Preview / Published URL (ไม่ต้องเปิดเผย Supabase ref)
+
+### 3. สร้างสารบัญและ cross-reference
+
+- ในแต่ละไฟล์ docs ให้มีลิงก์ข้ามไปหน้าที่เกี่ยวข้อง เช่น FLOWS → DATA_MODEL → FRONTEND
+- ระบุ file path สำคัญ เช่น `src/App.tsx`, `supabase/functions/line-webhook/index.ts`
+- ระบุชื่อ memory file ที่เกี่ยวข้อง เช่น `mem://features/staff-line-billing`
+
+### 4. เปรียบเทียบ AI / Coding workflow
+
+เพิ่มไฟล์ `docs/AI_WORKFLOW.md` ที่อธิบาย:
+
+- **Lovable AI (ตัวนี้)**: prompt ผ่าน chat, แก้ไขอัตโนมัติใน repo, มี preview สด, เหมาะกับการพัฒนาเร็วและ UI
+- **Claude Fable**: ใช้ได้โดย clone repo ไป IDE แล้วให้ Claude ช่วยวิเคราะห์/แก้ไข จากนั้น push กลับ; ข้อดีคือควบคุม environment เอง แต่ต้องจัดการ preview/deploy เอง
+- **แนะนำ workflow ผสม**: ใช้ Lovable เป็นหลักสำหรับ feature/UI ใหม่ และใช้ Claude Fable เฉพาะงานวิเคราะห์โค้ดซับซ้อนหรือเมื่อต้องการทำงานนอก Lovable
+
+### 5. เตรียมพื้นฐานสำหรับขยายเป็นระบบเอกสารบัญชี
+
+ใน `docs/ROADMAP.md` ให้วางแผนขั้นตอนถัดไป (ยังไม่ implement):
+
+- Phase A: ปรับปรุงเมนู/หน้าหลักให้รองรับงานเอกสาร (document hub, ค้นหา, tag)
+- Phase B: เพิ่ม module บัญชีพื้นฐาน (general ledger, journal, trial balance)
+- Phase C: เชื่อมต่อ FlowAccount แบบเต็มรูปแบบ (เมื่อมี production key)
+- Phase D: รายงานทางบัญชี (งบกำไรขาดทุน, งบดุลเบื้องต้น)
+
+## ผลลัพธ์ที่คาดหวัง
+
+- มีโฟลเดอร์ `docs/` ที่อ่านง่ายและครอบคลุม
+- `README.md` หลักอธิบายโปรเจกต์ได้ชัดเจน
+- ผู้ใช้รู้ว่าข้อมูลลึกแต่ละฟีเจอร์อยู่ที่ไหน (memory, migrations, functions)
+- มีแนวทางใช้ AI ร่วมกับโปรเจกต์
+- มี roadmap สำหรับขยายเป็นระบบเอกสารบัญชี
+
+## ไม่รวมในงานนี้
+
+- ไม่แก้ไข business logic หรือ database schema
+- ไม่สร้างหน้า UI ใหม่ (ยกเว้นอาจเพิ่มลิงก์ใน `/system-docs` หากมีอยู่แล้ว)
+- ไม่ deploy หรือ publish
+- ไม่เปลี่ยน Project Memory ที่มีอยู่
