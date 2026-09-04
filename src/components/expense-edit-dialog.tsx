@@ -17,6 +17,7 @@ import {
 import TaxFieldsSection, { TaxFieldsValue, computeTax } from "@/components/tax/TaxFieldsSection";
 import { autoRegisterEventTag } from "@/lib/event-registry";
 import { getCustomOptions, addCustomOption } from "@/lib/custom-options";
+import { buildUploadPath } from "@/lib/storage-path";
 
 interface Expense {
   id: string;
@@ -106,12 +107,14 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
   const [registryTags, setRegistryTags] = useState<{ project_tag: string; event_name: string; event_date: string | null }[]>([]);
   const [payeeGroups, setPayeeGroups] = useState<{ pattern: string; name: string }[]>([]);
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
+  const [slipFile, setSlipFile] = useState<File | null>(null);
   const [dateWarning, setDateWarning] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (expense) {
+      setSlipFile(null);
       setFormData({
         category: expense.category,
         subcategory: expense.subcategory || "",
@@ -237,9 +240,25 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
     setLoading(true);
     try {
       const breakdown = computeTax(tax);
+
+      // Replace slip file if the user picked a new one
+      let newReceiptUrl: string | null | undefined;
+      if (slipFile) {
+        const uid = (await supabase.auth.getUser()).data.user?.id;
+        if (!uid) throw new Error("ไม่พบผู้ใช้");
+        const ext = slipFile.name.split(".").pop()?.toLowerCase() || "jpg";
+        const path = buildUploadPath("payment-slips", uid, `${Date.now()}_${expense.id}.${ext}`);
+        const { error: upErr } = await supabase.storage
+          .from("receipts")
+          .upload(path, slipFile, { contentType: slipFile.type, upsert: false });
+        if (upErr) throw upErr;
+        newReceiptUrl = path;
+      }
+
       const { error } = await supabase
         .from('expenses')
         .update({
+          ...(newReceiptUrl !== undefined ? { receipt_url: newReceiptUrl } : {}),
           amount: breakdown.gross,
           vat_amount: breakdown.vat,
           vat_rate: tax.hasVat ? tax.vatRate : 0,
@@ -334,6 +353,24 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Replace attached slip */}
+          <div className="rounded-md border p-3 space-y-2">
+            <Label>สลิป/หลักฐานการจ่าย</Label>
+            <div className="text-xs text-muted-foreground break-all">
+              {expense?.receipt_url ? `ไฟล์ปัจจุบัน: ${expense.receipt_url.split("/").pop()}` : "ยังไม่มีไฟล์แนบ"}
+            </div>
+            <Input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
+            />
+            {slipFile && (
+              <div className="text-xs text-warning">
+                จะเปลี่ยนสลิปเป็น: {slipFile.name} (กด “บันทึก” เพื่อยืนยัน)
+              </div>
+            )}
+          </div>
+
           {/* Direction toggle */}
           {showDirection && (
             <div>
