@@ -353,6 +353,24 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         </DialogHeader>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Replace attached slip */}
+          <div className="rounded-md border p-3 space-y-2">
+            <Label>สลิป/หลักฐานการจ่าย</Label>
+            <div className="text-xs text-muted-foreground break-all">
+              {expense?.receipt_url ? `ไฟล์ปัจจุบัน: ${expense.receipt_url.split("/").pop()}` : "ยังไม่มีไฟล์แนบ"}
+            </div>
+            <Input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
+            />
+            {slipFile && (
+              <div className="text-xs text-warning">
+                จะเปลี่ยนสลิปเป็น: {slipFile.name} (กด “บันทึก” เพื่อยืนยัน)
+              </div>
+            )}
+          </div>
+
           {/* Direction toggle */}
           {showDirection && (
             <div>
