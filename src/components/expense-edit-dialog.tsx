@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Send, UserCheck, Store, AlertTriangle } from "lucide-react";
+import { Calendar, Send, UserCheck, Store, AlertTriangle, Paperclip } from "lucide-react";
 import {
   TransactionType, CategoryGroup, TransactionDirection,
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
@@ -354,14 +354,18 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
         
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Replace attached slip */}
-          <div className="rounded-md border p-3 space-y-2">
-            <Label>สลิป/หลักฐานการจ่าย</Label>
+          <div className="rounded-md border-2 border-primary/50 bg-primary/5 p-3 space-y-2">
+            <Label className="text-base font-semibold text-primary flex items-center gap-2">
+              <Paperclip className="h-4 w-4" />
+              สลิป/หลักฐานการจ่าย (แนบใหม่/เปลี่ยนไฟล์)
+            </Label>
             <div className="text-xs text-muted-foreground break-all">
               {expense?.receipt_url ? `ไฟล์ปัจจุบัน: ${expense.receipt_url.split("/").pop()}` : "ยังไม่มีไฟล์แนบ"}
             </div>
             <Input
               type="file"
               accept="image/*,application/pdf"
+              className="cursor-pointer file:mr-3 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1 file:text-primary-foreground"
               onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
             />
             {slipFile && (
@@ -370,6 +374,7 @@ export function ExpenseEditDialog({ expense, open, onOpenChange, onSuccess }: Ex
               </div>
             )}
           </div>
+
 
           {/* Direction toggle */}
           {showDirection && (
