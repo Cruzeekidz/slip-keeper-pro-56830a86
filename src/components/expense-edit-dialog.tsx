@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Combobox } from "@/components/ui/combobox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, Send, UserCheck, Store, AlertTriangle } from "lucide-react";
+import { Calendar, Send, UserCheck, Store, AlertTriangle, Paperclip } from "lucide-react";
 import {
   TransactionType, CategoryGroup, TransactionDirection,
   TRANSACTION_TYPES, CATEGORY_GROUPS, TRANSACTION_DIRECTIONS,
