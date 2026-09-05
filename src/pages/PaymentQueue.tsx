@@ -1403,6 +1403,7 @@ const PaymentQueue = () => {
                 )}
                 <p className="text-xs text-muted-foreground bg-muted/60 rounded p-2">
                   ระบบจะสร้างรายการค่าใช้จ่ายในบัญชีให้อัตโนมัติ (ถ้ายังไม่มีรายการผูกไว้)
+                  <br />📎 แนบสลิปที่นี่แล้ว ไม่ต้องส่งสลิปใบเดียวกันเข้าไลน์อีก (ถ้าส่งไป ระบบจะรวมให้รายการเดิม ไม่บันทึกซ้ำ)
                 </p>
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
