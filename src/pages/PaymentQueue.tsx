@@ -1323,6 +1323,9 @@ const PaymentQueue = () => {
                     ⚠️ ระบบจะบันทึกภาษีหัก ณ ที่จ่าย {Number(payDialog.wht_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท เป็นค่าใช้จ่ายเครดิต (รอนำส่งสรรพากร)
                   </p>
                 )}
+                <p className="text-xs text-muted-foreground bg-muted/60 rounded p-2">
+                  📎 แนบสลิปที่นี่แล้ว ไม่ต้องส่งสลิปใบเดียวกันเข้าไลน์อีก (ถ้าส่งไป ระบบจะรวมให้รายการเดิม ไม่บันทึกซ้ำ)
+                </p>
                 <div className="border-2 border-dashed rounded-lg p-6 text-center">
                   <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
