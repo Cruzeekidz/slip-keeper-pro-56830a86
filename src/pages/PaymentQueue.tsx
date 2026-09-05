@@ -102,6 +102,8 @@ const PaymentQueue = () => {
   const [selectedBillIds, setSelectedBillIds] = useState<string[]>([]);
   const [selectedStaffInvoiceIds, setSelectedStaffInvoiceIds] = useState<string[]>([]);
   const [paySheetBill, setPaySheetBill] = useState<any | null>(null);
+  const [vendorPayDialog, setVendorPayDialog] = useState<any | null>(null);
+  const vendorFileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
     queryKey: ["payment-queue"],
