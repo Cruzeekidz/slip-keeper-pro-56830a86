@@ -45,6 +45,42 @@ export function deriveAmounts(params: {
   return { gross: round2(gross), vat, wht, net: round2(gross - wht) };
 }
 
+export interface VatBreakdown {
+  /** ยอดก่อน VAT — ฐานที่ใช้คำนวณหัก ณ ที่จ่าย */
+  base: number;
+  vat: number;
+  /** ยอดรวม (ก่อน VAT + VAT) */
+  gross: number;
+  wht: number;
+  /** ยอดโอนจริง = gross - wht */
+  net: number;
+}
+
+/**
+ * คิดยอดโดยแยก VAT ออกก่อน แล้วหัก ณ ที่จ่ายจาก "ยอดก่อน VAT" เท่านั้น (ตามกฎสรรพากร)
+ * input = ยอดที่กรอก, vatIncluded = ยอดที่กรอกรวม VAT แล้วหรือยัง
+ */
+export function deriveWithVat(params: {
+  input: number;
+  vatRate?: number;
+  vatIncluded?: boolean;
+  whtRate?: number;
+}): VatBreakdown {
+  const input = Number(params.input) || 0;
+  const vatRate = Number(params.vatRate) || 0;
+  const whtRate = Number(params.whtRate) || 0;
+  const vatIncluded = !!params.vatIncluded;
+
+  let base: number;
+  if (vatRate > 0 && vatIncluded) base = round2((input * 100) / (100 + vatRate));
+  else base = round2(input);
+
+  const vat = vatRate > 0 ? round2((base * vatRate) / 100) : 0;
+  const gross = round2(base + vat);
+  const wht = round2((base * whtRate) / 100);
+  return { base, vat, gross, wht, net: round2(gross - wht) };
+}
+
 /** ยอดที่ควรตรงกับสลิปของรายการที่บันทึกไว้แล้ว (Net) */
 export function expectedSlipAmount(row: { amount: number; wht_amount?: number | null }): number {
   return round2((Number(row.amount) || 0) - (Number(row.wht_amount) || 0));
