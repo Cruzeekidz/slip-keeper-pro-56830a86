@@ -198,12 +198,33 @@ export default function DuplicateChecker() {
           </div>
         </div>
 
-        <Tabs value={mode} onValueChange={(v) => switchMode(v as "exact" | "recurring")}>
+        <Tabs value={mode} onValueChange={(v) => switchMode(v as DuplicateMode)}>
           <TabsList>
             <TabsTrigger value="exact">รายการซ้ำ</TabsTrigger>
+            <TabsTrigger value="grossnet">ยอดเต็ม/ยอดโอน</TabsTrigger>
             <TabsTrigger value="recurring">จ่ายซ้ำที่ควรตรวจ</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {mode === "grossnet" && (
+          <Card className="p-4 space-y-3">
+            <p className="text-sm text-muted-foreground">
+              คู่รายการที่ยอดหนึ่งเป็น "ยอดเต็ม" (มีหัก ณ ที่จ่าย) และอีกยอดเท่ากับ "ยอดโอนจริง" ในช่วงวันที่ใกล้กัน
+              มักเป็นสลิปใบเดียวกันที่ถูกบันทึกสองครั้ง — ให้เก็บรายการยอดเต็มไว้ และลบรายการยอดโอน
+            </p>
+            <div className="space-y-1">
+              <Label className="text-xs">ช่วงเวลา</Label>
+              <Select value={String(days)} onValueChange={(v) => { setDays(Number(v)); setPage(1); }}>
+                <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="90">90 วันล่าสุด</SelectItem>
+                  <SelectItem value="180">180 วันล่าสุด</SelectItem>
+                  <SelectItem value="365">1 ปีล่าสุด</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+        )}
 
         {mode === "recurring" && (
           <Card className="p-4 flex flex-wrap items-end gap-4">
