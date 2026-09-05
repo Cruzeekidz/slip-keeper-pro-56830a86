@@ -102,6 +102,42 @@ export default function VendorBillPaySheet({ bill, onOpenChange }: Props) {
         </SheetHeader>
 
         <div className="space-y-4 mt-4">
+          {/* บัญชีรับโอน */}
+          {(() => {
+            const acct = (bill?.vendor_profiles?.bank_account || "").replace(/[^0-9]/g, "");
+            const bankName = bill?.vendor_profiles?.bank_name || "";
+            const accName = bill?.vendor_profiles?.company_name || bill?.submitted_via_line_display_name || "";
+            if (!acct) {
+              return (
+                <div className="flex gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  <span>ยังไม่มีเลขบัญชีของคู่ค้ารายนี้ — เพิ่มเลขบัญชีในหน้าจัดการคู่ค้าก่อนโอนเงิน</span>
+                </div>
+              );
+            }
+            return (
+              <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-3 space-y-2">
+                <p className="text-xs text-muted-foreground">บัญชีรับโอน</p>
+                <p className="text-2xl font-bold font-mono tracking-wider break-all">{acct}</p>
+                <p className="text-xs text-muted-foreground">{bankName}{accName ? ` — ${accName}` : ""}</p>
+                <div className="flex gap-2">
+                  <Button size="sm" className="flex-1" onClick={() => {
+                    navigator.clipboard.writeText(acct);
+                    toast({ title: "คัดลอกเลขบัญชี", description: `${acct}${bankName ? ` · ${bankName}` : ""}` });
+                  }}>
+                    <Copy className="h-4 w-4 mr-1" />คัดลอกเลขบัญชี
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => {
+                    navigator.clipboard.writeText(`${bankName}\n${acct}\n${accName}`);
+                    toast({ title: "คัดลอกข้อมูลบัญชีทั้งชุด" });
+                  }}>
+                    คัดลอกทั้งชุด
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
           <div>
             <Label>1) ยอดตามบิล</Label>
             <Input type="number" value={input} onChange={(e) => setInput(e.target.value)} />
