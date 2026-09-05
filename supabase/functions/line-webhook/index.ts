@@ -1469,53 +1469,93 @@ serve(async (req) => {
         // Reuse downstream as if mapping found
         const effectiveOwner = resolvedOwnerId;
 
-        // Check for duplicate before inserting
+        // ตรวจสลิปซ้ำ / เติมสลิปให้รายการที่มีอยู่แล้ว (เช่น รายการที่สร้างจากการกดจ่ายเงินบนเว็บ)
         if (effectiveOwner) {
           const txnId = expenseData.transaction_id as string | null;
-          const expAmount = expenseData.amount as number;
+          const expAmount = Number(expenseData.amount) || 0;
+          const expTime = expenseData.expense_time as string | null;
+          const SELECT_COLS = 'id, amount, wht_amount, receipt_url, expense_date, transaction_id';
+          let existing: any = null;
 
-          let isDuplicate = false;
-
-          // Priority 1: Check by transaction_id (most reliable)
+          // 1) เลขอ้างอิงบนสลิป (แม่นที่สุด)
           if (txnId) {
-            const { data: existingTxn } = await supabase
+            const { data } = await supabase
               .from('expenses')
-              .select('id')
+              .select(SELECT_COLS)
               .eq('user_id', effectiveOwner)
               .eq('transaction_id', txnId)
-              .maybeSingle();
-
-            if (existingTxn) {
-              isDuplicate = true;
+              .limit(1);
+            if (data && data.length > 0) {
+              existing = data[0];
               console.log("Duplicate transaction_id found:", txnId);
             }
           }
 
-          // Priority 2: Check by amount + date + time (fallback when no txn_id)
-          if (!isDuplicate && expAmount && expDate) {
+          // 2) ยอด + วันที่ (+ เวลา) ตรงกันเป๊ะ
+          if (!existing && expAmount && expDate) {
             let dupQuery = supabase
               .from('expenses')
-              .select('id, transaction_id')
+              .select(SELECT_COLS)
               .eq('user_id', effectiveOwner)
               .eq('amount', expAmount)
               .eq('expense_date', expDate);
-
-            const expTime = expenseData.expense_time as string | null;
-            if (expTime) {
-              dupQuery = dupQuery.eq('expense_time', expTime);
-            }
-
-            const { data: existingByAmount } = await dupQuery.maybeSingle();
-            if (existingByAmount) {
-              isDuplicate = true;
+            if (expTime) dupQuery = dupQuery.eq('expense_time', expTime);
+            const { data } = await dupQuery.limit(1);
+            if (data && data.length > 0) {
+              existing = data[0];
               console.log("Duplicate by amount+date found:", expAmount, expDate);
             }
           }
 
-          if (isDuplicate) {
+          // 3) เทียบ "ยอดโอนจริง" (ยอดเต็ม - หัก ณ ที่จ่าย) ในช่วง ±7 วัน
+          //    ครอบคลุมรายการที่สร้างตอนกดจ่ายเงิน ซึ่งลงยอดเต็มและลงวันที่เป็นวันกดจ่าย
+          if (!existing && expAmount && expDate) {
+            const base = new Date(`${expDate}T00:00:00Z`);
+            const shift = (days: number) =>
+              new Date(base.getTime() + days * 86400000).toISOString().slice(0, 10);
+            const { data: cands } = await supabase
+              .from('expenses')
+              .select(SELECT_COLS)
+              .eq('user_id', effectiveOwner)
+              .gte('expense_date', shift(-7))
+              .lte('expense_date', shift(7))
+              .limit(400);
+            const tol = 0.5;
+            const matches = (cands || []).filter((r: any) => {
+              const gross = Number(r.amount) || 0;
+              const net = gross - (Number(r.wht_amount) || 0);
+              return Math.abs(gross - expAmount) <= tol || Math.abs(net - expAmount) <= tol;
+            });
+            if (matches.length === 1) {
+              existing = matches[0];
+              console.log("Matched existing expense by net/gross amount:", existing.id);
+            } else if (matches.length > 1) {
+              console.log(`Multiple amount matches (${matches.length}) — inserting as new`);
+            }
+          }
+
+          if (existing) {
             const amt = extractedData?.amount ? `${extractedData.amount.toLocaleString()} บาท` : '';
-            await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
-              `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}`);
+            if (!existing.receipt_url) {
+              // รายการเดิมยังไม่มีไฟล์สลิป → เติมสลิป + ข้อมูลจริงบนสลิป แทนการสร้างรายการใหม่
+              const patch: Record<string, unknown> = { receipt_url: storagePath };
+              if (rawDate) patch.ocr_date_raw = rawDate;
+              if (expDate) patch.expense_date = expDate;
+              if (expTime) patch.expense_time = expTime;
+              if (txnId && !existing.transaction_id) patch.transaction_id = txnId;
+              const { error: fillErr } = await supabase
+                .from('expenses')
+                .update(patch)
+                .eq('id', existing.id);
+              if (fillErr) console.error("Fill slip error:", fillErr);
+              await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
+                fillErr
+                  ? `⚠️ พบรายการเดิมแต่เติมสลิปไม่สำเร็จ\n💰 ${amt}\n📅 ${expDate}`
+                  : `📎 เติมสลิปให้รายการเดิมแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}`);
+            } else {
+              await pushTextToUser(LINE_CHANNEL_ACCESS_TOKEN, userId,
+                `⚠️ สลิปนี้ถูกบันทึกไปแล้ว (ไม่บันทึกซ้ำ)\n💰 ${amt}\n📅 ${expDate}`);
+            }
             continue;
           }
         }
