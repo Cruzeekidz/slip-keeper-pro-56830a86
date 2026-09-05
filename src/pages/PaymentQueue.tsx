@@ -1346,6 +1346,80 @@ const PaymentQueue = () => {
           </DialogContent>
         </Dialog>
 
+        {/* จ่ายบิลคู่ค้า + แนบสลิป */}
+        <Dialog open={!!vendorPayDialog} onOpenChange={(open) => { if (!open) setVendorPayDialog(null); }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                ยืนยันการจ่ายบิลคู่ค้า
+              </DialogTitle>
+            </DialogHeader>
+            {vendorPayDialog && (
+              <div className="space-y-4">
+                <div className="bg-muted rounded-lg p-3 text-sm space-y-1">
+                  <p className="font-medium">
+                    {vendorPayDialog.vendor_profiles?.company_name || vendorPayDialog.submitted_via_line_display_name || "ไม่ระบุคู่ค้า"}
+                  </p>
+                  <p className="text-muted-foreground">
+                    {vendorPayDialog.receipt_no ? `${vendorPayDialog.receipt_no} · ` : ""}
+                    {vendorPayDialog.description || "ไม่มีรายละเอียด"}
+                  </p>
+                  <div className="space-y-1 mt-2">
+                    <div className="flex justify-between">
+                      <span>ยอดก่อน VAT</span>
+                      <span>{Number(vendorPayDialog.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    {Number(vendorPayDialog.vat_amount) > 0 && (
+                      <div className="flex justify-between">
+                        <span>VAT</span>
+                        <span>{Number(vendorPayDialog.vat_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    {Number(vendorPayDialog.wht_amount) > 0 && (
+                      <div className="flex justify-between text-destructive">
+                        <span>หัก ณ ที่จ่าย {Number(vendorPayDialog.wht_rate)}%</span>
+                        <span>-{Number(vendorPayDialog.wht_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-primary border-t pt-1">
+                      <span>ยอดโอน</span>
+                      <span>
+                        {Number(
+                          vendorPayDialog.net_amount ??
+                            (Number(vendorPayDialog.amount || 0) + Number(vendorPayDialog.vat_amount || 0) - Number(vendorPayDialog.wht_amount || 0))
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2 })} บาท
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                {vendorPayDialog.voucher_id && (
+                  <p className="text-xs text-primary bg-primary/5 rounded p-2">
+                    บิลนี้อยู่ในใบสรุปการจ่าย — ระบบจะบันทึกจ่ายทุกรายการในใบสรุปเดียวกัน โดยใช้สลิปใบนี้เป็นหลักฐาน
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground bg-muted/60 rounded p-2">
+                  ระบบจะสร้างรายการค่าใช้จ่ายในบัญชีให้อัตโนมัติ (ถ้ายังไม่มีรายการผูกไว้)
+                </p>
+                <div className="border-2 border-dashed rounded-lg p-6 text-center">
+                  <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">แนบสลิปเงินโอน</p>
+                  <Button variant="outline" onClick={() => vendorFileInputRef.current?.click()} disabled={uploading}>
+                    {uploading ? "กำลังอัปโหลด..." : "เลือกไฟล์"}
+                  </Button>
+                  <input
+                    ref={vendorFileInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    onChange={handleVendorFileSelected}
+                  />
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
         {/* Reject claim confirmation */}
         <AlertDialog open={!!rejectClaim} onOpenChange={(o) => !o && setRejectClaim(null)}>
           <AlertDialogContent>
