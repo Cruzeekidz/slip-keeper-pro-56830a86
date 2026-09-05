@@ -473,6 +473,16 @@ const PaymentQueue = () => {
     );
   };
 
+  const handleVendorFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !vendorPayDialog) return;
+    setUploading(true);
+    markVendorBillPaidMutation.mutate(
+      { bill: vendorPayDialog, slipFile: file },
+      { onSettled: () => setUploading(false) }
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="bg-gradient-primary text-primary-foreground p-4 shadow-elevated">
