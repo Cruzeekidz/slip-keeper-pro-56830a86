@@ -1,83 +1,43 @@
-# แผนสร้างเอกสารสรุปโครงสร้างระบบ + ทิศทางพัฒนาเว็บจัดการเอกสารบัญชี
+# ปรับหน้าจ่ายบิลคู่ค้าให้ครบเรื่อง VAT / หัก ณ ที่จ่าย / สลิปโอน
 
-## เป้าหมาย
+แก้ 3 เรื่องในขั้นตอน "ตรวจยอดและหัก ณ ที่จ่าย เพื่อเตรียมจ่าย" ของบิลคู่ค้า/ใบแจ้งหนี้รอจ่าย
 
-1. สร้างเอกสารสรุปโครงสร้างโปรแกรมทั้งหมดในรูปแบบไฟล์ `.md` ภายใน repo ที่อ่านง่ายและค้นหาได้
-2. อธิบายแหล่งข้อมูลที่มีอยู่แล้ว (Project Memory, migrations, edge functions)
-3. เปรียบเทียบช่องทางการใช้ AI เขียนโค้ดกับโปรเจกต์นี้ (Lovable AI vs Claude Fable)
-4. วางพื้นฐานสำหรับการขยายเป็น "เว็บจัดการเอกสารทางบัญชีครบวงจร" ในภายหลัง
+## 1) เพิ่มการคิด VAT และหัก ณ ที่จ่ายจากยอดก่อน VAT
 
-## สภาพปัจจุบัน (verified)
+- เพิ่มตัวเลือกว่ายอดที่กรอกเป็น "รวม VAT แล้ว" หรือ "ยังไม่รวม VAT" (มีทั้งสองแบบตามที่แจ้ง)
+- เลือกอัตรา VAT ได้: 7% หรือไม่มี VAT
+- ระบบคิดยอดก่อน VAT ให้เอง แล้ว **หัก ณ ที่จ่ายคำนวณจากยอดก่อน VAT เท่านั้น**
+- สรุปยอดแสดงเป็นบรรทัดชัดเจน: ยอดก่อน VAT → VAT → ยอดรวม → หัก ณ ที่จ่าย → ยอดโอนจริง (ตัวใหญ่ กดคัดลอกได้เหมือนเดิม)
+- บันทึกลงบิล: ยอดค่าใช้จ่าย (ก่อน VAT), VAT, อัตรา/ยอดหัก ณ ที่จ่าย, ยอดโอนสุทธิ
 
-- Repo มีเฉพาะ `README.md` แบบ template และ `.lovable/plan.md`
-- ไม่มีโฟลเดอร์ `docs/` หรือเอกสารสรุป architecture
-- ระบบมี Project Memory บันทึกฟีเจอร์ไว้มากกว่า 30 หัวข้อ (เช่น LINE bot, WHT, duplicate detection, event sync)
-- Frontend: React 18 + Vite 5 + TypeScript + Tailwind + shadcn/ui + React Query มี 54 routes และ components กว่า 30 ตัว
-- Backend: Lovable Cloud/Supabase มี 40+ tables, 20+ edge functions, 70+ migrations, triggers, RLS
-- Integrations: LINE (LIFF/webhook), ReadyGo (one-way sync), FlowAccount (test/push จำกัด)
+## 2) เพิ่มประเภทเงินได้หัก ณ ที่จ่ายให้ครบ
 
-## ขอบเขตงานนี้
+เพิ่มรายการที่ยังขาด โดยแยกกรณีบุคคลธรรมดา (ภ.ง.ด.3) และนิติบุคคล (ภ.ง.ด.53):
 
-สร้างเอกสารและโครงสร้างพื้นฐานเท่านั้น ยังไม่แก้ไข business logic, ไม่เพิ่ม table ใหม่, และไม่สร้างหน้า UI ใหม่ นอกจากหน้า `/system-docs` ที่มีอยู่แล้วอาจเชื่อมโยง
+- ค่าจ้างทำของ / รับเหมา 3%
+- ค่าบริการ / ค่าวิชาชีพอิสระ 3%
+- ค่านายหน้า / ฟรีแลนซ์ 3%
+- ค่าเช่า 5%
+- ค่าโฆษณา 2%
+- ค่าขนส่ง 1%
+- รางวัล / ส่วนลดส่งเสริมการขาย 3%
+- ดอกเบี้ย 1%
+- เงินปันผล 10%
 
-## ขั้นตอนการทำงาน
+ตัวเลือกจะแสดงเป็นกลุ่ม (บุคคลธรรมดา / นิติบุคคล) เพื่อไม่ให้เลือกผิดประเภทแบบภาษี และคำเตือนเรื่องเลขผู้เสียภาษี 13 หลักยังอยู่
 
-### 1. สร้างโครงสร้างเอกสารใน repo
+## 3) แนบสลิปเงินโอนตอนบันทึกการจ่ายบิลคู่ค้า
 
-สร้างโฟลเดอร์ `docs/` และไฟล์หลักดังนี้:
+- ปุ่ม "บันทึกว่าจ่ายแล้ว" ของบิลคู่ค้าและใบสรุปการจ่าย (P####) จะเปลี่ยนเป็น "จ่ายแล้ว + แนบสลิป" แบบเดียวกับการจ่ายทีมงาน
+- เลือกไฟล์สลิป → อัปโหลดเก็บในโฟลเดอร์สลิปการจ่ายตามปี/เดือน → บันทึกวันจ่ายและสถานะจ่ายแล้ว
+- **สร้างรายการค่าใช้จ่ายในบัญชีให้อัตโนมัติ** ตามที่เลือก: ลงยอดค่าใช้จ่ายเต็ม (ก่อน VAT + VAT ตามที่กรอก) พร้อมยอดหัก ณ ที่จ่าย และแนบสลิปเป็นหลักฐาน
+- กันยอดซ้ำ: ถ้าบิลใบนั้นมีรายการค่าใช้จ่ายผูกไว้แล้ว (เช่นสลิปเข้ามาทางไลน์) จะไม่สร้างซ้ำ แต่จะอัปเดตสลิปให้แทน
+- ถ้าเป็นใบสรุปการจ่ายที่มีหลายบิล/หลายใบทีมงาน จะบันทึกจ่ายทุกใบในชุดเดียวกันและใช้สลิปเดียวกันเป็นหลักฐาน
 
-- `docs/README.md` — สารบัญเอกสารทั้งหมด
-- `docs/ARCHITECTURE.md` — ภาพรวมระบบ (business context, tech stack, deployment)
-- `docs/DATA_MODEL.md` — กลุ่ม table หลัก: expenses, staff/vendor, events, WHT, invoices/vouchers, LINE, auth/RBAC พร้อมความสัมพันธ์
-- `docs/FLOWS.md` — flow สำคัญ: ส่งสลิป/ใบเสร็จทาง LINE, ตรวจสอบซ้ำ, อนุมัติค่าจ้าง/ค่าใช้จ่าย, สร้าง voucher, WHT remittance, ReadyGo sync
-- `docs/INTEGRATIONS.md` — LINE, ReadyGo, FlowAccount, storage buckets
-- `docs/FRONTEND.md` — routes, components หลัก, hooks, lib utilities
-- `docs/PROJECT_MEMORY_GUIDE.md` — อธิบายว่า Project Memory คืออะไร มีหัวข้ออะไรบ้าง และวิธีค้นหา
+## รายละเอียดทางเทคนิค
 
-### 2. อัปเดต `README.md` หลัก
-
-แทนที่ template ด้วยข้อมูลเฉพาะโปรเจกต์:
-
-- ชื่อระบบและคำอธิบายสั้น
-- ลิงก์ไป `docs/README.md`
-- วิธีรัน dev server
-- tech stack ที่ใช้จริง
-- ลิงก์ Preview / Published URL (ไม่ต้องเปิดเผย Supabase ref)
-
-### 3. สร้างสารบัญและ cross-reference
-
-- ในแต่ละไฟล์ docs ให้มีลิงก์ข้ามไปหน้าที่เกี่ยวข้อง เช่น FLOWS → DATA_MODEL → FRONTEND
-- ระบุ file path สำคัญ เช่น `src/App.tsx`, `supabase/functions/line-webhook/index.ts`
-- ระบุชื่อ memory file ที่เกี่ยวข้อง เช่น `mem://features/staff-line-billing`
-
-### 4. เปรียบเทียบ AI / Coding workflow
-
-เพิ่มไฟล์ `docs/AI_WORKFLOW.md` ที่อธิบาย:
-
-- **Lovable AI (ตัวนี้)**: prompt ผ่าน chat, แก้ไขอัตโนมัติใน repo, มี preview สด, เหมาะกับการพัฒนาเร็วและ UI
-- **Claude Fable**: ใช้ได้โดย clone repo ไป IDE แล้วให้ Claude ช่วยวิเคราะห์/แก้ไข จากนั้น push กลับ; ข้อดีคือควบคุม environment เอง แต่ต้องจัดการ preview/deploy เอง
-- **แนะนำ workflow ผสม**: ใช้ Lovable เป็นหลักสำหรับ feature/UI ใหม่ และใช้ Claude Fable เฉพาะงานวิเคราะห์โค้ดซับซ้อนหรือเมื่อต้องการทำงานนอก Lovable
-
-### 5. เตรียมพื้นฐานสำหรับขยายเป็นระบบเอกสารบัญชี
-
-ใน `docs/ROADMAP.md` ให้วางแผนขั้นตอนถัดไป (ยังไม่ implement):
-
-- Phase A: ปรับปรุงเมนู/หน้าหลักให้รองรับงานเอกสาร (document hub, ค้นหา, tag)
-- Phase B: เพิ่ม module บัญชีพื้นฐาน (general ledger, journal, trial balance)
-- Phase C: เชื่อมต่อ FlowAccount แบบเต็มรูปแบบ (เมื่อมี production key)
-- Phase D: รายงานทางบัญชี (งบกำไรขาดทุน, งบดุลเบื้องต้น)
-
-## ผลลัพธ์ที่คาดหวัง
-
-- มีโฟลเดอร์ `docs/` ที่อ่านง่ายและครอบคลุม
-- `README.md` หลักอธิบายโปรเจกต์ได้ชัดเจน
-- ผู้ใช้รู้ว่าข้อมูลลึกแต่ละฟีเจอร์อยู่ที่ไหน (memory, migrations, functions)
-- มีแนวทางใช้ AI ร่วมกับโปรเจกต์
-- มี roadmap สำหรับขยายเป็นระบบเอกสารบัญชี
-
-## ไม่รวมในงานนี้
-
-- ไม่แก้ไข business logic หรือ database schema
-- ไม่สร้างหน้า UI ใหม่ (ยกเว้นอาจเพิ่มลิงก์ใน `/system-docs` หากมีอยู่แล้ว)
-- ไม่ deploy หรือ publish
-- ไม่เปลี่ยน Project Memory ที่มีอยู่
+- `src/lib/wht-constants.ts` — ขยาย `INCOME_TYPES` (label, section, rate, pndType) และเพิ่มฟิลด์ payeeType เพื่อจัดกลุ่มบุคคล/นิติบุคคล
+- `src/lib/amount-model.ts` — เพิ่มโหมดคำนวณ VAT: รับ `vatIncluded` + `vatRate` แล้วคืน `base` (ก่อน VAT), `vat`, `gross`, `wht = base × rate`, `net = gross − wht` (ปัจจุบัน wht คิดจาก gross จึงผิดเมื่อยอดรวม VAT)
+- `src/components/payment/VendorBillPaySheet.tsx` — UI VAT toggle + rate, ตัวเลือก WHT แบบกลุ่ม, สรุปยอดใหม่, บันทึก `amount`, `vat_amount`, `wht_rate`, `wht_amount`, `net_amount`
+- `src/pages/PaymentQueue.tsx` — เพิ่ม mutation `markVendorBillPaid` / `markVoucherPaid`: upload ผ่าน `buildUploadPath("payment-slips", ...)` ไป bucket `receipts`, อัปเดต `vendor_invoices` (`status='paid'`, `paid_at`, `payment_slip_url`) และ insert `expenses` (gross, vat_amount, wht_amount, is_cash=false, receipt_url) เมื่อยังไม่มี `matched_expense_id`; วนทุกบิล/ใบทีมงานในกรณี voucher
+- ไม่แตะทริกเกอร์วันที่/archive, ไม่เรียก FlowAccount API
