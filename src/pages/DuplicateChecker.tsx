@@ -74,7 +74,7 @@ export default function DuplicateChecker() {
   const totalGroups = groups[0]?.total_groups ?? 0;
   const totalPages = Math.max(1, Math.ceil(Number(totalGroups) / PAGE_SIZE));
 
-  const switchMode = (m: "exact" | "recurring") => {
+  const switchMode = (m: DuplicateMode) => {
     setMode(m);
     setPage(1);
     setSelectedIds(new Set());
