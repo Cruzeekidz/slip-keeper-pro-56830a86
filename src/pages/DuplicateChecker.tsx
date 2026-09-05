@@ -39,8 +39,10 @@ interface DuplicateGroup {
 
 const PAGE_SIZE = 25;
 
+type DuplicateMode = "exact" | "recurring" | "grossnet";
+
 export default function DuplicateChecker() {
-  const [mode, setMode] = useState<"exact" | "recurring">("exact");
+  const [mode, setMode] = useState<DuplicateMode>("exact");
   const [days, setDays] = useState<number>(90);
   const [hideRecurring, setHideRecurring] = useState(true);
   const [page, setPage] = useState(1);
