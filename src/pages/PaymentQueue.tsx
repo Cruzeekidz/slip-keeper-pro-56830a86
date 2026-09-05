@@ -1261,10 +1261,10 @@ const PaymentQueue = () => {
                               <Button
                                 size="sm"
                                 className="flex-1"
-                                onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "paid" })}
-                                disabled={vendorBillActionMutation.isPending}
-                              >
-                                <Banknote className="h-4 w-4 mr-1" />บันทึกว่าจ่ายแล้ว
+                                 onClick={() => setVendorPayDialog(b)}
+                                 disabled={markVendorBillPaidMutation.isPending}
+                               >
+                                 <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                               <Button
                                 variant="outline"
