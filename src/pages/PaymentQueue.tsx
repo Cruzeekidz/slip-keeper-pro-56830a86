@@ -169,6 +169,107 @@ const PaymentQueue = () => {
     onError: (err: any) => toast({ title: err.message || "เกิดข้อผิดพลาด", variant: "destructive" }),
   });
 
+  /**
+   * จ่ายบิลคู่ค้า + แนบสลิปโอน (แบบเดียวกับการจ่ายทีมงาน)
+   * - อัปโหลดสลิปเก็บตามปี/เดือน
+   * - ถ้าบิลอยู่ในใบสรุปการจ่าย (P####) จะตัดจ่ายทุกบิล/ใบทีมงานในชุดเดียวกัน
+   * - สร้างรายการค่าใช้จ่าย (ยอดรวม VAT) ให้อัตโนมัติ ถ้ายังไม่มีรายการผูกไว้
+   */
+  const markVendorBillPaidMutation = useMutation({
+    mutationFn: async ({ bill, slipFile }: { bill: any; slipFile: File }) => {
+      if (!user) throw new Error("ยังไม่ได้เข้าสู่ระบบ");
+      const ext = slipFile.name.split(".").pop() || "jpg";
+      const path = buildUploadPath("payment-slips", user.id, `${Date.now()}_${bill.id}.${ext}`);
+      const { error: uploadErr } = await supabase.storage.from("receipts").upload(path, slipFile, {
+        contentType: slipFile.type,
+      });
+      if (uploadErr) throw uploadErr;
+
+      const paidAt = new Date().toISOString();
+      const today = paidAt.split("T")[0];
+
+      // รวบรวมบิลที่ต้องตัดจ่าย
+      let bills: any[] = [bill];
+      if (bill.voucher_id) {
+        const { data: groupBills } = await supabase
+          .from("vendor_invoices")
+          .select("id, receipt_no, invoice_number, description, amount, vat_amount, wht_amount, wht_rate, net_amount, matched_expense_id, vendor_id, vendor_profiles(company_name)")
+          .eq("voucher_id", bill.voucher_id);
+        if (groupBills?.length) bills = groupBills as any[];
+      }
+
+      for (const b of bills) {
+        let expenseId: string | null = b.matched_expense_id ?? null;
+
+        if (!expenseId) {
+          const base = Number(b.amount) || 0;
+          const vat = Number(b.vat_amount) || 0;
+          const wht = Number(b.wht_amount) || 0;
+          const vendorName = (b as any).vendor_profiles?.company_name || bill.vendor_profiles?.company_name || bill.submitted_via_line_display_name || null;
+          const { data: newExpense, error: expErr } = await supabase
+            .from("expenses")
+            .insert({
+              user_id: user.id,
+              amount: base + vat,
+              vat_amount: vat,
+              vat_rate: vat > 0 && base > 0 ? 7 : 0,
+              wht_amount: wht,
+              wht_rate: Number(b.wht_rate) || 0,
+              category: "ธุรกิจ",
+              subcategory: "Vendor",
+              description: `จ่ายบิลคู่ค้า - ${vendorName || "ไม่ระบุคู่ค้า"} ${b.description || ""}`.trim(),
+              expense_date: today,
+              transaction_direction: "EXPENSE",
+              transaction_type: "BUSINESS",
+              receiver: vendorName,
+              is_cash: false,
+              receipt_url: path,
+              memo_text: `${b.receipt_no || b.invoice_number || ""} — ยอดรวม ${(base + vat).toLocaleString()} / โอน ${Number(b.net_amount || base + vat - wht).toLocaleString()}`.trim(),
+            } as any)
+            .select("id")
+            .single();
+          if (expErr) throw expErr;
+          expenseId = newExpense?.id ?? null;
+        }
+
+        const { error: updErr } = await supabase
+          .from("vendor_invoices")
+          .update({
+            status: "paid",
+            paid_at: paidAt,
+            payment_slip_url: path,
+            matched_expense_id: expenseId,
+          } as any)
+          .eq("id", b.id);
+        if (updErr) throw updErr;
+      }
+
+      // ใบทีมงานที่อยู่ในใบสรุปเดียวกัน + ตัวใบสรุปเอง
+      if (bill.voucher_id) {
+        await supabase
+          .from("staff_invoices")
+          .update({ status: "paid", paid_at: paidAt, payment_slip_url: path } as any)
+          .eq("voucher_id", bill.voucher_id)
+          .neq("status", "paid");
+        await supabase
+          .from("payment_vouchers")
+          .update({ status: "paid", paid_date: today, payment_slip_url: path } as any)
+          .eq("id", bill.voucher_id);
+      }
+
+      return { count: bills.length };
+    },
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ["payment-queue-vendor-bills"] });
+      queryClient.invalidateQueries({ queryKey: ["payment-queue"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["expenses"] });
+      setVendorPayDialog(null);
+      toast({ title: `✅ บันทึกการจ่าย + แนบสลิปแล้ว (${res?.count || 1} รายการ)` });
+    },
+    onError: (err: any) => toast({ title: "บันทึกไม่สำเร็จ", description: err.message, variant: "destructive" }),
+  });
+
   // รวมหลายบิลเป็นใบสรุปการจ่าย (P00xx) — ใช้ตัดจ่ายทีเดียวด้วย @P00xx
   const createVoucherMutation = useMutation({
     mutationFn: async ({ bills, staffInvoices }: { bills: any[]; staffInvoices: any[] }) => {
