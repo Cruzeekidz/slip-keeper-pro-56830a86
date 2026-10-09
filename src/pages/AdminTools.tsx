@@ -71,6 +71,7 @@ const AdminTools = () => {
         { label: "จัดการอีเวนท์", icon: Settings, onClick: () => navigate("/event-management") },
         { label: "รหัสงานที่ใช้ได้ตอนนี้ (@CODE)", icon: Tags, onClick: () => navigate("/event-codes") },
         { label: "ค้นข้อมูลคู่ค้าก่อนโอนเงิน", icon: Search, onClick: () => navigate("/vendor-lookup") },
+        { label: "ลิสต์บัญชีคู่ค้า", icon: Wallet, onClick: () => navigate("/vendor-management") },
         { label: "บัญชีธนาคาร", icon: Database, onClick: () => navigate("/bank-accounts") },
         { label: "Forward สลิป", icon: Send, onClick: () => navigate("/forward-management") },
         { label: "แปลงข้อมูล (Migration)", icon: Database, onClick: () => navigate("/data-migration") },
