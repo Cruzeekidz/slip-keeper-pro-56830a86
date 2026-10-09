@@ -201,8 +201,8 @@ export default function LinkSlipToBillSheet({ bill, onOpenChange }: Props) {
                   </div>
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={async () => {
-                      const url = await getReceiptFileUrl(e.receipt_url);
-                      if (url) window.open(url, "_blank");
+                      const res = await getReceiptFileUrl(e.receipt_url);
+                      if (res?.url) window.open(res.url, "_blank");
                       else toast({ title: "เปิดสลิปไม่สำเร็จ", variant: "destructive" });
                     }}>
                       <Eye className="h-4 w-4 mr-1" />ดูสลิป
