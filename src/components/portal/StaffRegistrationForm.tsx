@@ -192,7 +192,7 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
             </div>
           </div>
           <div>
-            <Label>เลขบัตรประชาชน (13 หลัก)</Label>
+            <Label>เลขบัตรประชาชน (13 หลัก) *</Label>
             <Input value={form.tax_id} onChange={(e) => setForm({ ...form, tax_id: e.target.value })} placeholder="x-xxxx-xxxxx-xx-x" maxLength={17} />
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -227,7 +227,7 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
           </div>
 
           <div>
-            <Label>อัพโหลดหน้าบัตรประชาชน</Label>
+            <Label>อัพโหลดหน้าบัตรประชาชน *</Label>
             <div className="mt-1">
               <label className="flex items-center gap-2 cursor-pointer border border-dashed rounded-lg p-4 hover:bg-muted/50 transition-colors">
                 <Upload className="h-5 w-5 text-muted-foreground" />
