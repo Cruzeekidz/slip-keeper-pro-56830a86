@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { formatBaht } from "@/lib/amount-model";
-import { openReceiptFile } from "@/lib/receipt-file";
+import { getReceiptFileUrl } from "@/lib/receipt-file";
 import { Link2, Eye, Loader2 } from "lucide-react";
 
 interface Props {
@@ -200,7 +200,11 @@ export default function LinkSlipToBillSheet({ bill, onOpenChange }: Props) {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => openReceiptFile(e.receipt_url)}>
+                    <Button variant="outline" size="sm" onClick={async () => {
+                      const url = await getReceiptFileUrl(e.receipt_url);
+                      if (url) window.open(url, "_blank");
+                      else toast({ title: "เปิดสลิปไม่สำเร็จ", variant: "destructive" });
+                    }}>
                       <Eye className="h-4 w-4 mr-1" />ดูสลิป
                     </Button>
                     <Button size="sm" className="flex-1" disabled={!!linking} onClick={() => link(e)}>
