@@ -262,11 +262,12 @@ const StaffManagement = () => {
                           onCheckedChange={toggleAll}
                         />
                       </TableHead>
-                      <TableHead className="w-[22%]">ชื่อ</TableHead>
-                      <TableHead className="w-[10%] hidden md:table-cell">ชื่อเล่น</TableHead>
-                      <TableHead className="w-[14%] hidden lg:table-cell">ตำแหน่ง</TableHead>
-                      <TableHead className="w-[12%] text-right">ค่าแรง/วัน</TableHead>
-                      <TableHead className="w-[20%] hidden md:table-cell">ธนาคาร</TableHead>
+                      <TableHead className="w-[20%]">ชื่อ</TableHead>
+                      <TableHead className="w-[13%] hidden md:table-cell">เลขบัตรประชาชน</TableHead>
+                      <TableHead className="w-[9%] hidden md:table-cell">ชื่อเล่น</TableHead>
+                      <TableHead className="w-[12%] hidden lg:table-cell">ตำแหน่ง</TableHead>
+                      <TableHead className="w-[11%] text-right">ค่าแรง/วัน</TableHead>
+                      <TableHead className="w-[16%] hidden md:table-cell">ธนาคาร</TableHead>
                       <TableHead className="w-[8%] text-center hidden sm:table-cell">บัตร</TableHead>
                       <TableHead className="w-[10%] hidden sm:table-cell">สถานะ</TableHead>
                       <TableHead className="w-[120px] text-right">จัดการ</TableHead>
@@ -282,8 +283,8 @@ const StaffManagement = () => {
                           />
                         </TableCell>
                         <TableCell className="font-medium">
-                          <div className="flex items-center gap-1.5 truncate">
-                            <span className="truncate">{s.staff_name}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="break-words whitespace-normal">{s.staff_name}</span>
                             {s.line_user_id ? (
                               <Badge variant="default" className="h-5 px-1.5 text-[10px] bg-green-600 hover:bg-green-600">LINE</Badge>
                             ) : (
