@@ -320,6 +320,7 @@ const VendorManagement = () => {
     toast({ title: "คัดลอก path แล้ว", description: `${previewBucket}/${previewPath}` });
   };
 
+  const [accountsOpen, setAccountsOpen] = useState(false);
   const unlinkedCount = invoices.filter((i) => !i.vendor_id).length;
 
   const filteredVendors = vendors.filter((v) =>
@@ -346,6 +347,9 @@ const VendorManagement = () => {
           <Building2 className="h-6 w-6" />
           <h1 className="text-lg font-bold">จัดการคู่ค้า & บิล</h1>
           <Badge variant="secondary" className="ml-auto">{vendors.length} คู่ค้า / {invoices.length} บิล</Badge>
+          <Button size="sm" variant="secondary" onClick={() => setAccountsOpen(true)}>
+            <Wallet className="h-4 w-4 mr-1" /> ลิสต์บัญชี
+          </Button>
         </div>
       </header>
 
@@ -1030,6 +1034,38 @@ const VendorManagement = () => {
           <DialogFooter>
             <Button variant="outline" onClick={copyQuickLinkUrl}>คัดลอกลิงก์ให้คู่ค้าเชื่อมเอง</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={accountsOpen} onOpenChange={setAccountsOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Wallet className="h-5 w-5" /> ลิสต์บัญชีคู่ค้า</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {[...vendors]
+              .sort((a, b) => Number(!!b.bank_account) - Number(!!a.bank_account) || a.company_name.localeCompare(b.company_name))
+              .map((v) => (
+                <div key={v.id} className="flex items-center justify-between gap-2 p-3 rounded-lg bg-muted/50">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{v.company_name}</p>
+                    {v.bank_name && v.bank_account ? (
+                      <p className="text-sm font-mono text-muted-foreground">🏦 {v.bank_name}: {v.bank_account}</p>
+                    ) : (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">⚠️ ยังไม่มีเลขบัญชี — ติดต่อคู่ค้าก่อนโอน</p>
+                    )}
+                  </div>
+                  {v.bank_account && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => copyAccount(v.bank_account!)}>
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+              ))}
+            {vendors.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">ยังไม่มีคู่ค้า</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
