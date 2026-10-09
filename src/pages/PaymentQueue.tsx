@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, Copy, Check, Banknote, Upload, ImageIcon, CreditCard, Building2, Receipt, CheckCircle2, XCircle, FileText, Pencil, Send, Search, ExternalLink, CalendarClock, Plus } from "lucide-react";
 import AdminVendorBillSheet from "@/components/payment/AdminVendorBillSheet";
 import VendorBillPaySheet from "@/components/payment/VendorBillPaySheet";
+import LinkSlipToBillSheet from "@/components/payment/LinkSlipToBillSheet";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -103,6 +104,7 @@ const PaymentQueue = () => {
   const [selectedStaffInvoiceIds, setSelectedStaffInvoiceIds] = useState<string[]>([]);
   const [paySheetBill, setPaySheetBill] = useState<any | null>(null);
   const [vendorPayDialog, setVendorPayDialog] = useState<any | null>(null);
+  const [linkSlipBill, setLinkSlipBill] = useState<any | null>(null);
   const vendorFileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: pendingInvoices = [], isLoading } = useQuery({
@@ -1267,7 +1269,15 @@ const PaymentQueue = () => {
                                  <Upload className="h-4 w-4 mr-1" />จ่ายแล้ว + แนบสลิป
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="secondary"
+                                size="sm"
+                                className="flex-1"
+                                onClick={() => setLinkSlipBill(b)}
+                              >
+                                <Receipt className="h-4 w-4 mr-1" />ผูกสลิปจากไลน์
+                              </Button>
+                              <Button
+                                 variant="outline"
                                 size="sm"
                                 className="flex-1 border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
                                 onClick={() => vendorBillActionMutation.mutate({ id: b.id, action: "reject" })}
@@ -1493,6 +1503,7 @@ const PaymentQueue = () => {
       </main>
       <AdminVendorBillSheet open={adminBillOpen} onOpenChange={setAdminBillOpen} />
       <VendorBillPaySheet bill={paySheetBill} onOpenChange={(o) => { if (!o) setPaySheetBill(null); }} />
+      <LinkSlipToBillSheet bill={linkSlipBill} onOpenChange={(o) => { if (!o) setLinkSlipBill(null); }} />
     </div>
   );
 };

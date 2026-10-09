@@ -225,7 +225,7 @@ export default function VendorBillPaySheet({ bill, onOpenChange }: Props) {
           {bill?.receipt_no && (
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
               โอนแล้วให้ใส่ <span className="font-mono font-bold">@{bill.receipt_no}</span> ในช่องบันทึกช่วยจำของสลิป
-              แล้วส่งสลิปเข้าไลน์ ระบบจะตัดจ่ายบิลใบนี้ให้เอง หรือกด "จ่ายแล้ว + แนบสลิป" ในหน้ารอจ่ายก็ได้
+              แล้วส่งสลิปเข้าไลน์ ระบบจะตัดจ่ายบิลใบนี้ให้เอง — ถ้าลืมใส่รหัส ส่งสลิปเข้าไลน์ได้เลย แล้วมากด "ผูกสลิปจากไลน์" ในหน้ารอจ่ายทีหลัง
             </div>
           )}
 
