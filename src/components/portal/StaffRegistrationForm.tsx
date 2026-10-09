@@ -62,6 +62,23 @@ const StaffRegistrationForm = ({ lineUserId, lineDisplayName, ownerId: ownerIdPr
       toast({ title: "กรุณากรอกชื่อและเบอร์โทร", variant: "destructive" });
       return;
     }
+    const taxIdDigits = form.tax_id.replace(/[^0-9]/g, "");
+    if (taxIdDigits.length !== 13) {
+      toast({
+        title: "กรุณากรอกเลขบัตรประชาชน 13 หลัก",
+        description: "ต้องเป็นตัวเลข 13 หลักเท่านั้น",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!idCardFile) {
+      toast({
+        title: "กรุณาแนบสำเนาบัตรประชาชน",
+        description: "อัพโหลดรูปหน้าบัตรประชาชนเพื่อยืนยันตัวตน",
+        variant: "destructive",
+      });
+      return;
+    }
     const phoneDigits = form.phone.replace(/[^0-9]/g, "");
     if (phoneDigits.length !== 10 || !phoneDigits.startsWith("0")) {
       toast({

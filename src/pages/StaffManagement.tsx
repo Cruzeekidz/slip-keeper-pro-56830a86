@@ -301,6 +301,7 @@ const StaffManagement = () => {
                             {[s.nickname, s.position].filter(Boolean).join(" • ") || ""}
                           </div>
                         </TableCell>
+                        <TableCell className="hidden md:table-cell whitespace-nowrap font-mono text-xs">{s.tax_id || "-"}</TableCell>
                         <TableCell className="hidden md:table-cell truncate">{s.nickname || "-"}</TableCell>
                         <TableCell className="hidden lg:table-cell truncate">{s.position || "-"}</TableCell>
                         <TableCell className="text-right whitespace-nowrap">{s.daily_rate.toLocaleString()}</TableCell>
